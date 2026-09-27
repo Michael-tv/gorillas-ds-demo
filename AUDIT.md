@@ -1,15 +1,130 @@
 # Repository audit — shortcomings & refactor plan
 
-Audit date: 2026-09-27 · Branch: `main` · DVC 3.67.1 · 76 stages (→ 77 with `filter_skewed`,
-then far fewer once the model matrices are cut)
+Audit date: 2026-09-27 · Audited at `5ce27f3` · DVC 3.67.1 · 76 stages (→ 77 with
+`filter_skewed`, then far fewer once the model matrices are cut)
+Last updated: 2026-09-27 on branch `audit/phase-1` (§0)
 
 **Rescanned 2026-09-27 after the QBasic Gorillas integration** — a second data producer,
 `params.yaml: training_data`, and `params.data_path()`. See §5 and Phase 1b. Two earlier
 recommendations were wrong and are corrected: purging `qbasic_gorillas/` (§3, C8, task 30)
 and the no-remote decision.
 
-**Health score: 4 / 10.** The architecture is well-conceived; it has never been executed
-end-to-end, and the reproducibility layer is load-bearing in name only.
+**Health score: 4 / 10 at audit time; 5 / 10 as of the 2026-09-27 update.** The architecture is
+well-conceived; it has never been executed end-to-end, and the reproducibility layer is
+load-bearing in name only. Two of the seven critical risks (#3, #4) are now closed, which is
+what moves the score — but risk #2 (the pipeline has never been reproduced) is untouched, and
+that is the one gating everything in phases 6–9.
+
+**Implementation status — updated 2026-09-27, branch `audit/phase-1`.** Three tasks are done
+and verified: **1** (metrics tracking), **2** (deterministic generation) and **32** (Gorillas
+group key). That covers all of Phase 1 as originally written, plus the first blocking task of
+Phase 1b; tasks 33–39 and everything from Phase 2 onward are untouched. **§0** records what was
+verified and how, three claims in this audit that the work proved wrong, and four new findings
+the work exposed. Each completed task's checkbox in the Plan carries its own note.
+
+---
+
+## 0. Implementation log
+
+Updated **2026-09-27**. Commits on `audit/phase-1`, over baseline `5ce27f3` (the reorg commit
+this audit was written against).
+
+### Done and verified
+
+**Task 1 — metrics tracking** (`846fed2`). The blanket `model_*.joblib` / `metrics_*.csv` globs
+in `.gitignore` are replaced by a single scoped `experiments/**/model_*.joblib`. Verified:
+`git ls-files experiments/` now returns **10** metrics files (was 0);
+`git check-ignore` still catches `model_linear_regression.joblib` and no longer catches any
+`metrics_*.csv`. **Risk #3 closed** — `dvc metrics diff` and `dvc exp show` can now compare
+across commits.
+
+**Task 2 — deterministic generation** (`6f8960d`). `sampling.py`, `outliers.py` and the
+`build_row` callback contract all take an explicit `rng: random.Random`; `generate(n, seed, …)`
+builds its own `random.Random(seed)` and threads it through. No module in the repo draws from
+the global `random` singleton any more (grep-verified). The five rejection loops are capped at
+`MAX_REJECTION_ATTEMPTS = 10_000` behind a `_bounded()` helper raising `UnreachableRangeError`.
+Verified by running it: `generate(300, 42)` three times — once cleanly, once after
+`random.seed(999)` plus 50 draws from the singleton, once mid-stream — gives three
+`DataFrame.equals()`-identical frames, and seed 43 differs. `gauss(100.0, 1.0)` and
+`gauss(1000.0, 1.0)` against `ELEVATION_RANGE` both raise `UnreachableRangeError` instead of
+hanging. **Risk #4 closed** for the Python pool (the Gorillas pool is task 33, still open).
+The commit also fixed a latent bug it surfaced: `gorillas.py` was calling `corrupt_row` without
+an rng.
+
+**Task 32 — Gorillas group key** (`eb839fd`). `generate.COLUMNS` gains a 14th column,
+`group_id`, appended after `is_outlier` so every positional index (`MASS_COLUMN_INDEX`, the
+`row[:11]` / `row[12]` slicing in both producers) is unaffected. The Python path assigns each
+row its own id — correct, not a stub, since `sample_shot` draws every input independently;
+verified `nunique() == len(df)`. The Gorillas path builds `f"{chunk_seed}_{board}"` in
+`_to_contract`, and `_dump_raw` now emits `chunk_seed` and `group_id` columns in the raw log
+too, recovered from a `CHUNKSEED.TXT` the worker writes. `_check_contract` asserts `group_id`
+is present and non-empty and warns below 2 distinct groups. The commit also fixed a real
+scoping bug on the way: the `ThreadPoolExecutor` futures list had lost its association with
+`chunk_seeds`, so the completion loop could not tell which chunk a finished future's rows came
+from — futures are now `(chunk_seed, future)` pairs.
+
+The Python side of task 32 is run-verified; **the Gorillas side is code-verified only** —
+DOSBox is Windows-only here (§5.3), so `generate_gorillas` cannot execute in a Linux checkout.
+Re-verify on the Windows machine that every `group_id` in `data/gorillas_*.parquet` has a single
+`wind_speed_ms` — the check that read "25 of 25 broken" in §5.1.
+
+### Corrections to this audit's own claims
+
+**Risk #2's "1 stage of 76" was already wrong when written.** `dvc.lock` records **4** stages:
+`generate@standard_training_data`, both `generate_gorillas@*`, and `train_raw@linear_regression`
+— all four locked by the 2026-09-27 Gorillas session, i.e. present in the baseline commit and
+not produced by any task above. The substance of the risk stands: 4 of 76 is not a reproduced
+pipeline, and everything in `experiments/` still predates DVC.
+
+**`dvc.lock` does not match the committed tree, independently of any task here.** Its
+`generate@standard_training_data` entry records `physics.py` at md5 `925f0308…`, size 1988;
+the committed `physics.py` is `56b7376f…`, size 1935, and has not changed since the initial
+commit. So the lock was written from a local tree that differed from what was pushed, and
+`dvc status` reports that stage stale on a fresh clone — before considering code changes.
+Task 12 should treat all four entries as untrustworthy rather than incrementally valid.
+
+**`elevation_mean: 100.0` never hung the stage.** Task 2's stated evidence — "legal YAML,
+unreachable against `ELEVATION_RANGE = (5.0, 85.0)` — hangs the stage forever" — does not
+reproduce. Measured against the default `elevation_std: 20.0`, an accepted draw takes **4.7
+attempts on average** (max 29 over 200 trials). The cap was still worth adding, but the failure
+mode it guards is narrower than claimed, and the real hazard is the one in the new findings
+below.
+
+### New findings
+
+**N1 — the rejection cap has a silent middle band** (new task **2b**). `_bounded` either
+returns quickly or raises after 10,000 attempts; between those lies a wide band that does
+neither. Measured against `ELEVATION_RANGE`:
+
+```
+gauss(45.0, 20.0)  →     1.1 attempts   (the configured default)
+gauss(100.0, 20.0) →     4.7 attempts   — the config task 2 called "unreachable"
+gauss(100.0,  5.0) →   694.4 attempts   — ~600x the sampling cost, completes silently
+gauss(100.0,  2.0) → 10,000 attempts    — raises
+```
+
+At `(100.0, 20.0)` the accepted draws have mean **73.4°** and **30%** sit at ≥80°, i.e. piled
+against the clip bound: the marginal is silently a truncated tail rather than the Gaussian the
+config names, and nothing in the output says so. This is the §1.1 realism problem arriving
+through the config rather than the code.
+
+**N2 — `group_id` reaches the parquet but not the split** (folded into task **36**).
+`loader.load_data` ends `X = df[FEATURES]; y = df[TARGET].values`, and `FEATURES` is the 9 raw
+columns — so `group_id` is dropped before it reaches any caller. Task 32 made the key exist;
+task 36 additionally needs the loader to return it (or return the frame and let the caller
+project) — a scope the original task text omitted, now recorded there.
+
+**N3 — chunk seeds can collide across gravity sessions** (folded into task **32**).
+`gorillas.generate` draws chunk seeds for both plan entries — the normal session and the
+out-of-distribution-gravity session — from the same `rng.randint(1, 30000)` stream. A repeat
+within one session is benign (same seed ⇒ same boards ⇒ genuinely one group), but a repeat
+*across* the two merges rows thrown under **different gravity** into one `group_id`. Roughly
+0.6% at ~20 chunks total, and the fix is one string: include the plan tag or a chunk counter
+in the key.
+
+**N4 — task 32 made "13 columns" stale in the docs.** The contract is 14 columns now.
+Corrected in this file; `data_generation/gorillas.py:3` still says "the same 13 columns" and
+belongs in task 31's doc-drift list.
 
 ---
 
@@ -72,8 +187,9 @@ The skewed models train on a filtered subset of the same pool, produced by a
 ### Two producers, one contract, selected by name
 
 `data_generation/generate.py` (RK4 in `physics.py`) and `data_generation/gorillas.py`
-(the real 1990 game, driven through DOSBox) both emit the same 13 columns, so either can fill
-the training slot. `params.yaml: training_data` names which pool every consumer reads, resolved
+(the real 1990 game, driven through DOSBox) both emit the same 14 columns (13 until task 32
+appended `group_id`), so either can fill the training slot. `params.yaml: training_data` names
+which pool every consumer reads, resolved
 by `params.data_path()`; the training stages take it as a `params:` entry and interpolate it
 into `deps: data/${training_data}.parquet`.
 
@@ -100,15 +216,17 @@ least these four outputs somewhere (task 34).
 
 ## Critical risks
 
-| # | Risk | Evidence |
-|---|---|---|
-| 1 | **19 of 76 stages cannot run.** All 17 `train_skewed@*` die on `ImportError: cannot import name 'FEATURE_STEP'`; `train_raw@decision_tree_overfit_no_outlier` and its `train_eng` twin write the wrong metrics filename, so DVC errors on a missing output. | reproduced |
-| 2 | **The pipeline has never been reproduced.** [dvc.lock](dvc.lock) records 1 stage of 76. Every model in `experiments/` was produced outside DVC and is unattributable. | [dvc.lock](dvc.lock) |
-| 3 | **Every metrics file is tracked by neither Git nor DVC.** `metrics_*.csv` is declared `cache: false` — "Git owns this" — but gitignored at [.gitignore:220](.gitignore#L220). `git ls-files experiments/` returns 0. This disables `dvc metrics diff` and `dvc exp show` across commits. | `git check-ignore` |
-| 4 | **Generation is not deterministic, and is the only recovery path.** `generate()` does not self-seed: two seeded calls match, a third unseeded call diverges. With no remote, nothing ties the committed models to the pool that produced them. | [generate.py:64](data_generation/generate.py#L64) |
-| 5 | **Test-set leakage in the shared regression loader.** Cleaning — including IQR quantiles over the full pool and target-based row filtering — runs *before* `train_test_split`. | [loader.py:86-98](models/regression/common/loader.py#L86) |
-| 6 | **No tests, no type hints, no logging.** 82 function defs, 0 return annotations, 320 `print()`, 0 `import logging`, no pytest/ruff config, empty `[dev-packages]`. | measured |
-| 7 | **No CLAUDE.md.** Nothing records the venv path, the DVC commands, that DOSBox is required for `generate_gorillas`, or which stages are known-broken. | absent |
+Status as of the 2026-09-27 update (§0).
+
+| # | Risk | Evidence | Status |
+|---|---|---|---|
+| 1 | **19 of 76 stages cannot run.** All 17 `train_skewed@*` die on `ImportError: cannot import name 'FEATURE_STEP'`; `train_raw@decision_tree_overfit_no_outlier` and its `train_eng` twin write the wrong metrics filename, so DVC errors on a missing output. | reproduced | **open** |
+| 2 | **The pipeline has never been reproduced.** [dvc.lock](dvc.lock) records **4** stages of 76 — corrected from "1" in §0; all four were locked before this audit's tasks began, and the lock does not even match the committed `physics.py`. Every model in `experiments/` was produced outside DVC and is unattributable. | [dvc.lock](dvc.lock) | **open** — gates phases 6–9 (task 12) |
+| 3 | **Every metrics file is tracked by neither Git nor DVC.** `metrics_*.csv` is declared `cache: false` — "Git owns this" — but gitignored at [.gitignore:220](.gitignore#L220). `git ls-files experiments/` returns 0. This disables `dvc metrics diff` and `dvc exp show` across commits. | `git check-ignore` | **closed** — task 1, `846fed2`; 10 metrics files now tracked |
+| 4 | **Generation is not deterministic, and is the only recovery path.** `generate()` does not self-seed: two seeded calls match, a third unseeded call diverges. With no remote, nothing ties the committed models to the pool that produced them. | [generate.py:64](data_generation/generate.py#L64) | **closed for the Python pool** — task 2, `6f8960d`, verified by re-running. Still open for the Gorillas pools (task 33) |
+| 5 | **Test-set leakage in the shared regression loader.** Cleaning — including IQR quantiles over the full pool and target-based row filtering — runs *before* `train_test_split`. | [loader.py:86-98](models/regression/common/loader.py#L86) | **open** |
+| 6 | **No tests, no type hints, no logging.** 82 function defs, 0 return annotations, 320 `print()`, 0 `import logging`, no pytest/ruff config, empty `[dev-packages]`. | measured | **open** — re-verified: no `pyproject.toml`, no `tests/`, `[dev-packages]` still empty |
+| 7 | **No CLAUDE.md.** Nothing records the venv path, the DVC commands, that DOSBox is required for `generate_gorillas`, or which stages are known-broken. | absent | **open** — re-verified absent |
 
 ---
 
@@ -189,21 +307,25 @@ trains on these.
 
 ### 1.3 Determinism & reproducibility
 
-- **`generate()` does not seed itself.** Only `__main__`
-  ([generate.py:64](data_generation/generate.py#L64)) and `generate_all.py` call
-  `random.seed()`. Verified: two seeded calls match, a third unseeded call diverges.
-- **Seeding is global-module action-at-a-distance.** `sampling.py`, `outliers.py` and
-  `generate.py` all draw from the `random` singleton. No injectable `random.Random(seed)`, so
-  the seed contract is invisible at every call site and parallelising generation would
-  silently break determinism. NumPy is never seeded — harmless *today* only because
-  generation is stdlib-only.
+- ~~**`generate()` does not seed itself.**~~ **Fixed — task 2 (`6f8960d`).** Was: only
+  `__main__` ([generate.py:64](data_generation/generate.py#L64)) and `generate_all.py` called
+  `random.seed()`, and a third unseeded call diverged. `generate(n, seed, …)` now builds its
+  own `random.Random(seed)`. Re-verified by running three same-seed calls with the global
+  singleton deliberately disturbed between them: all three identical.
+- ~~**Seeding is global-module action-at-a-distance.**~~ **Fixed — task 2.** Every draw in
+  `sampling.py`, `outliers.py` and the `build_row` callback now takes an explicit
+  `rng: random.Random`; no module draws from the `random` singleton (grep-verified). This is
+  also what unblocks task 24 (parallel generation). NumPy is still never seeded — harmless
+  *today* only because generation remains stdlib-only.
 - **Environment unpinned and untracked.** [Pipfile](Pipfile) pins every package to `"*"`, and
   no stage depends on `Pipfile.lock`. A `pipenv update` changes every model while
   `dvc status` reports clean. `params.py` is absent from all `deps` too.
-- **Unbounded rejection sampling.** The five `while True:` loops at
-  [sampling.py:58-78](data_generation/sampling.py#L58) have no cap. `elevation_mean: 100.0`
-  — legal YAML, unreachable against `ELEVATION_RANGE = (5.0, 85.0)` — hangs the stage forever
-  with no diagnostic.
+- ~~**Unbounded rejection sampling.**~~ **Fixed — task 2**, with a caveat. The five loops are
+  now one `_bounded()` helper capped at 10,000 attempts, raising `UnreachableRangeError` naming
+  the column and range. Two corrections from re-measuring it (§0): `elevation_mean: 100.0`
+  never hung — at the default `elevation_std: 20.0` an accepted draw takes 4.7 attempts — and
+  the cap leaves a silent middle band where a rarely-reachable range completes with a distorted
+  marginal instead of either running fast or failing. See finding **N1** and task **2b**.
 - **Throughput: 875 rows/s, single-core, serial.** One `simulate()` per row in pure Python at
   `dt=0.02`; 50,000 rows ≈ 57 s. Embarrassingly parallel, but blocked by the global `random`
   singleton — so fixing seeding and fixing throughput are one task.
@@ -424,27 +546,42 @@ Three things are right and worth keeping: the `workers` (performance) vs `boards
 on throws 1..N−1 through a variable in no column; and `_check_contract`, which is the schema
 assertion task 28 asks for, already written with the right "clean rows only" nuance.
 
-### 5.1 Group leakage, and the grouping key is discarded
+### 5.1 Group leakage — the key now exists (task 32), the split still ignores it
 
 Wind and the skyline are **per board**, shared by all 32 throws on it. A random
 `train_test_split` therefore puts throws from the same board on both sides, letting the model
 memorise board-specific structure — textbook group leakage, and a much bigger effect here
 than anything in §1.2.
 
-`_to_contract` emits `generate.COLUMNS` only, so **the parquet has no `board` column** —
-group-aware splitting is impossible downstream. Worse, the raw log cannot rescue it:
-`_dump_raw` concatenates every worker's CSV without a worker or chunk identifier, and board
-numbering restarts per session. Measured on `gorillas_effort_data_throws.csv`:
+**The key now exists — task 32 (`eb839fd`).** As audited, `_to_contract` emitted
+`generate.COLUMNS` only, so the parquet had no `board` column, and the raw log could not rescue
+it either: `_dump_raw` concatenated every worker's CSV without a worker or chunk identifier, and
+board numbering restarts per session. Measured then on `gorillas_effort_data_throws.csv`:
 
 ```
 8,000 rows · 25 distinct board values · 320 throws per "board"
 boards whose wind_ms is NOT single-valued: 25 of 25
 ```
 
-All 25 board numbers collide across sessions. There is currently **no way to reconstruct the
-true groups from either output**.
+`generate.COLUMNS` now carries a 14th column, `group_id`, set to `f"{chunk_seed}_{board}"` by
+`_to_contract`; `_dump_raw` writes `chunk_seed` and `group_id` into the raw log as well, read
+back from a `CHUNKSEED.TXT` each worker writes. Code-verified only — DOSBox is Windows-only
+(§5.3), so re-run the 25-of-25 wind check on the Windows machine to confirm it now reads 0.
 
-### 5.2 Determinism is timing-dependent
+**Two things remain before the leakage itself is fixed:**
+
+- **The split still cannot see the key** (finding N2). `loader.load_data` returns
+  `X = df[FEATURES]`, and `FEATURES` is the 9 raw columns, so `group_id` is dropped before any
+  caller can group on it. Task 36 needs the loader changed as well as the splitter.
+- **Chunk seeds can collide across the two gravity sessions** (finding N3), merging rows thrown
+  under different gravity into one `group_id`. ~0.6% at ~20 chunks; fixed by putting the plan
+  tag or a chunk counter in the key.
+
+### 5.2 Determinism is timing-dependent — **still open (task 33)**
+
+Re-verified unchanged after task 2: `keep = len(got) / thrown` still feeds `need` → `n_chunks`
+→ how many chunk seeds get drawn. Task 2 fixed the Python producer's determinism; this hole is
+in the Gorillas producer and is untouched.
 
 `_run_worker` catches `subprocess.TimeoutExpired` and proceeds with whatever partial CSV
 exists. The retry loop then computes `keep = len(got) / thrown` from rows actually returned,
@@ -508,8 +645,9 @@ different sampling value", the knob must fail loudly when it cannot be honoured.
 - **`drag_coeff` is constant at 0.600 on clean rows** — a zero-variance feature carried into
   every model. `_clean_iqr` skips it correctly (`iqr == 0`), but it is dead weight and will
   look broken in feature-importance plots. `drag_param` still varies through radius and mass.
-- **The raw throw logs are uncompressed CSV** — 1.9 MB and 2.4 MB, cached by DVC. Parquet
-  would be several times smaller and `pyarrow` is already a dependency.
+- **The raw throw logs are uncompressed CSV** — 1.9 MB and 2.4 MB, cached by DVC, and now two
+  columns wider after task 32. Parquet would be several times smaller and `pyarrow` is already
+  a dependency.
 - **`landing_height_m` is silently clipped at 0** when `land_dy_m` puts it below ground
   ([gorillas.py:286](data_generation/gorillas.py#L286)). Currently 0 rows are affected, and
   the code warns above 3 m — but the clip is a data modification that no column records.
@@ -541,34 +679,61 @@ repair** (don't unbreak stages you are about to cut, or fix files you are about 
 and **change the data before you invest in models** (task 2 alters the draw, so anything
 trained before it is thrown away).
 
-### Phase 1 — Make results recordable and the data recoverable
+Checkboxes are live: `[x]` means done and verified (see §0 for how), `[ ]` means untouched.
+**Done: 1, 2, 32.** Everything else below is open.
 
-- [ ] **1.** Fix metrics tracking. Replace the blanket `model_*.joblib` / `metrics_*.csv`
-      globs in [.gitignore:219-220](.gitignore#L219) with `/experiments/**/model_*.joblib`
-      only, so the `cache: false` metrics are versioned by Git as intended.
-- [ ] **2.** Make generation deterministic. Thread an explicit `rng: random.Random` through
-      `sample_shot` / `generate_rows` / `corrupt_row`; have `generate(n, ..., seed)` seed its
-      own generator instead of relying on the caller having seeded the `random` singleton.
-      Cap every rejection loop at N attempts and raise an error naming the unreachable range
-      ([sampling.py:58-78](data_generation/sampling.py#L58)). **This is the only thing
-      standing between "the Python pool is regenerable" and "the pool is gone if the cache
-      is."** It does not cover the Gorillas pools — see task 33.
+### Phase 1 — Make results recordable and the data recoverable — **1 and 2 done**
+
+(Task **2b** below is a new, non-blocking follow-up that task 2's own verification exposed; it
+does not hold up Phase 1b.)
+
+- [x] **1.** ~~Fix metrics tracking.~~ **Done — `846fed2`.** Replace the blanket
+      `model_*.joblib` / `metrics_*.csv` globs in `.gitignore` with `experiments/**/model_*.joblib`
+      only, so the `cache: false` metrics are versioned by Git as intended. Verified:
+      `git ls-files experiments/` returns 10 metrics files (was 0), the `.joblib` outputs are
+      still ignored, and nothing else was caught by accident. Closes risk #3.
+- [x] **2.** ~~Make generation deterministic.~~ **Done — `6f8960d`.** An explicit
+      `rng: random.Random` is threaded through `sample_shot` / `generate_rows` / `corrupt_row`;
+      `generate(n, seed, ...)` seeds its own generator; every rejection loop is capped at 10,000
+      attempts behind `_bounded()`, raising `UnreachableRangeError`. Verified by running it —
+      three same-seed calls with the global singleton disturbed between them are identical, and
+      a genuinely unreachable range raises instead of hanging. Closes risk #4 for the Python
+      pool; the Gorillas pools are still task 33. Also unblocks task 24.
+- [ ] **2b.** Make a *rarely*-reachable range as loud as an unreachable one (finding N1, new).
+      `_bounded` returns fast or raises at 10,000 attempts, and between those sits a band that
+      does neither: `gauss(100.0, 5.0)` against `ELEVATION_RANGE` averages 694 attempts per draw
+      (~600× the cost) and completes, and `gauss(100.0, 20.0)` completes in 4.7 with accepted
+      draws piled against the bound (mean 73.4°, 30% at ≥80°) — a silently truncated marginal,
+      not the Gaussian the config names. Warn when the observed acceptance rate falls below some
+      threshold, and record the realised distribution rather than only the configured one.
+      Cheap, and it is §1.1's realism problem arriving through the config instead of the code.
 
 ### Phase 1b — Make the Gorillas producer trustworthy (§5)
 
 Numbered 32–39 to keep tasks 1–31 stable; they belong here, not at the end. Tasks 32–35 are
 blocking-class: each one can silently produce wrong results or unrecoverable data.
 
-- [ ] **32.** Emit a real group key. Add a globally-unique board identifier — chunk seed plus
-      board number — to **both** the parquet and the raw log, and carry it through
-      `_to_contract`. Today the parquet has no `board` column at all, and in the raw dump board
-      numbers restart per session, so all 25 values appear with multiple `wind_ms` (25 of 25).
-      Without this, §5.1 cannot be fixed at all.
-- [ ] **33.** Close the timing-dependent determinism hole (§5.2). A worker timeout changes the
-      observed keep rate, which changes how many chunk seeds get drawn, which changes the
-      dataset for a fixed `--seed`. Either fail the run on timeout rather than accepting partial
-      output, or decouple the chunk plan from observed yield — draw a fixed chunk schedule from
-      `seed` and over-generate to a fixed margin instead of adapting.
+- [x] **32.** ~~Emit a real group key.~~ **Done — `eb839fd`.** `generate.COLUMNS` gains a 14th
+      column, `group_id`, appended after `is_outlier` so no positional index moves;
+      `_to_contract` sets `f"{chunk_seed}_{board}"`, `_dump_raw` writes `chunk_seed` and
+      `group_id` into the raw log, and `_check_contract` asserts the column is present and
+      non-empty. The Python path gives every row its own id, which is correct rather than a stub
+      because `sample_shot` draws independently per row. Python side run-verified; **Gorillas
+      side code-verified only** — DOSBox is Windows-only (§5.3), so re-run the 25-of-25
+      single-valued-`wind_ms` check there. Two follow-ups this left open:
+      - Finding **N3**: chunk seeds for the normal and gravity sessions come from one
+        `rng.randint(1, 30000)` stream, so a collision across the two merges rows thrown under
+        different gravity into one `group_id` (~0.6% at ~20 chunks). Put the plan tag or a chunk
+        counter in the key.
+      - Finding **N4**: `data_generation/gorillas.py:3` still says "the same 13 columns" — add it
+        to task 31's doc-drift list.
+- [ ] **33.** Close the timing-dependent determinism hole (§5.2). **Now the only open
+      blocking-class determinism gap** — task 2 closed the Python producer's, not this one. A
+      worker timeout changes the observed keep rate, which changes how many chunk seeds get
+      drawn, which changes the dataset for a fixed `--seed`. Either fail the run on timeout
+      rather than accepting partial output, or decouple the chunk plan from observed yield —
+      draw a fixed chunk schedule from `seed` and over-generate to a fixed margin instead of
+      adapting.
 - [ ] **34.** Add a DVC remote and push the four Gorillas outputs. They cannot be regenerated
       off this machine (§5.3), so the local cache is currently their only copy. This narrows
       the no-remote decision rather than reversing it: the Python pool still needs no remote.
@@ -577,8 +742,13 @@ blocking-class: each one can silently produce wrong results or unrecoverable dat
       changes the sample size 8× with no signal.
 - [ ] **36.** Use a group-aware split wherever the active pool has groups — `GroupShuffleSplit`
       / `GroupKFold` on the task-32 key instead of `train_test_split`, and `cv=GroupKFold` in
-      the searches. This is the largest leakage in the repo when a Gorillas pool is active, and
-      strictly larger than anything in §1.2.
+      the searches. **Task 32 supplied the key; this task also has to get it to the splitter**
+      (finding N2): `loader.load_data` returns `X = df[FEATURES]` over the 9 raw columns, so
+      `group_id` is dropped before any caller sees it. Either return groups as a third value or
+      return the frame and let the caller project. The Python pool's ids are unique per row, so
+      a group-aware split degrades to an ordinary random split there — correct, and it means the
+      same code path works for both producers. This is the largest leakage in the repo when a
+      Gorillas pool is active, and strictly larger than anything in §1.2.
 - [ ] **37.** Handle the 5–7% hit rate (§5.4). Add `class_weight="balanced"` /
       `scale_pos_weight`, and lead the classification metrics with precision/recall/PR-AUC
       rather than accuracy. Worth building the talk around: predicting all-miss scores 93–95%,
@@ -740,6 +910,14 @@ Phases 1 through 5 — tasks 1, 2, 32–39, 3, 4, 4b, 4c, then 5–12 in order �
 it." Tasks 5 and 36 are the only substantial refactors in that stretch; the rest are small or
 pure deletion. Nothing in phases 6–9 is worth starting before task 12, because until then there
 is no reliable way to observe whether a change helped.
+
+**Where that leaves the run as of 2026-09-27:** tasks 1, 2 and 32 are done, so results are
+recordable, the Python pool is genuinely regenerable, and the Gorillas group key exists. Next in
+order are **33** (the last blocking-class determinism gap) and **34–35**, then the Phase 2
+deletions before any of the Phase 3 refactors. Note that task 2 changed the draw exactly as this
+plan predicted: all four `dvc.lock` entries are now stale — every generation dep's md5 differs
+from what the lock records — so the pre-existing models are throwaway and task 12 starts from
+scratch rather than topping up a partial lock.
 
 If the talk is going to use a Gorillas pool at all, tasks 32 and 36 come before any model
 result is worth quoting: with 32 throws sharing a board's wind and skyline, a random split
