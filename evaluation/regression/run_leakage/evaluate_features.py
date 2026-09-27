@@ -7,7 +7,11 @@ from feature_engineering import add_engineered_columns
 from feature_evaluation import evaluate, plot_features, plot_outliers
 from train_utils import DATA, FEATURES, TARGET, N_SAMPLES
 
-df = add_engineered_columns(pd.read_parquet(DATA)).sample(n=N_SAMPLES, random_state=42).reset_index(drop=True)
+import params  # train_utils put the repo root on sys.path
+
+# Prefix, not a random sample -- same rows the run trains on (AUDIT.md task 4b).
+df = add_engineered_columns(
+    params.take_samples(pd.read_parquet(DATA), N_SAMPLES)).reset_index(drop=True)
 
 evaluate(df, FEATURES, TARGET, label="run_leakage")
 plot_features(df, FEATURES, TARGET, label="run_leakage")
