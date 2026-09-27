@@ -16,13 +16,15 @@ what moves the score — but risk #2 (the pipeline has never been reproduced) is
 that is the one gating everything in phases 6–9.
 
 **Implementation status — updated 2026-09-27, branch `audit/phase-1`.** Done and verified:
-**1** (metrics tracking), **2** (deterministic generation), **32** (Gorillas group key), **33**
-(timing-independent chunk plan), **35** (`n_samples` fails loudly), **38** (one dataset contract,
-checked on write and on read) and **2b** (rare-range warning). **34** is blocked on choosing a
-remote. **Task 13 should not be implemented as written** — measurement disproved its premise
-(§0). That leaves **34** and **36–37, 39** open in Phase 1b, and everything from Phase 2 onward
-untouched. **§0** records what was verified and how, the five claims in this audit that the work
-proved wrong, and the findings it exposed. Each completed task's checkbox carries its own note.
+**1** (metrics tracking), **2** + **2b** (deterministic generation, rare-range warning), **32**
+(Gorillas group key), **33** (timing-independent chunk plan), **35** (`n_samples` fails loudly),
+**36** (group-aware splits and CV), **38** (one dataset contract, checked on write and on read),
+and **4b**'s deletion half (18 stale size-tier directories, 30 files). **34** is blocked on
+choosing a remote — the one thing here only the repo owner can supply. **Task 13 is withdrawn**:
+measurement disproved its premise, and **13b** replaces it (§0). Open in Phase 1b: **34**, **37**,
+**39**, plus 4b's second half. Everything from Phase 2 onward is untouched apart from that
+deletion. **§0** records what was verified and how, the claims in this audit the work proved
+wrong, and the findings it exposed. Each completed task's checkbox carries its own note.
 
 ---
 
@@ -101,6 +103,45 @@ shared loaders read through it. The read side is the half that was missing and i
 a simulated pre-task-32 13-column pool is now **rejected on read** instead of silently training a
 model on the wrong schema. Structural and physical violations raise `ContractViolation`;
 degenerate-but-legitimate states (one group, one class) warn.
+
+**Task 4b, deletion half — 18 stale size-tier directories** (`790cbfe`). 30 files, 1,963 lines,
+referenced by `dvc.yaml` zero times and self-contained rather than users of the shared loaders, so
+nothing live imported them. Deleted before task 36 rather than after, per the plan's own "delete
+before you repair": each carried its own `train_test_split`, and converting splits that are about
+to be deleted is wasted work that would also leave nine more places a future group-aware split
+could silently not apply. 4b's second half — making `run_leakage`, `run_bias_variance` and
+`train_balanced.py` read `n_samples` and slice `.iloc[:n]` instead of `df.sample(n=…)` — is still
+open.
+
+**Task 36 — group-aware splits and CV** (`f08ad2c`). New `splitting.py` is the single place that
+knows what `group_id` means. **The leakage is now measured, not just argued.** On a pool with the
+Gorillas structure (60 boards × 32 throws, a per-board effect in no column), with a
+RandomForest able to memorise the board:
+
+```
+random split      : groups on BOTH sides = 60, test MAE 12.944
+group-aware split : groups on BOTH sides =  0, test MAE 16.157
+```
+
+The random split reports a number **20% better than the honest one** — a usable slide.
+
+`split()` uses `GroupShuffleSplit`, or `StratifiedGroupKFold` when the labels must also be
+balanced (which §5.4's 5–7% hit rate requires, and `GroupShuffleSplit` cannot do). `cv_for()`
+returns a **materialised** list of `(train_idx, test_idx)` pairs rather than a splitter object,
+because a splitter needs `groups=` again at fit time — `RandomizedSearchCV.fit` accepts that,
+`RidgeCV` and `LassoCV` do not. Verified against all three. When the pool has no group structure
+everything degrades to an ordinary random split, verified byte-identical, which is why one code
+path serves both producers with no branching in any script. Also fixes finding **N2**: both shared
+loaders now return `(X, y, groups)`.
+
+Converted 15 top-level training scripts and the six concept scripts; no `train_test_split` remains
+under `models/` except in `train_linear_regression_sqrt.py`, the orphan task 4 deletes. Verified
+by running real training stages against both pool shapes — the ungrouped pool behaves exactly as
+before, and the grouped pool reports "125 groups → 100 train / 25 test, no group on both sides"
+with group-aware folds, for a stratified classification run as well as a regression one.
+
+**A side effect of task 1 worth knowing:** metrics CSVs are versioned by Git now, so any test
+training run dirties the working tree. One had to be reverted while verifying this task.
 
 ### Corrections to this audit's own claims
 
@@ -616,7 +657,7 @@ Three things are right and worth keeping: the `workers` (performance) vs `boards
 on throws 1..N−1 through a variable in no column; and `_check_contract`, which is the schema
 assertion task 28 asks for, already written with the right "clean rows only" nuance.
 
-### 5.1 Group leakage — the key now exists (task 32), the split still ignores it
+### 5.1 Group leakage — **fixed (tasks 32 + 36)**, and now measured at 20% optimistic
 
 Wind and the skyline are **per board**, shared by all 32 throws on it. A random
 `train_test_split` therefore puts throws from the same board on both sides, letting the model
@@ -638,14 +679,15 @@ boards whose wind_ms is NOT single-valued: 25 of 25
 back from a `CHUNKSEED.TXT` each worker writes. Code-verified only — DOSBox is Windows-only
 (§5.3), so re-run the 25-of-25 wind check on the Windows machine to confirm it now reads 0.
 
-**Two things remain before the leakage itself is fixed:**
+**Both remaining gaps are now closed too:**
 
-- **The split still cannot see the key** (finding N2). `loader.load_data` returns
-  `X = df[FEATURES]`, and `FEATURES` is the 9 raw columns, so `group_id` is dropped before any
-  caller can group on it. Task 36 needs the loader changed as well as the splitter.
-- **Chunk seeds can collide across the two gravity sessions** (finding N3), merging rows thrown
-  under different gravity into one `group_id`. ~0.6% at ~20 chunks; fixed by putting the plan
-  tag or a chunk counter in the key.
+- ~~The split cannot see the key (finding N2)~~ — **fixed in task 36.** Both shared loaders return
+  `(X, y, groups)`, and `splitting.py` decides what to do with it.
+- ~~Chunk seeds can collide across the two gravity sessions (finding N3)~~ — **fixed in task 33.**
+  The key is built by one `_chunk_key(tag, chunk_seed)` helper and carries the session tag.
+
+Measured effect of the fix, on a pool with this structure: a random split reports test MAE 12.944
+where the group-aware split reports 16.157 — the leaky number is 20% better than the truth.
 
 ### 5.2 Determinism is timing-dependent — **fixed (task 33)**
 
@@ -751,9 +793,9 @@ and **change the data before you invest in models** (task 2 alters the draw, so 
 trained before it is thrown away).
 
 Checkboxes are live: `[x]` means done and verified (see §0 for how), `[ ]` means untouched.
-**Done: 1, 2, 2b, 32, 33, 35, 38.** **Task 13 is withdrawn** — its premise was disproved, and
-task **13b** replaces it. **Task 34 is blocked** on choosing a remote location. Everything else
-below is open.
+**Done: 1, 2, 2b, 32, 33, 35, 36, 38, and 4b's deletion half.** **Task 13 is withdrawn** — its
+premise was disproved, and task **13b** replaces it. **Task 34 is blocked** on choosing a remote
+location. Everything else below is open.
 
 ### Phase 1 — Make results recordable and the data recoverable — **1 and 2 done**
 
@@ -832,15 +874,18 @@ blocking-class: each one can silently produce wrong results or unrecoverable dat
       evaluation/model scripts that sliced the pool themselves now route through it. The
       `.sample(n=…)` sites already raised from pandas, so they needed nothing. Verified at, below
       and above the pool size, on `None`, and through the real `loader.load_data`.
-- [ ] **36.** Use a group-aware split wherever the active pool has groups — `GroupShuffleSplit`
-      / `GroupKFold` on the task-32 key instead of `train_test_split`, and `cv=GroupKFold` in
-      the searches. **Task 32 supplied the key; this task also has to get it to the splitter**
-      (finding N2): `loader.load_data` returns `X = df[FEATURES]` over the 9 raw columns, so
-      `group_id` is dropped before any caller sees it. Either return groups as a third value or
-      return the frame and let the caller project. The Python pool's ids are unique per row, so
-      a group-aware split degrades to an ordinary random split there — correct, and it means the
-      same code path works for both producers. This is the largest leakage in the repo when a
-      Gorillas pool is active, and strictly larger than anything in §1.2.
+- [x] **36.** ~~Use a group-aware split wherever the active pool has groups.~~ **Done —
+      `f08ad2c`.** New `splitting.py` holds `split()` (GroupShuffleSplit, or StratifiedGroupKFold
+      when the labels must be balanced too — §5.4's 5–7% hit rate needs that and GroupShuffleSplit
+      cannot do it) and `cv_for()` (a **materialised** list of `(train_idx, test_idx)` pairs, not a
+      splitter object, because `RidgeCV`/`LassoCV` reject a `groups=` at fit time where
+      `RandomizedSearchCV` accepts it — one `cv=` argument then works for every estimator).
+      Finding **N2** is fixed with it: both shared loaders return `(X, y, groups)`. Converted 15
+      top-level training scripts and the six concept scripts.
+      **The leakage is now measured:** on a 60-board × 32-throw pool a random split reports test
+      MAE 12.944 against the group-aware 16.157 — 20% optimistic. Verified by running real
+      training stages on both pool shapes; with no group structure it degrades to an ordinary
+      random split, byte-identical, so one path serves both producers.
 - [ ] **37.** Handle the 5–7% hit rate (§5.4). Add `class_weight="balanced"` /
       `scale_pos_weight`, and lead the classification metrics with precision/recall/PR-AUC
       rather than accuracy. Worth building the talk around: predicting all-miss scores 93–95%,
@@ -871,15 +916,19 @@ blocking-class: each one can silently produce wrong results or unrecoverable dat
       correct physics, and the C8 warning about it is withdrawn, so if anything it is the file
       that handled negative distances *properly*), `simulate.py`, `flowchart TD.mmd`, and any
       `train_*.py` left unreferenced by task 3.
-- [ ] **4b.** Delete the 18 stale size-tier directories (§5.7) — `run_raw_10k/20k/40k`,
-      `run_eng_10k/20k/40k`, `classification/run_10k/20k/40k`, under both `models/` and
-      `evaluation/`. 30 files, referenced by `dvc.yaml` zero times, superseded by
-      `params.yaml: n_samples`. Then make the three runs that still hardcode their own size
-      read `n_samples` and slice with `.iloc[:n]` rather than `df.sample(n=…)`, so every tier
-      is a nested prefix of one draw and responds to
-      `dvc exp run --set-param n_samples=…`: `run_leakage` (10,000), `run_bias_variance`
-      (20,000), `train_balanced.py` (10,000), plus the two evaluation plot scripts that
-      hardcode `N_SAMPLES` with a *"matches train_utils.py"* comment.
+- [x] **4b (first half).** ~~Delete the 18 stale size-tier directories (§5.7).~~ **Done —
+      `790cbfe`.** 30 files, 1,963 lines: `run_raw_10k/20k/40k`, `run_eng_10k/20k/40k`,
+      `classification/run_10k/20k/40k` under both `models/` and `evaluation/`. Verified
+      unreferenced first — zero matches in `dvc.yaml`, and self-contained rather than users of the
+      shared loaders, so nothing live imported them. Done *before* task 36 for the plan's own
+      reason: each carried its own `train_test_split`.
+- [ ] **4b (second half).** Make the three runs that still hardcode their own size read
+      `n_samples` and slice with `.iloc[:n]` rather than `df.sample(n=…)`, so every tier is a
+      nested prefix of one draw and responds to `dvc exp run --set-param n_samples=…`:
+      `run_leakage` (10,000), `run_bias_variance` (20,000), `train_balanced.py` (10,000), plus the
+      two evaluation plot scripts that hardcode `N_SAMPLES` with a *"matches train_utils.py"*
+      comment. They already fail loudly on an impossible size (task 35) — this is about making
+      them comparable with the tiers, which they still are not.
 - [ ] **4c.** Delete the five superseded DOSBox builds — `dosbox`, `dosbox-modified`,
       `dosbox-modified-physics`, `dosbox-modified-physics-metrics`,
       `dosbox-modified-physics-metrics-var`. Keep `dosbox-datagen/`, which `generate_gorillas`
@@ -1030,9 +1079,15 @@ pool cannot honour is an error rather than a silent substitution. Task **13** is
 **13b** replaces it. Of the remaining blocking-class Phase 1b work, **34** is blocked on a remote
 location and **36** is the substantial one.
 
-Next in order: **36** (group-aware split, which also has to get `group_id` past the loader),
-**37** (the 5–7% hit rate), **39** (the §5.6 smaller items), then the Phase 2 deletions before any
-Phase 3 refactor. **34** needs the repo owner.
+Both producers are deterministic, both validate one contract on write and on read, the group key
+exists, survives a timeout, and now actually reaches the splitter — with the leakage it prevents
+measured at 20%.
+
+Next in order: **37** (the 5–7% hit rate — `class_weight`/`scale_pos_weight` and leading with
+precision/recall/PR-AUC instead of accuracy), **39** (the §5.6 smaller items), **4b**'s second
+half, then **13b**, then the rest of Phase 2 — of which **task 3** (cutting the model matrix from
+22 entries to the ~4 that will appear on a slide) needs a decision about what the talk shows, not
+just a refactor. **34** needs the repo owner.
 
 Note that task 2 changed the draw exactly as this plan predicted, and task 32 changed the schema:
 all four `dvc.lock` entries are stale — every generation dep's md5 differs from what the lock
