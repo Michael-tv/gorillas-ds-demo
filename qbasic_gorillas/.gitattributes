@@ -1,0 +1,16 @@
+# This is a self-contained DOS / QBasic subproject. Byte-for-byte fidelity
+# matters here: core.autocrlf=true is set globally on this machine, and without
+# these rules git would rewrite the LF-only .bas/.conf/.bat files to CRLF on
+# checkout. That would change their hashes (see ORIGINALS.sha256), and it is a
+# needless risk to run anywhere near the DOS binaries.
+#
+# `-text` disables EOL conversion while still letting git diff the files as
+# text, so `git diff` on gorilla.bas stays reviewable line by line.
+* -text
+
+# `binary` is shorthand for `-text -diff` -- no conversion, and no attempt to
+# render a textual diff.
+*.EXE binary
+*.exe binary
+*.hlp binary
+*.png binary

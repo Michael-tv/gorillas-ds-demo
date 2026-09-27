@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./qb64pe.exe -x \"C:\\\\Projects\\\\qbasic_gorillas\\\\modified\\\\GORILLA.BAS\")",
+      "Bash(./qb64pe.exe -x \"C:\\\\Projects\\\\qbasic_gorillas\\\\standard\\\\GORILLA.BAS\")",
+      "Bash(ls -la \"/c/Users/MichaelVictor/AppData/Local/Programs/DOSBox Staging/\")",
+      "Read(//c/Users/MichaelVictor/AppData/Local/Programs/DOSBox Staging//**)",
+      "Bash(cat)",
+      "Bash(python3 /tmp/gorilla_sim3.py)",
+      "Bash(tasklist)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\MichaelVictor\\AppData\\Local\\Temp\\claude\\c--Projects-qbasic-gorillas\\95ceb876-973d-4d73-9071-77afafaf7641\\scratchpad"
+    ]
+  }
+}
