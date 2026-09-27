@@ -100,6 +100,21 @@ def check_contract(df, source="dataset", verbose=True):
             "negative value on a clean row in " + ", ".join(CLEAN_NON_NEGATIVE))
 
     warnings = []
+    # A feature with one distinct value carries no signal and will sit at zero in
+    # every importance plot, which reads as a broken model rather than a constant
+    # input. The Gorillas producer's drag_coeff is exactly this -- gorilla.bas
+    # holds the banana's drag coefficient constant -- and it stays in the contract
+    # only because both producers must emit the same columns (AUDIT.md task 39 /
+    # §5.6). Generic rather than a note about drag_coeff, so the next constant
+    # column announces itself too.
+    # Judged on CLEAN rows: data_error rows are corrupted on purpose, and a single
+    # corrupted value is enough to give a genuinely constant column apparent
+    # variance and hide it.
+    constant = [c for c in gen.COLUMNS[:11] if clean[c].nunique() == 1]
+    if constant:
+        warnings.append("zero variance (one distinct value) in: " + ", ".join(constant)
+                        + " -- these carry no signal and will rank at ~0 in any "
+                          "feature-importance plot")
     if df["group_id"].nunique() < 2:
         warnings.append("group_id has fewer than 2 distinct values -- a "
                         "group-aware split has nothing to split across")
