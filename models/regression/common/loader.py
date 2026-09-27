@@ -35,8 +35,30 @@ GROUP_COLUMN = "group_id"   # generate.COLUMNS' 14th column -- see splitting.py
 
 # Valid physical ranges for each raw feature and the target. Cleaning always
 # runs on these raw columns, before the pipeline's engineering step -- so
-# run_raw_* and run_eng_* apply the exact same cleaning.
+# run_raw and run_eng apply the exact same cleaning.
 # None means no bound on that side.
+#
+# landing_distance_m has NO lower bound, and that is the whole point of this
+# block (AUDIT.md task 13b). It used to be bounded at 0, on the assumption that a
+# negative landing distance had to be corrupt. It does not: a high-angle shot
+# into a strong headwind genuinely lands behind the launch point -- 73 m/s at 79
+# degrees into 17.4 m/s of headwind lands at -65.0 m, where the same shot
+# windless lands at +30.8 m.
+#
+# Measured over the 50,000-row pool, that one bound was doing most of the damage:
+#
+#   clean:"range" dropped                          964 rows
+#     of which the landing_distance_m >= 0 bound    807  (84%)
+#       of which is_outlier == "none"               727  <- physically valid
+#     every other bound, clean rows dropped           0  <- all doing their job
+#
+#   with the bound removed, clean:"range" drops     167 rows, 100% data_error
+#
+# So the demo was mostly deleting real data while claiming to remove corrupt
+# data. It is now a precise corrupt-row detector rather than a blunt one: of the
+# ~500 deliberately corrupted rows it catches 167, all of them genuinely corrupt.
+# Less sensitive, far more precise -- and that trade is itself worth showing, as
+# what bounds-based cleaning can and cannot do.
 FEATURE_RANGES = {
     "launch_angle_deg":    (0,    90),
     "wind_speed_ms":       (0,    None),
@@ -46,7 +68,7 @@ FEATURE_RANGES = {
     "drag_coeff":          (0,    None),
     "launch_height_m":     (0,    None),
     "landing_height_m":    (0,    None),
-    "landing_distance_m":  (0,    None),
+    "landing_distance_m":  (None, None),   # signed: see the note above
     "initial_velocity_ms": (0,    None),
 }
 
