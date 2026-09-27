@@ -422,7 +422,7 @@ def generate(n, seed=42, throws=32, workers=8, boards_per_chunk=25, input_mode="
     if n_err:
         for i in range(min(n_err, len(rows))):
             row = rows[i]
-            row[:11] = corrupt_row(row[:11], no_zero_indices={gen.MASS_COLUMN_INDEX})
+            row[:11] = corrupt_row(rng, row[:11], no_zero_indices={gen.MASS_COLUMN_INDEX})
             row[12] = "data_error"
 
     # Shuffle before truncating: n_samples is applied downstream as a positional
