@@ -128,16 +128,24 @@ def generate_rows(rng, n, elevation_dist, build_row, no_zero_indices=frozenset()
         extra_labels:   trailing non-numeric columns (e.g. hit_target)
                          appended after numeric_values and before is_outlier;
                          never corrupted.
+
+    Each returned row also gets its own group_id -- a running counter across
+    all three sections, unique per row -- appended last, after is_outlier.
+    This path's rows are independently drawn (no board-like correlation), so
+    "every row is its own group" is the correct group_id, not a placeholder;
+    see generate.py's COLUMNS comment.
     """
     n_outliers    = round(n * OUTLIER_FRAC)
     n_data_errors = round(n * DATA_ERROR_FRAC)
     n_normal      = n - n_outliers - n_data_errors
     rows = []
+    row_id = 0
 
     for i in range(n_normal):
         shot = sample_shot(rng, elevation_dist)
         values, labels = build_row(rng, shot, i)
-        rows.append(values + labels + ["none"])
+        rows.append(values + labels + ["none", str(row_id)])
+        row_id += 1
         if (i + 1) % 1000 == 0:
             print(f"  {i + 1}/{n}")
 
@@ -145,14 +153,16 @@ def generate_rows(rng, n, elevation_dist, build_row, no_zero_indices=frozenset()
     for i in range(n_outliers):
         shot = sample_shot(rng, elevation_dist, gravity=sample_gravity(rng))
         values, labels = build_row(rng, shot, i)
-        rows.append(values + labels + ["gravity"])
+        rows.append(values + labels + ["gravity", str(row_id)])
+        row_id += 1
 
     print(f"\nGenerating {n_data_errors} data errors...")
     for i in range(n_data_errors):
         shot = sample_shot(rng, elevation_dist)
         values, labels = build_row(rng, shot, i)
         values = corrupt_row(rng, values, no_zero_indices=no_zero_indices)
-        rows.append(values + labels + ["data_error"])
+        rows.append(values + labels + ["data_error", str(row_id)])
+        row_id += 1
 
     print(f"\nDone -- generated {n} samples")
     print(f"  Normal samples        : {n_normal}")
