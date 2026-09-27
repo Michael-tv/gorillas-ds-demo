@@ -19,7 +19,13 @@ DATA       = params.data_path()
 FEATURES   = ["launch_angle_deg", "wind_x_ms", "drag_param",
               "height_diff_m", "landing_distance_m"]
 TARGET     = "initial_velocity_ms"
-N_SAMPLES  = 20_000
+# Reads params.yaml rather than hardcoding a size, and takes a PREFIX of the
+# pre-shuffled pool rather than a random sample. Both matter (AUDIT.md task 4b):
+# a prefix is a nested subset of one draw, so this run is comparable with the
+# size tiers and with every other run, and `dvc exp run --set-param
+# n_samples=...` now moves it. df.sample(n=...) gave a differently-composed set
+# at every size, and the hardcoded value meant --set-param silently did nothing.
+N_SAMPLES = params.load_params()["n_samples"]
 
 
 def load_data(test_size=0.2, seed=42):
@@ -31,7 +37,7 @@ def load_data(test_size=0.2, seed=42):
         sys.exit(1)
     df = pd.read_parquet(DATA)
     df = add_engineered_columns(df)
-    df = df.sample(n=N_SAMPLES, random_state=seed).reset_index(drop=True)
+    df = params.take_samples(df, N_SAMPLES).reset_index(drop=True)
     X  = df[FEATURES].values
     y  = df[TARGET].values
     groups = df[loader.GROUP_COLUMN].to_numpy()

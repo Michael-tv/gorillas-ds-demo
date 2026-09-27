@@ -3,7 +3,8 @@ Input-output relationship plots for the training split used by run_bias_variance
 
 Data source: data/raw_500k.parquet (same as the bias-variance study),
 with engineered features derived at load time, sub-sampled to
-N_SAMPLES=20,000 rows with the same seed used in train_utils.py.
+the first params.yaml n_samples rows of the pre-shuffled pool -- the same
+prefix train_utils.py takes, so this describes exactly the rows the run trains on.
 
 Each panel: training points (blue) over withheld test points (grey) +
 dashed line showing the true physics relationship computed from training-set
@@ -27,7 +28,10 @@ from physics import simulate
 from feature_engineering import add_engineered_columns
 
 DATA         = os.path.join(REPO_ROOT, "data", "raw_500k.parquet")
-N_SAMPLES    = 20_000   # matches train_utils.py
+# Read from params.yaml, like the training run itself. This used to be a
+# hardcoded copy with a "matches train_utils.py" comment -- a manual sync
+# guaranteed to drift, and it did not respond to --set-param (AUDIT.md task 4b).
+N_SAMPLES    = params.load_params()["n_samples"]
 TEST_SIZE    = 0.2
 RANDOM_STATE = 42
 DT           = 0.02
@@ -41,7 +45,8 @@ FEATURES = [
 TARGET = "landing_distance_m"
 
 # ── Load, subsample, and split ────────────────────────────────────────────────
-df = add_engineered_columns(pd.read_parquet(DATA)).sample(n=N_SAMPLES, random_state=RANDOM_STATE).reset_index(drop=True)
+df = add_engineered_columns(
+    params.take_samples(pd.read_parquet(DATA), N_SAMPLES)).reset_index(drop=True)
 df_train, df_test = train_test_split(df, test_size=TEST_SIZE, random_state=RANDOM_STATE)
 
 X_train = df_train[FEATURES].values

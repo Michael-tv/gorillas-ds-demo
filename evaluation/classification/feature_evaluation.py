@@ -5,8 +5,13 @@ Called by evaluate_features.py in each run folder:
     python classification/run_10k/evaluate_features.py
 """
 import math
+import os
 import numpy as np
 import pandas as pd
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+import params
 from matplotlib.figure import Figure
 from sklearn.tree import DecisionTreeClassifier
 
@@ -88,8 +93,11 @@ def evaluate(df, features, target, label="", n_samples=None):
     print(f"  Feature Evaluation : {label}")
     print(f"{'='*W}")
 
-    if n_samples and n_samples < len(df):
-        df = df.sample(n=n_samples, random_state=42).reset_index(drop=True)
+    # A PREFIX of the pre-shuffled pool, not a random sample: this must describe
+    # exactly the rows the model trained on, and the training runs prefix-slice
+    # (AUDIT.md task 4b). A random subset here would plot a different dataset
+    # than the one being evaluated.
+    df = params.take_samples(df, n_samples).reset_index(drop=True)
 
     X = df[features]
     y = df[target]
@@ -207,8 +215,11 @@ def plot_outliers(df, features, target, label="", n_samples=None):
     """
     N_COLS = 4
 
-    if n_samples and n_samples < len(df):
-        df = df.sample(n=n_samples, random_state=42).reset_index(drop=True)
+    # A PREFIX of the pre-shuffled pool, not a random sample: this must describe
+    # exactly the rows the model trained on, and the training runs prefix-slice
+    # (AUDIT.md task 4b). A random subset here would plot a different dataset
+    # than the one being evaluated.
+    df = params.take_samples(df, n_samples).reset_index(drop=True)
 
     X            = df[features]
     OUTLIER_COL  = "is_outlier"
@@ -292,8 +303,11 @@ def plot_features(df, features, target, label="", n_samples=None, clean_only=Fal
     """
     N_COLS = 4
 
-    if n_samples and n_samples < len(df):
-        df = df.sample(n=n_samples, random_state=42).reset_index(drop=True)
+    # A PREFIX of the pre-shuffled pool, not a random sample: this must describe
+    # exactly the rows the model trained on, and the training runs prefix-slice
+    # (AUDIT.md task 4b). A random subset here would plot a different dataset
+    # than the one being evaluated.
+    df = params.take_samples(df, n_samples).reset_index(drop=True)
     if clean_only and "is_outlier" in df.columns:
         df = df[df["is_outlier"] == "none"].reset_index(drop=True)
 

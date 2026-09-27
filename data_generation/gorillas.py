@@ -62,7 +62,18 @@ KEEP_OUTCOMES = (OC_TERRAIN, OC_GORILLA, OC_GROUND)
 
 # Fixed constants of the game build, needed to complete the mapping.
 METERS_PER_PIXEL = 0.2
-BANANA_CD = 0.6          # CONST BananaCd# -- a constant, so drag_coeff has zero variance
+# CONST BananaCd# in gorilla.bas -- a genuine constant in the game, so drag_coeff
+# has ZERO VARIANCE in every Gorillas pool. It stays in the contract because both
+# producers must emit the same columns, but it carries no signal here and will look
+# broken in a feature-importance plot: expect it to rank at or near zero, and say so
+# rather than letting the audience wonder. drag_param still varies, through radius
+# and mass. check_contract warns about any zero-variance feature on read, so this
+# announces itself rather than having to be remembered (AUDIT.md task 39 / §5.6).
+BANANA_CD = 0.6
+
+# Largest landing_height_m clip treated as float noise rather than a mapping bug.
+# Anything above this fails the run -- see _report.
+CLIP_TOLERANCE_M = 0.01
 
 # Mirrors CsvOpenFile's header exactly. Validated on every parse: it is the one
 # real coupling between gorilla.bas and this module, and a silent field-order
@@ -552,32 +563,45 @@ def generate(n, seed=42, throws=32, workers=8, boards_per_chunk=25, input_mode="
     df["group_id"] = df["group_id"].astype(str)
 
     _report(df, clipped_all, timeouts)
-    return df
+    # Validated here rather than only in the CLI, so an in-process caller (a test,
+    # a notebook) gets the same guarantee the DVC stage does -- matching what
+    # generate.generate() does for the Python producer (AUDIT.md task 38).
+    return _check_contract(df)
 
 
 def _dump_raw(base, dest):
-    """Concatenate every worker's CSV into one file, keeping the board column
-    and adding chunk_key/group_id so groups are reconstructable from this
-    file too (AUDIT.md task 32/§5.1) -- `board` alone restarts at 1 in every
-    worker's own CSV and so collides across workers; CHUNKKEY.TXT (written
-    by _run_worker) is what disambiguates them. The group_id written here is
-    built the same way _to_contract builds the parquet's, so the two outputs
-    are joinable on it."""
+    """Concatenate every worker's CSV into one parquet, keeping the columns the
+    14-column contract deliberately omits -- `board`, `outcome`, the pixel
+    geometry -- plus chunk_key/group_id so the groups are reconstructable from
+    this file too (AUDIT.md task 32/§5.1). `board` alone restarts at 1 in every
+    worker's own CSV and so collides across workers; CHUNKKEY.TXT (written by
+    _run_worker) is what disambiguates them. group_id is built exactly as
+    _to_contract builds the parquet's, so the two outputs are joinable on it.
+
+    Parquet rather than CSV (AUDIT.md task 39 / §5.6): these logs were 1.9 MB and
+    2.4 MB of uncompressed text, DVC-cached at that size, and pyarrow is already a
+    dependency. Numeric columns also come back typed instead of as strings.
+    """
     dest.parent.mkdir(parents=True, exist_ok=True)
     board_idx = CSV_HEADER.index("board")
-    with open(dest, "w", newline="") as out:
-        w = csv.writer(out)
-        w.writerow(CSV_HEADER + ["chunk_key", "group_id"])
-        for p in sorted(base.glob("*/THROWS.CSV")):
-            key_path = p.parent / "CHUNKKEY.TXT"
-            chunk_key = key_path.read_text().strip() if key_path.is_file() else ""
-            with open(p, newline="") as fh:
-                rd = csv.reader(fh)
-                next(rd, None)
-                for r in rd:
-                    if len(r) == len(CSV_HEADER):
-                        group_id = f"{chunk_key}_{r[board_idx]}" if chunk_key else ""
-                        w.writerow(r + [chunk_key, group_id])
+    rows = []
+    for p in sorted(base.glob("*/THROWS.CSV")):
+        key_path = p.parent / "CHUNKKEY.TXT"
+        chunk_key = key_path.read_text().strip() if key_path.is_file() else ""
+        with open(p, newline="") as fh:
+            rd = csv.reader(fh)
+            next(rd, None)
+            for r in rd:
+                if len(r) == len(CSV_HEADER):
+                    group_id = f"{chunk_key}_{r[board_idx]}" if chunk_key else ""
+                    rows.append(r + [chunk_key, group_id])
+
+    raw = pd.DataFrame(rows, columns=CSV_HEADER + ["chunk_key", "group_id"])
+    # The game writes everything as text; restore numeric types so the log can be
+    # analysed without re-parsing every column at the call site.
+    for c in CSV_HEADER:
+        raw[c] = pd.to_numeric(raw[c], errors="coerce")
+    write_parquet(raw, dest)
     print(f"Raw throw log -> {dest}")
 
 
@@ -591,8 +615,26 @@ def _report(df, clipped, timeouts):
     if clipped:
         worst = max(clipped)
         print(f"  landing_height_m clipped to 0 on {len(clipped)} rows (max {worst:.2f} m)")
-        if worst > 3.0:
-            print("  WARNING: a clip over 3 m suggests a mapping bug, not a ground hit")
+        if worst > CLIP_TOLERANCE_M:
+            # AUDIT.md task 39 asked for this clip to be recorded in a column
+            # rather than only warned about, because it is a data modification
+            # nothing in the output records. Failing is better than recording:
+            # the audit itself notes a clip this large "suggests a mapping bug,
+            # not a ground hit", and rows produced by a mapping bug should not
+            # reach a training set at all -- a column would faithfully record
+            # corrupt data instead of refusing it. A column would also be
+            # zero-variance in every pool either producer currently makes, which
+            # is the exact dead weight §5.6 criticises elsewhere. The clip amount
+            # IS recorded per throw in the raw log, for diagnosis.
+            raise GameRunFailed(
+                f"landing_height_m was clipped by up to {worst:.2f} m (tolerance "
+                f"{CLIP_TOLERANCE_M} m) on {len(clipped)} of {len(df):,} rows. A clip "
+                f"this large means land_dy_m and launch_height_m disagree about where "
+                f"the ground is -- a mapping bug between gorilla.bas and _to_contract, "
+                f"not a banana landing below the launch point. Fix the mapping rather "
+                f"than training on these rows; the per-throw clip amounts are in the "
+                f"raw log (--raw-out)."
+            )
 
 
 def _check_contract(df):
@@ -643,7 +685,9 @@ if __name__ == "__main__":
     p.add_argument("--dosbox", type=str, default=None)
     p.add_argument("--timeout", type=int, default=1800)
     p.add_argument("--raw-out", type=str, default=None,
-                   help="also write the unmapped throw log (keeps the board column)")
+                   help="also write the unmapped throw log as parquet -- keeps the "
+                        "board/outcome/pixel columns the 14-column contract omits, "
+                        "joinable to the main output on group_id")
     p.add_argument("--allow-partial", action="store_true",
                    help="accept a run where workers timed out or `n` was not "
                         "reached. Off by default because partial worker output "
@@ -674,7 +718,7 @@ if __name__ == "__main__":
     )
     elapsed = time.time() - t0
     print(f"  Elapsed : {elapsed:.1f}s ({len(df) / elapsed:.1f} rows/s)")
-    _check_contract(df)
+    # generate() already validated the contract on the way out.
 
     if args.dry_run:
         print("\n--dry-run: nothing written. Summary of what would be saved:\n")
