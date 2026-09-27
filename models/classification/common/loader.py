@@ -23,6 +23,7 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 import params
+from data_generation.contract import check_contract
 
 FEATURES = [
     "initial_velocity_ms", "launch_angle_deg", "wind_x_ms",
@@ -41,7 +42,13 @@ def load_data(data_path, n_samples=None):
         print(  "  Run:    dvc repro (or the matching data_generation script)")
         print()
         sys.exit(1)
-    df = pd.read_parquet(data_path)
+    # Validated on read, not only on write: data/ is DVC-cached rather than in
+    # Git, so the pool on disk can predate the current code (e.g. a 13-column
+    # pool generated before group_id existed) with nothing in the working tree
+    # showing it. Both producers write through the same checks -- see
+    # data_generation/contract.py (AUDIT.md task 38).
+    df = check_contract(pd.read_parquet(data_path), source=os.path.basename(data_path),
+                        verbose=False)
     # data_path is the shared, pre-shuffled pool -- prefix-slicing here (rather
     # than caching a separate generated file per size) gives the size tiers
     # nested samples of one draw, so growing the sample size is the only thing

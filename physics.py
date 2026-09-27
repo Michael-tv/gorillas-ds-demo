@@ -29,6 +29,29 @@ def simulate(speed, elevation_deg, wind_x, mass, radius, Cd, dt=0.01, max_time=6
     Run simulation, return list of (t, x, z). Last point is the landing point.
     ground_z: height of landing platform relative to launch (m). Positive = above, negative = below.
     gravity: gravitational acceleration (m/s²). Defaults to standard Earth gravity (9.81).
+
+    Careful: the last point is the landing point ONLY if the shot actually
+    landed within max_time. Otherwise it is wherever the projectile happened to
+    be when the loop gave up, and nothing in the return value says which
+    happened -- which is how 727 non-terminating trajectories ended up recorded
+    as clean training rows (AUDIT.md task 13 / §1.2). Anything that treats the
+    endpoint as a measurement should call simulate_landing instead.
+    """
+    traj, _landed = simulate_landing(speed, elevation_deg, wind_x, mass, radius, Cd,
+                                     dt=dt, max_time=max_time, ground_z=ground_z,
+                                     gravity=gravity)
+    return traj
+
+
+def simulate_landing(speed, elevation_deg, wind_x, mass, radius, Cd, dt=0.01, max_time=60.0,
+                     ground_z=0.0, gravity=G):
+    """Same integration as simulate, returning `(traj, landed)`.
+
+    `landed` is True only if the trajectory actually crossed the landing height
+    inside max_time, so `traj[-1]` is a real landing point. When it is False the
+    shot produced no measurement at all and its endpoint is meaningless -- a
+    caller recording training rows must drop or mark it rather than store the
+    endpoint as landing_distance_m (AUDIT.md task 13).
     """
     area = math.pi * radius**2
     el = math.radians(elevation_deg)
@@ -49,5 +72,9 @@ def simulate(speed, elevation_deg, wind_x, mass, radius, Cd, dt=0.01, max_time=6
         x, z, vx, vz = nx, nz, nvx, nvz
         t += dt
         traj.append((t, x, z))
+    else:
+        # `while ... else` runs only when the loop was NOT broken out of, i.e.
+        # no landing condition ever fired within max_time.
+        return traj, False
 
-    return traj
+    return traj, True
