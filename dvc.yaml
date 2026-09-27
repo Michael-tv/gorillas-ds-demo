@@ -137,17 +137,44 @@ stages:
 
   # ── Regression: skewed elevation slice (low-angle filter of the standard pool) ─
 
+  # ── The skewed slice: one filter stage, two outputs ──────────────────────
+  #
+  # The low-angle filter used to live inside run_skewed/train_utils.py and ran at
+  # load time, which meant the filtered pool was not an artifact, the bound was
+  # not a param, and -- worst -- the filter ran before the split, so the test set
+  # carried the same hole and "extrapolates poorly beyond the cap" was never
+  # actually measured. Both outputs matter: the kept rows train the skewed
+  # models, the excluded rows are the out-of-distribution test set
+  # (AUDIT.md tasks 8-10).
+
+  filter_skewed:
+    cmd: python -m data_generation.filter_skewed --out data/skewed_training_data.parquet --holdout-out data/skewed_holdout.parquet
+    deps:
+      - data/${training_data}.parquet
+      - data_generation/filter_skewed.py
+      - data_generation/contract.py
+      - params.py
+    params:
+      - training_data
+      - skew.max_angle_deg
+    outs:
+      - data/skewed_training_data.parquet
+      - data/skewed_holdout.parquet
+
   train_skewed:
     foreach: ${skewed_models}
     do:
       cmd: python scripts/run_with_pythonpath.py models/regression/run_skewed models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
       deps:
-        - data/${training_data}.parquet
+        - data/skewed_training_data.parquet
         - models/regression/${item.script}
         - models/regression/run_skewed/train_utils.py
+        - models/regression/common/loader.py
         - feature_engineering.py
+        - splitting.py
       params:
         - training_data
+        - skew.max_angle_deg
         - test_size
         - search.regression.${item.model}.n_iter
         - search.regression.${item.model}.cv
@@ -160,26 +187,46 @@ stages:
   train_skewed_concept:
     cmd: python scripts/run_with_pythonpath.py models/regression/run_skewed models/regression/run_skewed/train_skewed.py
     deps:
-      - data/${training_data}.parquet
+      # Both: it trains on the slice and scores the holdout, which is the point.
+      - data/skewed_training_data.parquet
+      - data/skewed_holdout.parquet
       - models/regression/run_skewed/train_skewed.py
       - models/regression/run_skewed/train_utils.py
+      - models/regression/common/loader.py
       - feature_engineering.py
+      - splitting.py
     params:
       - training_data
+      - skew.max_angle_deg
+      - test_size
     outs:
       - experiments/regression/run_skewed/models/model_skewed.joblib
+    metrics:
+      - experiments/regression/run_skewed/models/metrics_skewed.csv:
+          cache: false
 
   train_balanced_concept:
     cmd: python scripts/run_with_pythonpath.py models/regression/run_skewed models/regression/run_skewed/train_balanced.py
     deps:
+      # The full pool to train on, the slice to size against, the holdout to
+      # score on -- all three, so it re-runs when any of them changes.
       - data/${training_data}.parquet
+      - data/skewed_training_data.parquet
+      - data/skewed_holdout.parquet
       - models/regression/run_skewed/train_balanced.py
       - models/regression/run_skewed/train_utils.py
+      - models/regression/common/loader.py
       - feature_engineering.py
+      - splitting.py
     params:
       - training_data
+      - skew.max_angle_deg
+      - test_size
     outs:
       - experiments/regression/run_skewed/models/model_balanced.joblib
+    metrics:
+      - experiments/regression/run_skewed/models/metrics_balanced.csv:
+          cache: false
 
   # ── Regression: leakage demo (a 10k random sample of the standard pool) ──
 
@@ -194,6 +241,9 @@ stages:
       - training_data
     outs:
       - experiments/regression/run_leakage/models/model_dt_clean.joblib
+    metrics:
+      - experiments/regression/run_leakage/models/metrics_dt_clean.csv:
+          cache: false
 
   train_leakage_leaky:
     cmd: python scripts/run_with_pythonpath.py models/regression/run_leakage models/regression/run_leakage/train_leaky.py
@@ -206,6 +256,9 @@ stages:
       - training_data
     outs:
       - experiments/regression/run_leakage/models/model_dt_leaky.joblib
+    metrics:
+      - experiments/regression/run_leakage/models/metrics_dt_leaky.csv:
+          cache: false
 
   # ── Regression: bias/variance demo (a 20k random sample of the standard pool) ─
 
@@ -220,6 +273,9 @@ stages:
       - training_data
     outs:
       - experiments/regression/run_bias_variance/models/model_underfitting.joblib
+    metrics:
+      - experiments/regression/run_bias_variance/models/metrics_underfitting.csv:
+          cache: false
 
   train_bias_variance_overfitting:
     cmd: python scripts/run_with_pythonpath.py models/regression/run_bias_variance models/regression/run_bias_variance/train_overfitting.py
@@ -232,6 +288,9 @@ stages:
       - training_data
     outs:
       - experiments/regression/run_bias_variance/models/model_overfitting.joblib
+    metrics:
+      - experiments/regression/run_bias_variance/models/metrics_overfitting.csv:
+          cache: false
 
   # ── Classification (reads the same ${training_data}.parquet pool as regression) ──────────
 
