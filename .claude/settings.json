@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import pandas, pyarrow\")",
+      "Bash(pipenv --venv)"
+    ]
+  }
+}

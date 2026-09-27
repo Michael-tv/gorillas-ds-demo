@@ -39,6 +39,7 @@ from pathlib import Path
 import pandas as pd
 
 from data_generation import generate as gen
+from data_generation.contract import check_contract
 from data_generation.io import resolve_output, write_parquet
 from data_generation.outliers import corrupt_row
 from data_generation.sampling import (
@@ -93,20 +94,52 @@ class GameRunFailed(RuntimeError):
     pass
 
 
+DOSBOX_ENV_VAR = "GORILLAS_DOSBOX"
+
+
 def find_dosbox(explicit=None):
+    """Locate the DOSBox executable.
+
+    Resolution order, most explicit first: the `--dosbox` argument, the
+    GORILLAS_DOSBOX environment variable, `dosbox` on PATH, then the known
+    install locations. The env var and the PATH lookup exist because
+    regeneration is this dataset's ONLY recovery path -- there is no DVC remote
+    holding a copy -- so being able to say where DOSBox lives, once, without
+    editing this file is part of making that path dependable (AUDIT.md task 34 /
+    §5.3). Hardcoded candidates alone meant a machine that had DOSBox somewhere
+    else could not regenerate at all.
+    """
     if explicit:
         p = Path(explicit)
         if not p.is_file():
             raise DosboxNotFound(f"--dosbox given but not a file: {p}")
         return p
+
+    from_env = os.environ.get(DOSBOX_ENV_VAR)
+    if from_env:
+        p = Path(from_env)
+        if not p.is_file():
+            raise DosboxNotFound(
+                f"{DOSBOX_ENV_VAR} is set to {p}, which is not a file. Fix or "
+                f"unset it, or pass --dosbox <path>."
+            )
+        return p
+
+    on_path = shutil.which("dosbox") or shutil.which("dosbox.exe")
+    if on_path:
+        return Path(on_path)
+
     for p in DOSBOX_CANDIDATES:
         if p.is_file():
             return p
+
     searched = "\n  ".join(str(p) for p in DOSBOX_CANDIDATES)
     raise DosboxNotFound(
-        "DOSBox not found. Searched:\n  " + searched +
-        "\nInstall DOSBox Staging (winget install DOSBoxStaging.DOSBoxStaging) "
-        "or pass --dosbox <path>."
+        f"DOSBox not found. Checked ${DOSBOX_ENV_VAR}, `dosbox` on PATH, then:\n  "
+        + searched +
+        "\nInstall DOSBox Staging (winget install DOSBoxStaging.DOSBoxStaging), "
+        f"pass --dosbox <path>, or set {DOSBOX_ENV_VAR} to its full path so every "
+        "later run finds it."
     )
 
 
@@ -202,9 +235,55 @@ def _conf_text(worker_dir, animate):
     ])
 
 
-def _run_worker(dosbox, worker_dir, opts, boards, seed, gravity, timeout):
+# Roughly a quarter of random throws leave the field sideways without ever
+# landing, so they carry no landing point and get filtered out. This is the
+# planning assumption, measured once -- deliberately a CONSTANT rather than the
+# run's observed keep rate, which is what made the dataset timing-dependent
+# (AUDIT.md task 33 / §5.2): a slow or loaded machine returned fewer rows, which
+# changed the chunk count, which changed how many seeds were drawn from the
+# session RNG -- a different dataset under the same --seed.
+KEEP_ESTIMATE = 0.75
+MAX_ROUNDS = 5   # rounds of over-generation before giving up on a plan entry
+
+
+def chunk_schedule(want, throws, boards_per_chunk, max_rounds=MAX_ROUNDS,
+                   keep_estimate=KEEP_ESTIMATE):
+    """How many chunks to run in each round, for one plan entry.
+
+    A pure function of its arguments: it never sees how many rows actually came
+    back. That is the whole point -- the number of chunk seeds drawn from the
+    session RNG has to be fixed by (seed, n, throws, boards_per_chunk) alone, or
+    the same --seed yields different data on a machine where a worker timed out
+    (AUDIT.md task 33). Every round is sized the same: enough chunks to cover
+    `want` rows at `keep_estimate`, plus one board's worth of slack.
+    """
+    per_chunk = boards_per_chunk * throws
+    need = int(want / keep_estimate) + throws
+    per_round = max(1, -(-need // per_chunk))
+    return [per_round] * max_rounds
+
+
+def _chunk_key(tag, chunk_seed):
+    """The group key prefix for one chunk: rows sharing it were thrown at the
+    same boards, under the same gravity, and so share wind and skyline.
+
+    The `tag` is part of the key because chunk seeds for the normal and
+    out-of-distribution-gravity sessions are drawn from one RNG stream, so the
+    same seed can come up in both. Without the tag those two chunks collide
+    into one group_id despite being thrown under DIFFERENT gravity -- rows that
+    must never be treated as one group (AUDIT.md finding N3).
+    """
+    return f"{tag}_{chunk_seed}"
+
+
+def _run_worker(dosbox, worker_dir, opts, boards, seed, gravity, timeout, chunk_key):
     """Run one DOSBox instance to completion and return its parsed rows."""
     worker_dir.mkdir(parents=True, exist_ok=True)
+    # Recorded so _dump_raw can recover this chunk's group key later. Board
+    # numbers restart at 1 in every worker's own THROWS.CSV, so `board` alone
+    # collides across workers; the chunk key is what turns (chunk, board) into a
+    # real global group key for the raw log too (AUDIT.md task 32/§5.1).
+    (worker_dir / "CHUNKKEY.TXT").write_text(chunk_key)
     _write_dos_text(worker_dir / "GORCFG.TXT", _config_text(opts, boards, seed, gravity))
     conf = worker_dir / "run.conf"
     _write_dos_text(conf, _conf_text(worker_dir, opts["animate"]))
@@ -252,8 +331,17 @@ def _parse_csv(path):
         return [r for r in reader if len(r) == len(CSV_HEADER)]
 
 
-def _to_contract(raw_rows, hit_tolerance, outlier_tag):
-    """Map the game's throw records onto generate.COLUMNS."""
+def _to_contract(raw_rows, hit_tolerance, outlier_tag, chunk_key):
+    """Map the game's throw records onto generate.COLUMNS.
+
+    `chunk_key` identifies the chunk these rows came from (see _chunk_key) --
+    every throw in `raw_rows` was thrown at the same sequence of boards under
+    the same gravity, so f"{chunk_key}_{board}" is a real global group key:
+    throws sharing it share that board's wind and skyline (AUDIT.md task
+    32/§5.1). The game's own `board` column alone is not a group key -- it
+    restarts at 1 in every worker's own CSV, so plain `board` values collide
+    across workers.
+    """
     idx = {name: i for i, name in enumerate(CSV_HEADER)}
     out, clipped = [], []
 
@@ -296,21 +384,36 @@ def _to_contract(raw_rows, hit_tolerance, outlier_tag):
         # landing_x +/- offset and hit_target is exactly this test.
         hit = int(abs(landing_distance - target_distance) <= hit_tolerance)
 
+        board = int(float(r[idx["board"]]))
+        group_id = f"{chunk_key}_{board}"
+
         out.append([
             velocity, angle, wind_speed, wind_dir, mass, radius, BANANA_CD,
             launch_h, landing_h, landing_distance, round(target_distance, 4),
-            hit, outlier_tag,
+            hit, outlier_tag, group_id,
         ])
     return out, clipped
 
 
-def generate(n, seed=42, boards=None, throws=32, workers=8, input_mode="EFFORT",
+def generate(n, seed=42, throws=32, workers=8, boards_per_chunk=25, input_mode="EFFORT",
              hit_tolerance=HIT_TOLERANCE, animate=False, effort_jitter=True,
              banana_var=True, dt=0.1, max_ticks=0, angle_min=10.0, angle_max=88.0,
              effort_min=20.0, effort_max=100.0, vel_min=10.0, vel_max=80.0,
              dosbox=None, timeout=1800, keep_raw=None, allow_partial=False,
              with_outliers=True):
-    """Run the game until at least `n` usable rows exist, then map and shuffle."""
+    """Run the game until at least `n` usable rows exist, then map and shuffle.
+
+    Total board count is not a parameter: it is derived from `n`, `throws` and
+    a fixed keep-rate estimate (see chunk_schedule), the same way generate.py
+    takes only `n` and figures out its own row count. The estimate is a
+    constant rather than this run's observed keep rate precisely so that a slow
+    machine or a timed-out worker cannot change how many chunk seeds get drawn
+    (AUDIT.md task 33 / §5.2). `boards_per_chunk` sizes each individual DOSBox
+    session; unlike `workers`, it DOES change the resulting data (it changes
+    how many distinct per-chunk seeds get drawn from the session's `seed`), so
+    it belongs in the dataset's identity alongside `throws`, not treated as a
+    tuning knob like `workers`.
+    """
     dosbox = find_dosbox(dosbox)
     if not (GAME_DIR / "gorilla.bas").is_file():
         raise GameRunFailed(f"game build not found at {GAME_DIR}")
@@ -346,37 +449,71 @@ def generate(n, seed=42, boards=None, throws=32, workers=8, input_mode="EFFORT",
             plan.append((n_out, round(g, 4), "gravity"))
 
         for want, gravity, tag in plan:
-            got, attempt, thrown = [], 0, 0
-            while len(got) < want and attempt < 5:
-                # Over-generate: roughly a quarter of random throws leave the
-                # field sideways without ever landing, so they carry no landing
-                # point and get filtered out. Start from a measured 0.75 and
-                # then use this run's own observed keep rate.
-                keep = (len(got) / thrown) if thrown else 0.75
-                keep = min(max(keep, 0.25), 1.0)
-                need = int((want - len(got)) / keep) + throws
-                per_worker_boards = max(1, -(-need // (workers * throws)))
-                thrown += workers * per_worker_boards * throws
+            # The full chunk plan, and every chunk seed it needs, is fixed here
+            # -- before a single worker starts and without reference to how many
+            # rows come back. `schedule` is a pure function of (want, throws,
+            # boards_per_chunk) and all MAX_ROUNDS rounds' seeds are drawn up
+            # front, so this plan entry always consumes exactly the same number
+            # of draws from `rng` no matter how the run goes. That is what makes
+            # a fixed --seed reproducible: the old code derived each round's
+            # chunk count from the keep rate observed so far, so a worker that
+            # timed out (or a slow machine) drew a different number of seeds and
+            # produced a different dataset (AUDIT.md task 33 / §5.2).
+            #
+            # `workers` still only controls how many of these chunks run at once:
+            # the same chunks run either way, just faster or slower.
+            schedule = chunk_schedule(want, throws, boards_per_chunk)
+            round_seeds = [[rng.randint(1, 30000) for _ in range(n_chunks)]
+                           for n_chunks in schedule]
 
+            got = []
+            rounds_run = 0
+            for attempt, chunk_seeds in enumerate(round_seeds):
+                if len(got) >= want:
+                    # Stopping early skips seeds that were already drawn above,
+                    # so the RNG stream position after this loop is unchanged.
+                    break
+                rounds_run += 1
                 with ThreadPoolExecutor(max_workers=workers) as pool:
+                    # Paired with its chunk key explicitly -- a bare list of
+                    # futures loses that association, since the list
+                    # comprehension that submits them is its own scope and
+                    # `cs` does not survive into the loop below it. Without
+                    # this pairing, _to_contract has no way to know which
+                    # chunk (and therefore which group) a completed future's
+                    # rows came from (AUDIT.md task 32).
                     futures = [
-                        pool.submit(_run_worker, dosbox,
-                                    base_short / f"w{tag}{attempt}_{w}", opts,
-                                    per_worker_boards,
-                                    rng.randint(1, 30000), gravity, timeout)
-                        for w in range(workers)
+                        (_chunk_key(tag, cs),
+                         pool.submit(_run_worker, dosbox,
+                                     base_short / f"w{tag}{attempt}_{i}", opts,
+                                     boards_per_chunk, cs, gravity, timeout,
+                                     _chunk_key(tag, cs)))
+                        for i, cs in enumerate(chunk_seeds)
                     ]
-                    for fut in futures:
+                    for key, fut in futures:
                         raw, to = fut.result()
                         timeouts += int(to)
-                        mapped, clipped = _to_contract(raw, hit_tolerance, tag)
+                        mapped, clipped = _to_contract(raw, hit_tolerance, tag, key)
                         got.extend(mapped)
                         clipped_all.extend(clipped)
-                attempt += 1
+
+            # A timeout means a worker's CSV was accepted half-written, so the
+            # rows this run collected depend on machine speed and load. That is
+            # exactly the reproducibility hole task 33 closes, so it fails the
+            # run by default rather than silently yielding a machine-specific
+            # dataset; --allow-partial is the deliberate opt-out.
+            if timeouts and not allow_partial:
+                raise GameRunFailed(
+                    f"{timeouts} worker(s) hit the {timeout}s timeout; their "
+                    f"partial output would make this dataset depend on machine "
+                    f"speed rather than --seed alone. Raise --timeout, lower "
+                    f"--boards-per-chunk, or pass --allow-partial to accept a "
+                    f"non-reproducible run."
+                )
 
             if len(got) < want:
                 msg = (f"only produced {len(got)} of {want} '{tag}' rows after "
-                       f"{attempt} attempts")
+                       f"{rounds_run} of {len(schedule)} planned rounds")
                 if not allow_partial:
                     raise GameRunFailed(msg + " (pass --allow-partial to accept)")
                 print(f"  WARNING: {msg}")
@@ -399,7 +536,7 @@ def generate(n, seed=42, boards=None, throws=32, workers=8, input_mode="EFFORT",
     if n_err:
         for i in range(min(n_err, len(rows))):
             row = rows[i]
-            row[:11] = corrupt_row(row[:11], no_zero_indices={gen.MASS_COLUMN_INDEX})
+            row[:11] = corrupt_row(rng, row[:11], no_zero_indices={gen.MASS_COLUMN_INDEX})
             row[12] = "data_error"
 
     # Shuffle before truncating: n_samples is applied downstream as a positional
@@ -412,24 +549,35 @@ def generate(n, seed=42, boards=None, throws=32, workers=8, input_mode="EFFORT",
     for c in gen.COLUMNS[:11]:
         df[c] = df[c].astype("float64")
     df["hit_target"] = df["hit_target"].astype("int64")
+    df["group_id"] = df["group_id"].astype(str)
 
     _report(df, clipped_all, timeouts)
     return df
 
 
 def _dump_raw(base, dest):
-    """Concatenate every worker's CSV into one file, keeping the board column."""
+    """Concatenate every worker's CSV into one file, keeping the board column
+    and adding chunk_key/group_id so groups are reconstructable from this
+    file too (AUDIT.md task 32/§5.1) -- `board` alone restarts at 1 in every
+    worker's own CSV and so collides across workers; CHUNKKEY.TXT (written
+    by _run_worker) is what disambiguates them. The group_id written here is
+    built the same way _to_contract builds the parquet's, so the two outputs
+    are joinable on it."""
     dest.parent.mkdir(parents=True, exist_ok=True)
+    board_idx = CSV_HEADER.index("board")
     with open(dest, "w", newline="") as out:
         w = csv.writer(out)
-        w.writerow(CSV_HEADER)
+        w.writerow(CSV_HEADER + ["chunk_key", "group_id"])
         for p in sorted(base.glob("*/THROWS.CSV")):
+            key_path = p.parent / "CHUNKKEY.TXT"
+            chunk_key = key_path.read_text().strip() if key_path.is_file() else ""
             with open(p, newline="") as fh:
                 rd = csv.reader(fh)
                 next(rd, None)
                 for r in rd:
                     if len(r) == len(CSV_HEADER):
-                        w.writerow(r)
+                        group_id = f"{chunk_key}_{r[board_idx]}" if chunk_key else ""
+                        w.writerow(r + [chunk_key, group_id])
     print(f"Raw throw log -> {dest}")
 
 
@@ -448,29 +596,12 @@ def _report(df, clipped, timeouts):
 
 
 def _check_contract(df):
-    """Fail loudly rather than let a bad frame reach a training stage."""
-    assert list(df.columns) == gen.COLUMNS, "column set/order does not match generate.COLUMNS"
-    assert df.columns[gen.MASS_COLUMN_INDEX] == "mass_kg", "MASS_COLUMN_INDEX no longer points at mass_kg"
-    assert df["mass_kg"].ne(0).all(), "mass_kg contains zeros (feature engineering divides by it)"
-    assert set(df["hit_target"].unique()) <= {0, 1}, "hit_target is not 0/1"
-    assert set(df["is_outlier"].unique()) <= {"none", "gravity", "data_error"}, "unexpected is_outlier value"
-
-    # Range checks apply to clean rows only. data_error rows are corrupted on
-    # purpose -- scaled, sign-flipped or zeroed -- and violating these bounds is
-    # exactly what makes them useful for demonstrating clean:"range". The
-    # Python path's own pool has zeros and -10.0 in wind_direction_norm for the
-    # same reason.
-    clean = df[df["is_outlier"] != "data_error"]
-    assert set(clean["wind_direction_norm"].unique()) <= {-1.0, 1.0}, "wind_direction_norm is not +/-1 on clean rows"
-    assert clean["launch_angle_deg"].between(0, 90).all(), "launch_angle_deg outside 0-90 on clean rows"
-    assert (clean[["wind_speed_ms", "mass_kg", "radius_m", "drag_coeff",
-                   "launch_height_m", "landing_height_m", "landing_distance_m",
-                   "initial_velocity_ms"]] >= 0).all().all(), "negative value on a clean row"
-
-    both = set(df["hit_target"].unique()) == {0, 1}
-    if not both:
-        print("  WARNING: hit_target has a single class -- stratified splits will fail")
-    print("  Contract check: OK")
+    """Assert the 14-column contract. The checks themselves live in
+    data_generation/contract.py so that the Python producer and both training
+    loaders apply the identical ones -- this used to be a private copy here,
+    which meant only this producer was validated, and only under __main__
+    (AUDIT.md task 38)."""
+    return check_contract(df, source="gorillas")
 
 
 if __name__ == "__main__":
@@ -486,7 +617,13 @@ if __name__ == "__main__":
                    help="throws per board; higher amortises board setup but "
                         "adds per-board correlation (default: 32)")
     p.add_argument("--workers", type=int, default=8,
-                   help="concurrent DOSBox instances (default: 8)")
+                   help="concurrent DOSBox instances -- performance only, does "
+                        "not change the resulting data (default: 8)")
+    p.add_argument("--boards-per-chunk", type=int, default=25,
+                   help="boards per DOSBox session; unlike --workers, this "
+                        "DOES change the data (changes how many per-session "
+                        "seeds get drawn), so it's part of the dataset's "
+                        "identity (default: 25)")
     p.add_argument("--animate", action="store_true",
                    help="watch it play; far slower, for demos")
     p.add_argument("--no-effort-jitter", dest="effort_jitter", action="store_false")
@@ -507,7 +644,11 @@ if __name__ == "__main__":
     p.add_argument("--timeout", type=int, default=1800)
     p.add_argument("--raw-out", type=str, default=None,
                    help="also write the unmapped throw log (keeps the board column)")
-    p.add_argument("--allow-partial", action="store_true")
+    p.add_argument("--allow-partial", action="store_true",
+                   help="accept a run where workers timed out or `n` was not "
+                        "reached. Off by default because partial worker output "
+                        "makes the dataset depend on machine speed rather than "
+                        "--seed alone (AUDIT.md task 33)")
     p.add_argument("--overwrite", action="store_true")
     p.add_argument("--dry-run", action="store_true",
                    help="run and validate, but write no parquet")
@@ -521,6 +662,7 @@ if __name__ == "__main__":
     t0 = time.time()
     df = generate(
         args.n, seed=args.seed, throws=args.throws, workers=args.workers,
+        boards_per_chunk=args.boards_per_chunk,
         input_mode=args.input_mode, hit_tolerance=args.hit_tolerance,
         animate=args.animate, effort_jitter=args.effort_jitter,
         banana_var=args.banana_var, dt=args.dt, max_ticks=args.max_ticks,
