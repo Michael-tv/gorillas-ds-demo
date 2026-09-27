@@ -10,6 +10,11 @@ _search = params.search_params("classification", "random_forest")
 N_ITER  = _search["n_iter"]
 CV      = _search["cv"]
 
+# Tune on PR-AUC, not ROC-AUC: with a 5-7% positive rate ROC-AUC is flattered by
+# the large true-negative pool, while average precision tracks the thing we
+# actually care about -- how good the positive predictions are (AUDIT.md task 37).
+SCORING = "average_precision"
+
 X, y, groups = load_data()
 # Group-aware when the active pool has groups -- a Gorillas pool shares one
 # board's wind and skyline across all 32 of its throws, so a random split would
@@ -32,15 +37,19 @@ param_dist = {
 }
 
 search = RandomizedSearchCV(
-    RandomForestClassifier(random_state=42),
+    # class_weight="balanced" reweights the loss by inverse class frequency, so the
+# 5-7% hit rate in a Gorillas pool does not let the model win by always predicting
+# "miss" (AUDIT.md task 37 / §5.4). A no-op on the Python pool, whose labels are
+# exactly 50/50 -- which is the point: the setting is correct for both.
+    RandomForestClassifier(random_state=42, class_weight="balanced"),
     param_distributions=param_dist,
-    n_iter=N_ITER, cv=CV_FOLDS, scoring="roc_auc",
+    n_iter=N_ITER, cv=CV_FOLDS, scoring=SCORING,
     random_state=42, n_jobs=-1, verbose=1,
 )
 search.fit(X_train, y_train)
 
 print(f"\nBest params : {search.best_params_}")
-print(f"Best CV AUC : {search.best_score_:.4f}\n")
+print(f"Best CV {SCORING}: {search.best_score_:.4f}\n")
 
 best   = search.best_estimator_
 y_pred = best.predict(X_test)

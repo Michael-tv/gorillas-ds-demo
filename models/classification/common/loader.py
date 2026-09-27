@@ -9,9 +9,11 @@ import csv as _csv
 import os
 import sys
 
+import numpy as np
 import pandas as pd
-from sklearn.metrics import (accuracy_score, confusion_matrix, f1_score,
-                              precision_score, recall_score, roc_auc_score)
+from sklearn.metrics import (accuracy_score, average_precision_score,
+                              confusion_matrix, f1_score, precision_score,
+                              recall_score, roc_auc_score)
 
 from feature_engineering import add_engineered_columns
 
@@ -85,18 +87,43 @@ def save_metrics(models_dir, model_name, **kw):
 
 
 def print_metrics(models_dir, y_test, y_pred, y_prob=None):
-    acc  = accuracy_score(y_test, y_pred)
+    """Report the metrics that survive class imbalance, and report them first.
+
+    Accuracy used to lead this block, which is actively misleading on a Gorillas
+    pool: the hit rate there is 5-7%, so predicting "miss" for every single row
+    scores 93-95% and looks like a working model (AUDIT.md task 37 / §5.4).
+    Precision, recall and PR-AUC lead instead, and the always-miss baseline is
+    printed next to accuracy so the gap between them is visible rather than
+    something the audience has to be told about. The canonical "accuracy is the
+    wrong metric" lesson arrives here for free -- it just has to be shown.
+    """
     prec = precision_score(y_test, y_pred, zero_division=0)
     rec  = recall_score(y_test, y_pred, zero_division=0)
     f1   = f1_score(y_test, y_pred, zero_division=0)
+    acc  = accuracy_score(y_test, y_pred)
     cm   = confusion_matrix(y_test, y_pred)
-    auc  = roc_auc_score(y_test, y_prob) if y_prob is not None else float("nan")
-    print(f"  Accuracy  : {acc:.4f}")
+    auc    = roc_auc_score(y_test, y_prob) if y_prob is not None else float("nan")
+    # PR-AUC (average precision) is the right summary under imbalance: ROC-AUC
+    # is flattered by the huge true-negative pool, PR-AUC is not.
+    pr_auc = average_precision_score(y_test, y_prob) if y_prob is not None else float("nan")
+
+    pos_rate  = float(np.mean(y_test))
+    baseline  = 1.0 - pos_rate          # accuracy of predicting "miss" every time
+
     print(f"  Precision : {prec:.4f}")
     print(f"  Recall    : {rec:.4f}")
     print(f"  F1        : {f1:.4f}")
     if y_prob is not None:
+        print(f"  PR-AUC    : {pr_auc:.4f}   (positive rate {pos_rate:.4f} = a random"
+              f" classifier's PR-AUC)")
         print(f"  ROC-AUC   : {auc:.4f}")
+    print(f"  Accuracy  : {acc:.4f}   (always-miss baseline {baseline:.4f}"
+          f"{'  <-- accuracy beats the model here' if baseline > acc else ''})")
+    if baseline > acc:
+        print("  NOTE: this model is LESS accurate than predicting 'miss' every time. "
+              "That is\n        why accuracy is not the metric to judge it by -- see "
+              "precision/recall above.")
+
     tn, fp, fn, tp = cm.ravel()
     print(f"\n  Confusion Matrix (rows=actual, cols=predicted):")
     print(f"               Miss   Hit")
@@ -105,4 +132,6 @@ def print_metrics(models_dir, y_test, y_pred, y_prob=None):
     print()
     script = os.path.splitext(os.path.basename(sys.argv[0]))[0]
     model_name = script[6:] if script.startswith("train_") else script
-    save_metrics(models_dir, model_name, accuracy=acc, precision=prec, recall=rec, f1=f1, roc_auc=auc)
+    save_metrics(models_dir, model_name, precision=prec, recall=rec, f1=f1,
+                 pr_auc=pr_auc, roc_auc=auc, accuracy=acc,
+                 baseline_accuracy=baseline, positive_rate=pos_rate)

@@ -28,8 +28,13 @@ import params
 from physics import simulate
 from feature_engineering import add_engineered_columns
 
-DATA              = params.data_path()
-MAX_ELEVATION_DEG = 30  # skewed = a low-angle-only slice of the standard pool
+# The filtered slice the filter_skewed stage wrote -- the same file the skewed
+# models train on, rather than the full pool re-filtered here with a private
+# copy of the bound (which is params.yaml's skew.max_angle_deg -- AUDIT.md
+# tasks 8/9). Plotting a differently-derived slice than the models saw is
+# exactly the drift this avoids.
+DATA              = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "data", "skewed_training_data.parquet")
+MAX_ANGLE         = params.load_params()["skew"]["max_angle_deg"]
 TEST_SIZE         = 0.2
 RANDOM_STATE      = 42
 DT                = 0.02
@@ -43,9 +48,7 @@ FEATURES = [
 TARGET = "landing_distance_m"
 
 # ── Load and split ────────────────────────────────────────────────────────────
-df = pd.read_parquet(DATA)
-df = df[df["launch_angle_deg"] <= MAX_ELEVATION_DEG]
-df = add_engineered_columns(df)
+df = add_engineered_columns(pd.read_parquet(DATA))
 df_train, df_test = train_test_split(df, test_size=TEST_SIZE, random_state=RANDOM_STATE)
 
 X_train = df_train[FEATURES].values
@@ -101,7 +104,7 @@ for zoomed in [False, True]:
     fig, axes = plt.subplots(n_rows, N_COLS, figsize=(N_COLS * 4, n_rows * 3 + 1))
     title_suffix = "physics y-scale" if zoomed else "full y-scale"
     fig.suptitle(
-        f"Input → Output Relationships   |   run_skewed (angle <= {MAX_ELEVATION_DEG}°)   TRAINING SPLIT  "
+        f"Input → Output Relationships   |   run_skewed (angle <= {MAX_ANGLE}°)   TRAINING SPLIT  "
         f"({len(y_train):,} / {len(df):,} samples)   [{title_suffix}]\n"
         f"Target: {TARGET}   |   grey = withheld test set   |   dashed = true physics (train means)",
         fontsize=11, fontweight="bold",
