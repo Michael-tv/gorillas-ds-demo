@@ -10,6 +10,11 @@ _search = params.search_params("classification", "xgboost")
 N_ITER  = _search["n_iter"]
 CV      = _search["cv"]
 
+# Tune on PR-AUC, not ROC-AUC: with a 5-7% positive rate ROC-AUC is flattered by
+# the large true-negative pool, while average precision tracks the thing we
+# actually care about -- how good the positive predictions are (AUDIT.md task 37).
+SCORING = "average_precision"
+
 X, y, groups = load_data()
 # Group-aware when the active pool has groups -- a Gorillas pool shares one
 # board's wind and skyline across all 32 of its throws, so a random split would
@@ -24,6 +29,14 @@ X_train, X_test, y_train, y_test, groups_train = splitting.split(
 # group-aware split would leak across folds instead of across the test set.
 CV_FOLDS = splitting.cv_for(CV, X_train, y_train, groups_train, stratify=True)
 
+# Negative/positive ratio on the TRAINING labels only. 1.0 when the pool is
+# balanced, ~13 at a 7% hit rate.
+_pos = int(y_train.sum())
+_neg = len(y_train) - _pos
+SCALE_POS_WEIGHT = (_neg / _pos) if _pos else 1.0
+print(f"  scale_pos_weight : {SCALE_POS_WEIGHT:.2f}  "
+      f"({_neg} miss / {_pos} hit in train)")
+
 param_dist = {
     "n_estimators":     [200, 300, 500],
     "learning_rate":    [0.01, 0.05, 0.1, 0.2],
@@ -35,15 +48,21 @@ param_dist = {
 }
 
 search = RandomizedSearchCV(
-    XGBClassifier(random_state=42, verbosity=0, eval_metric="logloss"),
+    # XGBoost's equivalent of class_weight="balanced" is scale_pos_weight, which
+    # takes the negative/positive ratio rather than a keyword -- computed from the
+    # TRAINING labels only, so nothing about the test set leaks into the model
+    # (AUDIT.md task 37 / §5.4). 1.0 on the balanced Python pool, ~13 on a Gorillas
+    # pool at a 7% hit rate.
+    XGBClassifier(random_state=42, verbosity=0, eval_metric="logloss",
+                  scale_pos_weight=SCALE_POS_WEIGHT),
     param_distributions=param_dist,
-    n_iter=N_ITER, cv=CV_FOLDS, scoring="roc_auc",
+    n_iter=N_ITER, cv=CV_FOLDS, scoring=SCORING,
     random_state=42, n_jobs=-1, verbose=1,
 )
 search.fit(X_train, y_train)
 
 print(f"\nBest params : {search.best_params_}")
-print(f"Best CV AUC : {search.best_score_:.4f}\n")
+print(f"Best CV {SCORING}: {search.best_score_:.4f}\n")
 
 best   = search.best_estimator_
 y_pred = best.predict(X_test)
