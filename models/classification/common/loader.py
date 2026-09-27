@@ -15,6 +15,15 @@ from sklearn.metrics import (accuracy_score, confusion_matrix, f1_score,
 
 from feature_engineering import add_engineered_columns
 
+# params lives at the repo root. The run_*/train_utils.py shims already put it
+# on sys.path before importing this module, but doing it here too means the
+# loader works when imported directly (e.g. from a test or a notebook).
+_REPO_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+import params
+
 FEATURES = [
     "initial_velocity_ms", "launch_angle_deg", "wind_x_ms",
     "drag_param", "height_diff_m", "target_distance_m",
@@ -33,12 +42,14 @@ def load_data(data_path, n_samples=None):
         print()
         sys.exit(1)
     df = pd.read_parquet(data_path)
-    if n_samples is not None:
-        # data_path is the shared, pre-shuffled pool -- slicing a prefix here
-        # (rather than caching a separate generated file per size) gives the
-        # 10k/20k/40k tiers nested samples of one draw, so growing the sample
-        # size is the only thing that changes between tiers.
-        df = df.iloc[:n_samples]
+    # data_path is the shared, pre-shuffled pool -- prefix-slicing here (rather
+    # than caching a separate generated file per size) gives the size tiers
+    # nested samples of one draw, so growing the sample size is the only thing
+    # that changes between tiers. take_samples raises rather than silently
+    # returning a short frame when the pool holds fewer than n_samples rows,
+    # which a Gorillas pool (5,000 rows vs n_samples: 40000) does (AUDIT.md
+    # task 35 / §5.5).
+    df = params.take_samples(df, n_samples, pool_name=os.path.basename(data_path))
     df = add_engineered_columns(df)
     X = df[FEATURES].values
     y = df[TARGET].values
