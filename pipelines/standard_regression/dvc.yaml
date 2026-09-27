@@ -1,0 +1,227 @@
+# Standalone pipeline: every regression model and demo, on the switchable
+# training_data pool (params.yaml -- standard_training_data by default, or
+# any Gorillas *_regression pool via --set-param). See
+# pipelines/effort_regression/dvc.yaml's header for the full explanation of
+# the cross-pipeline-dependency / ../../-path / explicit-params.yaml pattern
+# every pipeline under pipelines/ follows.
+#
+# Everything regression-domain that isn't one of the four fixed Gorillas
+# groups lives here: the 9-model sweep (train_raw/train_eng), the skew filter
+# and its three consumers, and the leakage/bias-variance demo pairs. They
+# share this pipeline rather than each getting their own because they are
+# not independently switchable the way training_data is -- filter_skewed,
+# train_leakage_* and train_bias_variance_* all read ${training_data}
+# directly, so splitting them into more files would only add cross-pipeline
+# dependency edges without adding any group a reader would want to run alone.
+
+vars:
+  - ../../dvc_models_regression.yaml
+  - ../../params.yaml
+
+stages:
+
+  train_raw:
+    foreach: ${regression_models}
+    do:
+      cmd: python ../../scripts/run_with_pythonpath.py ../../models/regression/run_raw ../../models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
+      deps:
+        - ../../data/${training_data}.parquet
+        - ../../models/regression/${item.script}
+        - ../../models/regression/run_raw/train_utils.py
+        - ../../models/regression/common/loader.py
+        - ../../splitting.py
+      params:
+        - ../../params.yaml:
+            - training_data
+            - n_samples
+            - test_size
+            - search.regression.${item.model}.n_iter
+            - search.regression.${item.model}.cv
+      outs:
+        - ../../experiments/regression/run_raw/models/model_${key}.joblib
+      metrics:
+        - ../../experiments/regression/run_raw/models/metrics_${key}.csv:
+            cache: false
+
+  train_eng:
+    foreach: ${regression_models}
+    do:
+      cmd: python ../../scripts/run_with_pythonpath.py ../../models/regression/run_eng ../../models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
+      deps:
+        - ../../data/${training_data}.parquet
+        - ../../models/regression/${item.script}
+        - ../../models/regression/run_eng/train_utils.py
+        - ../../models/regression/common/loader.py
+        - ../../feature_engineering.py
+        - ../../splitting.py
+      params:
+        - ../../params.yaml:
+            - training_data
+            - n_samples
+            - test_size
+            - search.regression.${item.model}.n_iter
+            - search.regression.${item.model}.cv
+      outs:
+        - ../../experiments/regression/run_eng/models/model_${key}.joblib
+      metrics:
+        - ../../experiments/regression/run_eng/models/metrics_${key}.csv:
+            cache: false
+
+  # ── The skewed slice: one filter stage, two outputs ──────────────────────
+  # See the root dvc.yaml's original comment (preserved from before the
+  # pipelines/ split) -- both outputs matter: the kept rows train the skewed
+  # models, the excluded rows are the out-of-distribution test set
+  # (AUDIT.md tasks 8-10).
+
+  filter_skewed:
+    cmd: python -m data_generation.filter_skewed --out ../../data/skewed_training_data.parquet --holdout-out ../../data/skewed_holdout.parquet
+    deps:
+      - ../../data/${training_data}.parquet
+      - ../../data_generation/filter_skewed.py
+      - ../../data_generation/contract.py
+      - ../../params.py
+    params:
+      - ../../params.yaml:
+          - training_data
+          - skew.max_angle_deg
+    outs:
+      - ../../data/skewed_training_data.parquet
+      - ../../data/skewed_holdout.parquet
+
+  train_skewed:
+    foreach: ${skewed_models}
+    do:
+      cmd: python ../../scripts/run_with_pythonpath.py ../../models/regression/run_skewed ../../models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
+      deps:
+        - ../../data/skewed_training_data.parquet
+        - ../../models/regression/${item.script}
+        - ../../models/regression/run_skewed/train_utils.py
+        - ../../models/regression/common/loader.py
+        - ../../feature_engineering.py
+        - ../../splitting.py
+      params:
+        - ../../params.yaml:
+            - training_data
+            - skew.max_angle_deg
+            - test_size
+            - search.regression.${item.model}.n_iter
+            - search.regression.${item.model}.cv
+      outs:
+        - ../../experiments/regression/run_skewed/models/model_${key}.joblib
+      metrics:
+        - ../../experiments/regression/run_skewed/models/metrics_${key}.csv:
+            cache: false
+
+  train_skewed_concept:
+    cmd: python ../../scripts/run_with_pythonpath.py ../../models/regression/run_skewed ../../models/regression/run_skewed/train_skewed.py
+    deps:
+      # Both: it trains on the slice and scores the holdout, which is the point.
+      - ../../data/skewed_training_data.parquet
+      - ../../data/skewed_holdout.parquet
+      - ../../models/regression/run_skewed/train_skewed.py
+      - ../../models/regression/run_skewed/train_utils.py
+      - ../../models/regression/common/loader.py
+      - ../../feature_engineering.py
+      - ../../splitting.py
+    params:
+      - ../../params.yaml:
+          - training_data
+          - skew.max_angle_deg
+          - test_size
+    outs:
+      - ../../experiments/regression/run_skewed/models/model_skewed.joblib
+    metrics:
+      - ../../experiments/regression/run_skewed/models/metrics_skewed.csv:
+          cache: false
+
+  train_balanced_concept:
+    cmd: python ../../scripts/run_with_pythonpath.py ../../models/regression/run_skewed ../../models/regression/run_skewed/train_balanced.py
+    deps:
+      # The full pool to train on, the slice to size against, the holdout to
+      # score on -- all three, so it re-runs when any of them changes.
+      - ../../data/${training_data}.parquet
+      - ../../data/skewed_training_data.parquet
+      - ../../data/skewed_holdout.parquet
+      - ../../models/regression/run_skewed/train_balanced.py
+      - ../../models/regression/run_skewed/train_utils.py
+      - ../../models/regression/common/loader.py
+      - ../../feature_engineering.py
+      - ../../splitting.py
+    params:
+      - ../../params.yaml:
+          - training_data
+          - skew.max_angle_deg
+          - test_size
+    outs:
+      - ../../experiments/regression/run_skewed/models/model_balanced.joblib
+    metrics:
+      - ../../experiments/regression/run_skewed/models/metrics_balanced.csv:
+          cache: false
+
+  # ── Leakage demo (a 10k random sample of the standard pool) ──────────────
+
+  train_leakage_clean:
+    cmd: python ../../scripts/run_with_pythonpath.py ../../models/regression/run_leakage ../../models/regression/run_leakage/train_clean.py
+    deps:
+      - ../../data/${training_data}.parquet
+      - ../../models/regression/run_leakage/train_clean.py
+      - ../../models/regression/run_leakage/train_utils.py
+      - ../../feature_engineering.py
+    params:
+      - ../../params.yaml:
+          - training_data
+    outs:
+      - ../../experiments/regression/run_leakage/models/model_dt_clean.joblib
+    metrics:
+      - ../../experiments/regression/run_leakage/models/metrics_dt_clean.csv:
+          cache: false
+
+  train_leakage_leaky:
+    cmd: python ../../scripts/run_with_pythonpath.py ../../models/regression/run_leakage ../../models/regression/run_leakage/train_leaky.py
+    deps:
+      - ../../data/${training_data}.parquet
+      - ../../models/regression/run_leakage/train_leaky.py
+      - ../../models/regression/run_leakage/train_utils.py
+      - ../../feature_engineering.py
+    params:
+      - ../../params.yaml:
+          - training_data
+    outs:
+      - ../../experiments/regression/run_leakage/models/model_dt_leaky.joblib
+    metrics:
+      - ../../experiments/regression/run_leakage/models/metrics_dt_leaky.csv:
+          cache: false
+
+  # ── Bias/variance demo (a 20k random sample of the standard pool) ────────
+
+  train_bias_variance_underfitting:
+    cmd: python ../../scripts/run_with_pythonpath.py ../../models/regression/run_bias_variance ../../models/regression/run_bias_variance/train_underfitting.py
+    deps:
+      - ../../data/${training_data}.parquet
+      - ../../models/regression/run_bias_variance/train_underfitting.py
+      - ../../models/regression/run_bias_variance/train_utils.py
+      - ../../feature_engineering.py
+    params:
+      - ../../params.yaml:
+          - training_data
+    outs:
+      - ../../experiments/regression/run_bias_variance/models/model_underfitting.joblib
+    metrics:
+      - ../../experiments/regression/run_bias_variance/models/metrics_underfitting.csv:
+          cache: false
+
+  train_bias_variance_overfitting:
+    cmd: python ../../scripts/run_with_pythonpath.py ../../models/regression/run_bias_variance ../../models/regression/run_bias_variance/train_overfitting.py
+    deps:
+      - ../../data/${training_data}.parquet
+      - ../../models/regression/run_bias_variance/train_overfitting.py
+      - ../../models/regression/run_bias_variance/train_utils.py
+      - ../../feature_engineering.py
+    params:
+      - ../../params.yaml:
+          - training_data
+    outs:
+      - ../../experiments/regression/run_bias_variance/models/model_overfitting.joblib
+    metrics:
+      - ../../experiments/regression/run_bias_variance/models/metrics_overfitting.csv:
+          cache: false

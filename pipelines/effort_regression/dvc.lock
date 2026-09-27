@@ -1,0 +1,44 @@
+schema: '2.0'
+stages:
+  train_raw_effort@linear_regression:
+    cmd: python ../../scripts/run_with_pythonpath.py 
+      ../../models/regression/run_raw_effort 
+      ../../models/regression/train_linear_regression.py 
+      TRAIN_MODEL_NAME=linear_regression TRAIN_CLEAN=
+    deps:
+    - path: ../../data/gorillas_effort_regression.parquet
+      hash: md5
+      md5: 1d162c017c19289f016344d78093bff9
+      size: 254776
+    - path: ../../models/regression/common/loader.py
+      hash: md5
+      md5: d9ec21d7a1da59fefe7f0d243f208b11
+      size: 8469
+    - path: ../../models/regression/run_raw_effort/train_utils.py
+      hash: md5
+      md5: 33fcce5ecb6f0d55f8cb84f6a515deda
+      size: 1509
+    - path: ../../models/regression/train_linear_regression.py
+      hash: md5
+      md5: 44375db393b8053b7e63b0ddca457aa1
+      size: 1778
+    - path: ../../splitting.py
+      hash: md5
+      md5: 6b70d3a171d077c0f2db4510dd2c186e
+      size: 5772
+    params:
+      ../../params.yaml:
+        search.regression.linear_regression.cv: 5
+        search.regression.linear_regression.n_iter:
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../experiments/regression/run_raw_effort/models/metrics_linear_regression.csv
+      hash: md5
+      md5: 35f04e1d72cd0fcccc6edc9745e58c5c
+      size: 67
+    - path: 
+        ../../experiments/regression/run_raw_effort/models/model_linear_regression.joblib
+      hash: md5
+      md5: e054e6bb8bb041eb6b7417034b643f59
+      size: 1817
