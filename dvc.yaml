@@ -1,0 +1,258 @@
+vars:
+  - dvc_models.yaml
+  - dvc_datasets.yaml
+  - params.yaml   # for ${training_data} -- see params.yaml's own comment on that key
+
+stages:
+
+  # ── Data generation ──────────────────────────────────────────────────────
+  # data_generation/generate.py's generate() is the one generation engine;
+  # dvc_datasets.yaml lists every dataset to produce with it (one dict entry
+  # per dataset, keyed by name, holding its generate() arguments). This
+  # `foreach` expands one independent stage instance per entry (generate@
+  # <name>) writing data/<name>.parquet -- each instance's `cmd:` embeds only
+  # that entry's own values, so DVC hashes and caches it independently:
+  # editing one dataset's parameters in dvc_datasets.yaml reruns only that
+  # dataset's generate@<name> stage, never the others. Add a dataset by
+  # adding an entry there, not by editing this stage.
+  #
+  # Every generated file carries both the regression target
+  # (landing_distance_m) and the classification target
+  # (target_distance_m/hit_target) -- both domains train from the exact same
+  # file. Engineered features (wind_x_ms, drag_param, height_diff_m) are
+  # derived inside each model's own sklearn Pipeline (see
+  # feature_engineering.EngineeredFeatures), never stored here.
+  #
+  # data/standard_training_data.parquet is a single seeded, pre-shuffled pool
+  # at the largest size (40000 rows) -- run_raw/run_eng/classification's run
+  # sample the first `n_samples` rows from it (see params.yaml) instead of
+  # each size having its own generated file. That makes a sample-size
+  # convergence experiment (`dvc exp run --set-param n_samples=...`) nested
+  # samples of one draw, so growing the sample size is the only thing that
+  # changes.
+  #
+  # A dataset variant expressible as a row filter over an existing generated
+  # file (rather than a new draw) doesn't need a dvc_datasets.yaml entry at
+  # all -- see train_skewed below, which trains on a low-angle subset of
+  # standard_training_data.parquet.
+  #
+  # Every training/evaluation stage below reads data/${training_data}.parquet
+  # -- a name (params.yaml), not a hardcoded file -- so switching which pool
+  # they train on is `dvc exp run --set-param training_data=<name>`, not an
+  # edit to every stage. `generate_gorillas` (below) is a second producer,
+  # generating from the real QBasic game instead of this stage's RK4
+  # simulation; either can fill training_data's slot as long as the name
+  # matches a key one of them has produced.
+
+  generate:
+    foreach: ${datasets}
+    do:
+      cmd: python -m data_generation.generate --n ${item.n} --seed ${item.seed} --elevation-mean ${item.elevation_mean} --elevation-std ${item.elevation_std} --hit-tolerance ${item.hit_tolerance} --out data/${key}.parquet
+      deps:
+        - data_generation/generate.py
+        - data_generation/sampling.py
+        - data_generation/outliers.py
+        - data_generation/io.py
+        - physics.py
+      outs:
+        - data/${key}.parquet
+
+  # ── Data generation: the real QBasic game, as a second producer ──────────
+  # dvc_datasets.yaml's `gorillas_datasets` lists the game-sourced variants,
+  # same shape as `datasets` above (one dict entry per dataset, one
+  # independently-cached generate_gorillas@<key> stage per entry). Different
+  # module (data_generation.gorillas, driving qbasic_gorillas/dosbox-datagen/
+  # instead of physics.py), so it is its own stage rather than folded into
+  # `generate` -- see dvc_datasets.yaml's comment on why, and the "Every
+  # training/evaluation stage..." note above on how a dataset from either
+  # producer reaches the training stages (params.yaml's `training_data`).
+  #
+  # gorilla.bas is a dep, not QBASIC.EXE -- the interpreter binary never
+  # changes and DVC would otherwise cache ~200 KB of it per dataset.
+  # --workers is deliberately absent from `cmd:`: it only changes how many
+  # DOSBox instances run concurrently, never the resulting rows (see
+  # data_generation/gorillas.py), so it isn't part of what should invalidate
+  # this stage's cache. Run the module directly (not through `dvc repro`) to
+  # override it for a faster one-off pull.
+
+  generate_gorillas:
+    foreach: ${gorillas_datasets}
+    do:
+      cmd: python -m data_generation.gorillas --n ${item.n} --seed ${item.seed} --input-mode ${item.input_mode} --throws ${item.throws} --boards-per-chunk ${item.boards_per_chunk} --hit-tolerance ${item.hit_tolerance} --overwrite --out data/${key}.parquet --raw-out data/${key}_throws.csv
+      deps:
+        - data_generation/gorillas.py
+        - data_generation/outliers.py
+        - data_generation/io.py
+        - qbasic_gorillas/dosbox-datagen/gorilla.bas
+      outs:
+        - data/${key}.parquet
+        - data/${key}_throws.csv
+
+  # ── Regression: raw feature set ──────────────────────────────────────────
+
+  train_raw:
+    foreach: ${regression_models}
+    do:
+      cmd: python scripts/run_with_pythonpath.py models/regression/run_raw models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
+      deps:
+        - data/${training_data}.parquet
+        - models/regression/${item.script}
+        - models/regression/run_raw/train_utils.py
+        - models/regression/common/loader.py
+      params:
+        - training_data
+        - n_samples
+        - test_size
+        - search.regression.${item.model}.n_iter
+        - search.regression.${item.model}.cv
+      outs:
+        - experiments/regression/run_raw/models/model_${key}.joblib
+      metrics:
+        - experiments/regression/run_raw/models/metrics_${key}.csv:
+            cache: false
+
+  # ── Regression: engineered feature set (same raw data, derived features) ─
+
+  train_eng:
+    foreach: ${regression_models}
+    do:
+      cmd: python scripts/run_with_pythonpath.py models/regression/run_eng models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
+      deps:
+        - data/${training_data}.parquet
+        - models/regression/${item.script}
+        - models/regression/run_eng/train_utils.py
+        - models/regression/common/loader.py
+        - feature_engineering.py
+      params:
+        - training_data
+        - n_samples
+        - test_size
+        - search.regression.${item.model}.n_iter
+        - search.regression.${item.model}.cv
+      outs:
+        - experiments/regression/run_eng/models/model_${key}.joblib
+      metrics:
+        - experiments/regression/run_eng/models/metrics_${key}.csv:
+            cache: false
+
+  # ── Regression: skewed elevation slice (low-angle filter of the standard pool) ─
+
+  train_skewed:
+    foreach: ${skewed_models}
+    do:
+      cmd: python scripts/run_with_pythonpath.py models/regression/run_skewed models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
+      deps:
+        - data/${training_data}.parquet
+        - models/regression/${item.script}
+        - models/regression/run_skewed/train_utils.py
+        - feature_engineering.py
+      params:
+        - training_data
+        - test_size
+        - search.regression.${item.model}.n_iter
+        - search.regression.${item.model}.cv
+      outs:
+        - experiments/regression/run_skewed/models/model_${key}.joblib
+      metrics:
+        - experiments/regression/run_skewed/models/metrics_${key}.csv:
+            cache: false
+
+  train_skewed_concept:
+    cmd: python scripts/run_with_pythonpath.py models/regression/run_skewed models/regression/run_skewed/train_skewed.py
+    deps:
+      - data/${training_data}.parquet
+      - models/regression/run_skewed/train_skewed.py
+      - models/regression/run_skewed/train_utils.py
+      - feature_engineering.py
+    params:
+      - training_data
+    outs:
+      - experiments/regression/run_skewed/models/model_skewed.joblib
+
+  train_balanced_concept:
+    cmd: python scripts/run_with_pythonpath.py models/regression/run_skewed models/regression/run_skewed/train_balanced.py
+    deps:
+      - data/${training_data}.parquet
+      - models/regression/run_skewed/train_balanced.py
+      - models/regression/run_skewed/train_utils.py
+      - feature_engineering.py
+    params:
+      - training_data
+    outs:
+      - experiments/regression/run_skewed/models/model_balanced.joblib
+
+  # ── Regression: leakage demo (a 10k random sample of the standard pool) ──
+
+  train_leakage_clean:
+    cmd: python scripts/run_with_pythonpath.py models/regression/run_leakage models/regression/run_leakage/train_clean.py
+    deps:
+      - data/${training_data}.parquet
+      - models/regression/run_leakage/train_clean.py
+      - models/regression/run_leakage/train_utils.py
+      - feature_engineering.py
+    params:
+      - training_data
+    outs:
+      - experiments/regression/run_leakage/models/model_dt_clean.joblib
+
+  train_leakage_leaky:
+    cmd: python scripts/run_with_pythonpath.py models/regression/run_leakage models/regression/run_leakage/train_leaky.py
+    deps:
+      - data/${training_data}.parquet
+      - models/regression/run_leakage/train_leaky.py
+      - models/regression/run_leakage/train_utils.py
+      - feature_engineering.py
+    params:
+      - training_data
+    outs:
+      - experiments/regression/run_leakage/models/model_dt_leaky.joblib
+
+  # ── Regression: bias/variance demo (a 20k random sample of the standard pool) ─
+
+  train_bias_variance_underfitting:
+    cmd: python scripts/run_with_pythonpath.py models/regression/run_bias_variance models/regression/run_bias_variance/train_underfitting.py
+    deps:
+      - data/${training_data}.parquet
+      - models/regression/run_bias_variance/train_underfitting.py
+      - models/regression/run_bias_variance/train_utils.py
+      - feature_engineering.py
+    params:
+      - training_data
+    outs:
+      - experiments/regression/run_bias_variance/models/model_underfitting.joblib
+
+  train_bias_variance_overfitting:
+    cmd: python scripts/run_with_pythonpath.py models/regression/run_bias_variance models/regression/run_bias_variance/train_overfitting.py
+    deps:
+      - data/${training_data}.parquet
+      - models/regression/run_bias_variance/train_overfitting.py
+      - models/regression/run_bias_variance/train_utils.py
+      - feature_engineering.py
+    params:
+      - training_data
+    outs:
+      - experiments/regression/run_bias_variance/models/model_overfitting.joblib
+
+  # ── Classification (reads the same ${training_data}.parquet pool as regression) ──────────
+
+  train_classification:
+    foreach: ${classification_models}
+    do:
+      cmd: python scripts/run_with_pythonpath.py models/classification/run models/classification/${item.script} TRAIN_MODEL_NAME=${key}
+      deps:
+        - data/${training_data}.parquet
+        - models/classification/${item.script}
+        - models/classification/run/train_utils.py
+        - models/classification/common/loader.py
+        - feature_engineering.py
+      params:
+        - training_data
+        - n_samples
+        - test_size
+        - search.classification.${item.model}.n_iter
+        - search.classification.${item.model}.cv
+      outs:
+        - experiments/classification/run/models/model_${key}.joblib
+      metrics:
+        - experiments/classification/run/models/metrics_${key}.csv:
+            cache: false

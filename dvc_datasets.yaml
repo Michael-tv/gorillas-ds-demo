@@ -1,0 +1,52 @@
+datasets:
+  standard_training_data:
+    n: 50000
+    seed: 42
+    elevation_mean: 45.0
+    elevation_std: 20.0
+    hit_tolerance: 5.0
+
+  # Add a new dataset by adding another entry here -- dvc.yaml's `generate`
+  # stage expands one independent, independently-cached stage per key (as
+  # generate@<key>), writing to data/<key>.parquet. Changing one entry's
+  # values only reruns that dataset's stage, never the others.
+  #
+  # This covers variants expressible as different arguments to
+  # data_generation.generate.generate() (n, seed, elevation distribution,
+  # hit tolerance). A variant needing different generation *logic* (not just
+  # different parameters) needs its own data_generation module and its own
+  # stage in dvc.yaml instead of an entry here -- see `gorillas_datasets`
+  # below, which is exactly that: a different module (data_generation.
+  # gorillas, driving the real QBasic game instead of physics.py's RK4
+  # integrator), with its own foreach stage (generate_gorillas) below.
+
+gorillas_datasets:
+  # Two variants of the same physical setup (same seed, same board count),
+  # differing only in what the thrower controls -- see data_generation/
+  # gorillas.py and qbasic_gorillas/dosbox-datagen/ for what that means.
+  #
+  # n=5000 lands in the "real one-off pool" range this build measures at
+  # (roughly 15-200 rows/s depending on --workers; DVC doesn't pass --workers
+  # here since it's a performance knob, not a dataset-identity one -- see
+  # data_generation/gorillas.py's own note on that). Not the 40-50k the
+  # Python generator produces in about a minute: this is a second, authentic
+  # source to compare against, not a replacement for volume.
+  #
+  # `throws` and `boards_per_chunk` DO belong here (unlike n_iter/cv-style
+  # tuning knobs) -- both change the resulting rows, not just how fast they
+  # arrive, so a value change here correctly reruns generate_gorillas@<key>.
+  gorillas_effort_data:
+    n: 5000
+    seed: 42
+    input_mode: EFFORT
+    throws: 32
+    boards_per_chunk: 25
+    hit_tolerance: 5.0
+
+  gorillas_velocity_data:
+    n: 5000
+    seed: 42
+    input_mode: VELOCITY
+    throws: 32
+    boards_per_chunk: 25
+    hit_tolerance: 5.0

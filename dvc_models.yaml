@@ -1,0 +1,50 @@
+regression_models:
+  linear_regression:                {script: train_linear_regression.py,          clean: "",           model: linear_regression}
+  decision_tree:                    {script: train_decision_tree.py,              clean: "",           model: decision_tree}
+  decision_tree_overfit:            {script: train_decision_tree_overfit.py,      clean: "",           model: decision_tree_overfit}
+  knn:                              {script: train_knn.py,                        clean: "",           model: knn}
+  polynomial:                       {script: train_polynomial.py,                 clean: "",           model: polynomial}
+  random_forest:                    {script: train_random_forest.py,              clean: "",           model: random_forest}
+  mlp:                              {script: train_mlp.py,                        clean: "",           model: mlp}
+  xgboost:                          {script: train_xgboost.py,                    clean: "",           model: xgboost}
+  linear_regression_range:          {script: train_linear_regression.py,          clean: "range",      model: linear_regression}
+  decision_tree_range:              {script: train_decision_tree.py,              clean: "range",      model: decision_tree}
+  knn_range:                        {script: train_knn.py,                        clean: "range",      model: knn}
+  polynomial_range:                 {script: train_polynomial.py,                 clean: "range",      model: polynomial}
+  random_forest_range:              {script: train_random_forest.py,              clean: "range",      model: random_forest}
+  xgboost_range:                    {script: train_xgboost.py,                    clean: "range",      model: xgboost}
+  linear_regression_no_outlier:     {script: train_linear_regression.py,          clean: "no_outlier", model: linear_regression}
+  decision_tree_no_outlier:         {script: train_decision_tree.py,              clean: "no_outlier", model: decision_tree}
+  decision_tree_overfit_no_outlier: {script: train_decision_tree_overfit.py,      clean: "no_outlier", model: decision_tree_overfit}
+  knn_no_outlier:                   {script: train_knn.py,                        clean: "no_outlier", model: knn}
+  polynomial_no_outlier:            {script: train_polynomial.py,                 clean: "no_outlier", model: polynomial}
+  random_forest_no_outlier:         {script: train_random_forest.py,              clean: "no_outlier", model: random_forest}
+  mlp_no_outlier:                   {script: train_mlp.py,                        clean: "no_outlier", model: mlp}
+  xgboost_no_outlier:               {script: train_xgboost.py,                    clean: "no_outlier", model: xgboost}
+
+classification_models:
+  logistic_regression: {script: train_logistic_regression.py, model: logistic_regression}
+  decision_tree:       {script: train_decision_tree.py,       model: decision_tree}
+  random_forest:       {script: train_random_forest.py,       model: random_forest}
+  knn:                 {script: train_knn.py,                 model: knn}
+  mlp:                 {script: train_mlp.py,                 model: mlp}
+  xgboost:             {script: train_xgboost.py,             model: xgboost}
+
+skewed_models:
+  linear_regression:            {script: train_linear_regression.py, clean: "",           model: linear_regression}
+  ridge:                         {script: train_ridge.py,              clean: "",           model: ridge}
+  lasso:                         {script: train_lasso.py,              clean: "",           model: lasso}
+  decision_tree:                 {script: train_decision_tree.py,      clean: "",           model: decision_tree}
+  knn:                           {script: train_knn.py,                clean: "",           model: knn}
+  polynomial:                    {script: train_polynomial.py,         clean: "",           model: polynomial}
+  random_forest:                 {script: train_random_forest.py,      clean: "",           model: random_forest}
+  mlp:                           {script: train_mlp.py,                clean: "",           model: mlp}
+  xgboost:                       {script: train_xgboost.py,            clean: "",           model: xgboost}
+  linear_regression_no_outlier:  {script: train_linear_regression.py, clean: "no_outlier",  model: linear_regression}
+  ridge_no_outlier:               {script: train_ridge.py,              clean: "no_outlier", model: ridge}
+  lasso_no_outlier:               {script: train_lasso.py,              clean: "no_outlier", model: lasso}
+  decision_tree_no_outlier:       {script: train_decision_tree.py,      clean: "no_outlier", model: decision_tree}
+  knn_no_outlier:                 {script: train_knn.py,                clean: "no_outlier", model: knn}
+  polynomial_no_outlier:          {script: train_polynomial.py,         clean: "no_outlier", model: polynomial}
+  random_forest_no_outlier:       {script: train_random_forest.py,      clean: "no_outlier", model: random_forest}
+  xgboost_no_outlier:             {script: train_xgboost.py,            clean: "no_outlier", model: xgboost}
