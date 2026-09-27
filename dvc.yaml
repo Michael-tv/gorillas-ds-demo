@@ -1,5 +1,6 @@
 vars:
-  - dvc_models.yaml
+  - dvc_models_regression.yaml
+  - dvc_models_classification.yaml
   - dvc_datasets.yaml
   - params.yaml   # for ${training_data} -- see params.yaml's own comment on that key
 
@@ -133,6 +134,98 @@ stages:
         - experiments/regression/run_eng/models/model_${key}.joblib
       metrics:
         - experiments/regression/run_eng/models/metrics_${key}.csv:
+            cache: false
+
+  # ── Regression: Gorillas EFFORT/VELOCITY pools, permanent parallel groups ─
+  #
+  # Two fixed model groups that always exist side by side, rather than one
+  # switchable group driven by `training_data` -- the point here is comparing
+  # effort-mode against velocity-mode models at rest, without re-running
+  # anything. DATA is hardcoded in each run-folder's train_utils.py rather than
+  # reading params.data_path(), and N_SAMPLES is None (train on the whole
+  # ~5,000-row pool) since these are not part of the n_samples size-tier sweep
+  # that run_raw/run_eng use against the much larger standard pool.
+
+  train_raw_effort:
+    foreach: ${regression_models}
+    do:
+      cmd: python scripts/run_with_pythonpath.py models/regression/run_raw_effort models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
+      deps:
+        - data/gorillas_effort_regression.parquet
+        - models/regression/${item.script}
+        - models/regression/run_raw_effort/train_utils.py
+        - models/regression/common/loader.py
+        - splitting.py
+      params:
+        - test_size
+        - search.regression.${item.model}.n_iter
+        - search.regression.${item.model}.cv
+      outs:
+        - experiments/regression/run_raw_effort/models/model_${key}.joblib
+      metrics:
+        - experiments/regression/run_raw_effort/models/metrics_${key}.csv:
+            cache: false
+
+  train_raw_velocity:
+    foreach: ${regression_models}
+    do:
+      cmd: python scripts/run_with_pythonpath.py models/regression/run_raw_velocity models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
+      deps:
+        - data/gorillas_velocity_regression.parquet
+        - models/regression/${item.script}
+        - models/regression/run_raw_velocity/train_utils.py
+        - models/regression/common/loader.py
+        - splitting.py
+      params:
+        - test_size
+        - search.regression.${item.model}.n_iter
+        - search.regression.${item.model}.cv
+      outs:
+        - experiments/regression/run_raw_velocity/models/model_${key}.joblib
+      metrics:
+        - experiments/regression/run_raw_velocity/models/metrics_${key}.csv:
+            cache: false
+
+  train_eng_effort:
+    foreach: ${regression_models}
+    do:
+      cmd: python scripts/run_with_pythonpath.py models/regression/run_eng_effort models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
+      deps:
+        - data/gorillas_effort_regression.parquet
+        - models/regression/${item.script}
+        - models/regression/run_eng_effort/train_utils.py
+        - models/regression/common/loader.py
+        - feature_engineering.py
+        - splitting.py
+      params:
+        - test_size
+        - search.regression.${item.model}.n_iter
+        - search.regression.${item.model}.cv
+      outs:
+        - experiments/regression/run_eng_effort/models/model_${key}.joblib
+      metrics:
+        - experiments/regression/run_eng_effort/models/metrics_${key}.csv:
+            cache: false
+
+  train_eng_velocity:
+    foreach: ${regression_models}
+    do:
+      cmd: python scripts/run_with_pythonpath.py models/regression/run_eng_velocity models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
+      deps:
+        - data/gorillas_velocity_regression.parquet
+        - models/regression/${item.script}
+        - models/regression/run_eng_velocity/train_utils.py
+        - models/regression/common/loader.py
+        - feature_engineering.py
+        - splitting.py
+      params:
+        - test_size
+        - search.regression.${item.model}.n_iter
+        - search.regression.${item.model}.cv
+      outs:
+        - experiments/regression/run_eng_velocity/models/model_${key}.joblib
+      metrics:
+        - experiments/regression/run_eng_velocity/models/metrics_${key}.csv:
             cache: false
 
   # ── Regression: skewed elevation slice (low-angle filter of the standard pool) ─
@@ -314,4 +407,50 @@ stages:
         - experiments/classification/run/models/model_${key}.joblib
       metrics:
         - experiments/classification/run/models/metrics_${key}.csv:
+            cache: false
+
+  # ── Classification: Gorillas EFFORT/VELOCITY pools, permanent parallel groups ─
+  # See the note above train_raw_effort for why these are fixed groups rather
+  # than one training_data-switchable group.
+
+  train_classification_effort:
+    foreach: ${classification_models}
+    do:
+      cmd: python scripts/run_with_pythonpath.py models/classification/run_effort models/classification/${item.script} TRAIN_MODEL_NAME=${key}
+      deps:
+        - data/gorillas_effort_classification.parquet
+        - models/classification/${item.script}
+        - models/classification/run_effort/train_utils.py
+        - models/classification/common/loader.py
+        - feature_engineering.py
+        - splitting.py
+      params:
+        - test_size
+        - search.classification.${item.model}.n_iter
+        - search.classification.${item.model}.cv
+      outs:
+        - experiments/classification/run_effort/models/model_${key}.joblib
+      metrics:
+        - experiments/classification/run_effort/models/metrics_${key}.csv:
+            cache: false
+
+  train_classification_velocity:
+    foreach: ${classification_models}
+    do:
+      cmd: python scripts/run_with_pythonpath.py models/classification/run_velocity models/classification/${item.script} TRAIN_MODEL_NAME=${key}
+      deps:
+        - data/gorillas_velocity_classification.parquet
+        - models/classification/${item.script}
+        - models/classification/run_velocity/train_utils.py
+        - models/classification/common/loader.py
+        - feature_engineering.py
+        - splitting.py
+      params:
+        - test_size
+        - search.classification.${item.model}.n_iter
+        - search.classification.${item.model}.cv
+      outs:
+        - experiments/classification/run_velocity/models/model_${key}.joblib
+      metrics:
+        - experiments/classification/run_velocity/models/metrics_${key}.csv:
             cache: false

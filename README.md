@@ -30,7 +30,7 @@ pipenv shell
 
 dvc repro generate                  # build the simulated pool (~1 min)
 dvc repro train_raw@random_forest    # train one model on it
-dvc repro                            # the whole DAG: 43 stages
+dvc repro                            # the whole DAG: 93 stages
 ```
 
 If `pipenv` picks up the wrong virtualenv, prefix with `PIPENV_IGNORE_VIRTUALENVS=1`.
@@ -44,10 +44,11 @@ regeneration — not a stored copy — is the recovery path. A fresh clone there
 ## What's here
 
 ```
-params.yaml            ← the knobs you actually turn
-dvc_datasets.yaml      ← which datasets exist, and their generation parameters
-dvc_models.yaml        ← which models each training stage expands into
-dvc.yaml               ← the pipeline: 9 stage groups, 43 stages
+params.yaml                    ← the knobs you actually turn
+dvc_datasets.yaml              ← which datasets exist, and their generation parameters
+dvc_models_regression.yaml     ← which regression models each training stage expands into
+dvc_models_classification.yaml ← which classification models each training stage expands into
+dvc.yaml                       ← the pipeline: 15 stage groups, 93 stages
 
 physics.py             RK4 projectile integrator with drag and wind
 data_generation/       the two producers, plus the shared contract
@@ -55,12 +56,27 @@ feature_engineering.py the 3 derived features, as a function and a Pipeline step
 splitting.py           group-aware train/test splits and cross-validation
 params.py              reads params.yaml; also holds take_samples()
 
-models/regression/     9 regression algorithms + 3 concept runs
-models/classification/ 6 classification algorithms
-evaluation/            prediction, feature and plotting scripts (run by hand)
-experiments/           trained models (DVC-cached) and metrics (Git-versioned)
-qbasic_gorillas/       the DOSBox game builds, including the datagen fork
+models/regression/     9 regression algorithms, on 3 pools: switchable (run_raw/run_eng)
+                        plus 2 permanent Gorillas groups (run_raw_effort/velocity,
+                        run_eng_effort/velocity) + 3 concept runs
+models/classification/ 6 classification algorithms, on the switchable pool (run/) plus
+                        2 permanent Gorillas groups (run_effort, run_velocity)
+evaluation/             prediction, feature and plotting scripts (run by hand)
+experiments/            trained models (DVC-cached) and metrics (Git-versioned)
+qbasic_gorillas/        the DOSBox game builds, including the datagen fork
 ```
+
+**Switchable vs. permanent pools.** Most of this repo compares data sources by pointing one
+shared model group at a different pool (`params.yaml: training_data`, one `--set-param` away
+— see "Which dataset?" below). The Gorillas effort/velocity split is the one exception: those
+are **permanent parallel groups**, four fixed stage blocks (`train_raw_effort`,
+`train_raw_velocity`, `train_eng_effort`, `train_eng_velocity`, plus
+`train_classification_effort`/`_velocity`) that always exist on disk side by side, at the cost
+of running DOSBox four times (once per mode × domain) instead of twice. Compare them with
+`dvc exp show` without re-running anything. See "Adding a permanent parallel model group"
+below for the pattern, and the design note at the top of `dvc.yaml`'s
+`train_raw_effort`/`train_classification_effort` blocks for why regression and classification
+each get their own generated file even though one Gorillas throw carries both targets.
 
 ### The 14-column contract
 
@@ -110,9 +126,14 @@ dvc repro generate_gorillas
 ```
 
 DOSBox is located via `--dosbox` → `$GORILLAS_DOSBOX` → `dosbox` on `PATH` → known install
-locations. Each variant writes both a parquet and a raw throw log
-(`data/<name>_throws.csv`), which keeps the `board` and `outcome` columns the 14-column
-contract deliberately omits.
+locations. `generate_gorillas` expands into four independently-cached variants —
+`gorillas_effort_regression`, `gorillas_effort_classification`, `gorillas_velocity_regression`,
+`gorillas_velocity_classification` — one DOSBox run each, at a different seed, so regression
+and classification are fully separate pipeline branches sharing no stage node with each other
+(the repo owner's choice; the game itself doesn't distinguish "regression data" from
+"classification data" — one throw carries both `initial_velocity_ms` and `hit_target`). Each
+variant writes both a parquet and a raw throw log (`data/<name>_throws.parquet`), which keeps
+the `board` and `outcome` columns the 14-column contract deliberately omits.
 
 `--workers` only controls how many DOSBox instances run at once and **cannot** change the
 resulting data — every chunk seed is drawn single-threaded before the thread pool starts.
@@ -130,16 +151,19 @@ dvc repro train_raw@random_forest            # one model
 dvc repro train_classification               # one group
 ```
 
-Eight stage groups:
+Fifteen stage groups:
 
 | Stage | What it shows |
 |---|---|
 | `generate` / `generate_gorillas` | the two producers |
 | `filter_skewed` | splits the pool at `skew.max_angle_deg` into a low-angle training slice and an out-of-distribution holdout |
-| `train_raw` | 9 models on the 9 raw columns |
+| `train_raw` | 9 models on the 9 raw columns, on the switchable `training_data` pool |
 | `train_eng` | the same 9 models, with the 3 derived features — same data, different first Pipeline step |
+| `train_raw_effort` / `train_raw_velocity` | the same 9 models, raw features, permanently on the Gorillas effort/velocity pools |
+| `train_eng_effort` / `train_eng_velocity` | the same 9 models, engineered features, permanently on the Gorillas effort/velocity pools |
 | `train_skewed` | the same models on a low-angle slice, for extrapolation |
-| `train_classification` | 6 models on `hit_target` |
+| `train_classification` | 6 models on `hit_target`, on the switchable pool |
+| `train_classification_effort` / `train_classification_velocity` | the same 6 models, permanently on the Gorillas effort/velocity pools |
 | `train_leakage_{clean,leaky}` | leakage, side by side |
 | `train_bias_variance_{under,over}fitting` | the bias/variance pair |
 | `train_{skewed,balanced}_concept` | distribution shift |
@@ -180,17 +204,30 @@ python scripts/run_with_pythonpath.py models/regression/run_raw \
 
 Everything below is one edit in `params.yaml`, or one `--set-param`, and nothing else.
 
-**Which dataset?** `training_data: standard_training_data` → `gorillas_effort_data`. Every
-training and evaluation script follows. This is the headline comparison: the same models on
-clean simulated data versus data from a real game with an unobserved confounder.
+**Which dataset?** Two different mechanisms, depending on which comparison you want:
 
-```bash
-dvc exp run --set-param training_data=gorillas_effort_data --set-param n_samples=5000
-```
+- **Switchable pool** — `training_data: standard_training_data` → `gorillas_effort_regression`
+  (or `gorillas_velocity_regression`) retargets `train_raw`/`train_eng`/`train_classification`
+  at a different pool without touching any other file. This is the headline comparison: the
+  same models on clean simulated data versus data from a real game with an unobserved
+  confounder.
 
-`n_samples` must be set too — a Gorillas pool holds 5,000 rows, and a sample size the pool
-cannot honour is an error rather than a silent truncation, because silently training on 5,000
-would make the run incomparable with every other size tier.
+  ```bash
+  dvc exp run --set-param training_data=gorillas_effort_regression --set-param n_samples=5000
+  ```
+
+  `n_samples` must be set too — a Gorillas pool holds 5,000 rows, and a sample size the pool
+  cannot honour is an error rather than a silent truncation, because silently training on 5,000
+  would make the run incomparable with every other size tier. Note `training_data` doesn't
+  distinguish regression from classification purpose — a classification stage reading
+  `gorillas_effort_regression` still trains on `hit_target` fine, since both targets live in
+  every pool. The `_regression`/`_classification` split only matters for the four **permanent**
+  Gorillas pools below.
+
+- **Permanent parallel groups** — `train_raw_effort` vs. `train_raw_velocity` (and their `_eng`
+  and classification counterparts) always exist on disk; no `--set-param` needed to compare
+  them, just `dvc exp show` or read both `experiments/.../run_raw_effort/` and
+  `.../run_raw_velocity/` directly.
 
 **Does more data help?** `n_samples: 40000`. Tiers are nested prefixes of one pre-shuffled
 pool, so growing it is the only thing that changes.
@@ -202,7 +239,7 @@ dvc exp run --set-param n_samples=10000 && dvc exp run --set-param n_samples=200
 **Raw or engineered features?** `train_raw` vs `train_eng`. Same data, same models; the only
 difference is the first step of the Pipeline.
 
-**Does cleaning help?** `clean` in `dvc_models.yaml` — `""`, `"range"` or `"no_outlier"`.
+**Does cleaning help?** `clean` in `dvc_models_regression.yaml` — `""`, `"range"` or `"no_outlier"`.
 `random_forest_no_outlier` exists to make this contrast visible in `dvc exp show`.
 
 > **Caveat, and it matters:** `clean: "range"` bounds `landing_distance_m` at 0, which
@@ -253,12 +290,158 @@ otherwise.
 
 ## The model matrix
 
-`dvc_models.yaml` states its rule at the top, so a gap reads as a decision rather than an
-oversight. The sweep is seven regression algorithms — `linear_regression`, `decision_tree`,
-`knn`, `polynomial`, `random_forest`, `mlp`, `xgboost` — each appearing **once per run** with
-the default cleaning. There are exactly three deviations, each carrying its reason in the
-file: `decision_tree_overfit`, `random_forest_no_outlier`, and `ridge`/`lasso` in
-`skewed_models` only.
+`dvc_models_regression.yaml` states its rule at the top, so a gap reads as a decision rather
+than an oversight. The sweep is seven regression algorithms — `linear_regression`,
+`decision_tree`, `knn`, `polynomial`, `random_forest`, `mlp`, `xgboost` — each appearing **once
+per run** with the default cleaning. There are exactly three deviations, each carrying its
+reason in the file: `decision_tree_overfit`, `random_forest_no_outlier`, and `ridge`/`lasso` in
+`skewed_models` only. `dvc_models_classification.yaml` holds the classification sweep — the
+same seven minus `polynomial`, for which there is no classifier script.
+
+Both files drive every run of their domain — `regression_models` feeds `train_raw`, `train_eng`
+**and** the four permanent Gorillas regression groups; `classification_models` feeds
+`train_classification` and its two permanent Gorillas groups. Add a model once, it appears
+everywhere that domain trains.
+
+---
+
+## Adding experiments and data to the pipeline
+
+Four things you might want to add, roughly cheapest to most involved.
+
+### 1. A new dataset variant, same generation logic
+
+Add an entry to `dvc_datasets.yaml`. For a Python-generated variant, under `datasets:`:
+
+```yaml
+datasets:
+  my_new_pool:
+    n: 50000
+    seed: 7
+    elevation_mean: 45.0
+    elevation_std: 20.0
+    hit_tolerance: 5.0
+```
+
+For a Gorillas variant, under `gorillas_datasets:`:
+
+```yaml
+gorillas_datasets:
+  my_gorillas_pool:
+    n: 5000
+    seed: 7
+    input_mode: EFFORT        # or VELOCITY
+    throws: 32
+    boards_per_chunk: 25
+    hit_tolerance: 5.0
+```
+
+`dvc.yaml`'s `generate` / `generate_gorillas` `foreach` stages pick up the new key
+automatically — no `dvc.yaml` edit needed. It becomes `generate@my_new_pool` /
+`generate_gorillas@my_gorillas_pool`, independently cached. Train on it either by pointing the
+switchable pool at it (`--set-param training_data=my_new_pool`) or, if it needs its own
+permanent group, see §4.
+
+### 2. A new algorithm in an existing sweep
+
+Write `models/regression/train_<name>.py` (or `models/classification/train_<name>.py`),
+matching the shape every existing script uses:
+
+```python
+from train_utils import load_data, print_metrics, model_path, FEATURE_STEP  # FEATURE_STEP: regression only
+import params, splitting
+
+X, y, groups = load_data()
+X_train, X_test, y_train, y_test, groups_train = splitting.split(
+    X, y, groups, test_size=params.load_params()["test_size"], random_state=42)
+CV_FOLDS = splitting.cv_for(CV, X_train, y_train, groups_train)   # only if it searches
+# ... fit, print_metrics(y_test, preds), joblib.dump(..., model_path("model_<name>.joblib"))
+```
+
+`splitting.split`/`cv_for` are mandatory, not optional — skip them and the model trains on a
+plain `train_test_split`, silently reintroducing the group leakage `group_id` exists to prevent
+whenever a Gorillas pool is active.
+
+Add an entry to `dvc_models_regression.yaml` or `dvc_models_classification.yaml`:
+
+```yaml
+regression_models:
+  my_algorithm: {script: train_my_algorithm.py, clean: "", model: my_algorithm}
+```
+
+Add its search budget to `params.yaml`'s `search:` block (`{n_iter: null, cv: null}` if it
+doesn't search). It now appears in **every** stage group that expands `${regression_models}` —
+`train_raw`, `train_eng`, and the four permanent Gorillas regression groups — with no further
+edits. That fan-out is the point of keeping one matrix file per domain (§ "The model matrix").
+
+**Switching a model off** is the same file, the other direction: comment out (or delete) its
+entry in `dvc_models_regression.yaml` / `dvc_models_classification.yaml`.
+
+```yaml
+regression_models:
+  linear_regression:  {script: train_linear_regression.py, clean: "", model: linear_regression}
+  # decision_tree:     {script: train_decision_tree.py,     clean: "", model: decision_tree}
+  knn:                {script: train_knn.py,               clean: "", model: knn}
+```
+
+No other file changes — there's no separate `enabled: false` flag, presence in the matrix *is*
+the switch. This drops the model from every stage group at once (the same fan-out that added
+it), so a commented-out `decision_tree` disappears from `train_raw`, `train_eng` and both
+Gorillas regression groups together, not one at a time. Confirm with:
+
+```bash
+dvc stage list | grep decision_tree      # should print nothing once it's off
+```
+
+Two things this does **not** do:
+
+- **It doesn't delete anything already produced.** `experiments/.../model_decision_tree.joblib`
+  and its metrics stay on disk — DVC only manages stages it currently knows about, not history.
+  Remove them by hand, or `dvc gc` once you're sure you don't want to switch it back on.
+- **It doesn't disable one model in one group only.** To keep an algorithm in `train_raw` but
+  drop it from `train_eng` (or vice versa), that's no longer "the same model, different run" —
+  give it a second matrix entry with a different key (`decision_tree_engonly`, say) and only
+  reference that key from the stage you want, the same way `random_forest_no_outlier` exists
+  alongside plain `random_forest` today.
+
+### 3. A new evaluation/plotting script
+
+Not yet part of the DAG (`evaluation/` is run by hand — see "Known state"). Follow an existing
+script's pattern for the run you're targeting and, if it imports `train_utils`, invoke it
+through the same wrapper the training stages use:
+
+```bash
+python scripts/run_with_pythonpath.py models/regression/run_raw evaluation/regression/run_raw/my_script.py
+```
+
+### 4. A new permanent parallel model group
+
+For when a dataset should always have its own dedicated, always-on-disk model group — the
+Gorillas effort/velocity pattern — rather than being reached through the switchable
+`training_data` pool. This is more work than §1–3 because it's really "§1 plus its own copy of
+the training stages," but every piece already has a template to copy.
+
+Using `run_raw_effort` as the worked example:
+
+1. **Dataset** — an entry in `dvc_datasets.yaml` (§1). Give it its own name; don't reuse a name
+   another group already owns, since these files are meant to be permanent, not overwritten.
+2. **Config shim** — `models/<domain>/<new_run_folder>/train_utils.py`, copied from
+   `models/regression/run_raw_effort/train_utils.py` (or the `_eng`/classification equivalent)
+   with `DATA` repointed at the new file and `N_SAMPLES` set — `None` trains on the whole pool,
+   a number prefix-slices it (and must not exceed the pool's row count, or `params.take_samples`
+   raises rather than silently truncating).
+3. **DVC stage** — a new `foreach: ${regression_models}` (or `${classification_models}`) block
+   in `dvc.yaml`, copied from `train_raw_effort`'s, with `cmd`/`deps`/`outs`/`metrics` repointed
+   at the new run folder and dataset file. Declare `splitting.py` as a dep (every training
+   script imports it) — the existing switchable-pool stages (`train_raw`/`train_eng`/
+   `train_classification`) are missing this dep today, which is a pre-existing gap, not the
+   pattern to copy.
+4. **Run it**: `dvc repro <new_stage_name>`.
+
+That's the whole pattern — six files this way (four regression run-folders, two classification)
+is what took the DAG from 43 to 93 stages for the effort/velocity split. Worth checking `dvc
+stage list` after adding one, to catch a typo'd dep or output path before it costs a training
+run to discover.
 
 ---
 
@@ -283,7 +466,7 @@ version produced results that looked fine and were not.
 of what is and isn't done, and it carries an implementation log. Currently open and worth
 knowing about:
 
-- **The pipeline has never been fully reproduced.** `dvc.lock` covers 4 of 43 stages, and its
+- **The pipeline has never been fully reproduced.** `dvc.lock` covers 4 of 93 stages, and its
   entries predate the current code. Everything in `experiments/` was produced outside DVC.
   Task 12.
 - **Pre-split cleaning leaks** in the regression loader — IQR quantiles over the whole pool,
