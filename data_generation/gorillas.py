@@ -39,6 +39,7 @@ from pathlib import Path
 import pandas as pd
 
 from data_generation import generate as gen
+from data_generation.contract import check_contract
 from data_generation.io import resolve_output, write_parquet
 from data_generation.outliers import corrupt_row
 from data_generation.sampling import (
@@ -563,36 +564,12 @@ def _report(df, clipped, timeouts):
 
 
 def _check_contract(df):
-    """Fail loudly rather than let a bad frame reach a training stage."""
-    assert list(df.columns) == gen.COLUMNS, "column set/order does not match generate.COLUMNS"
-    assert df.columns[gen.MASS_COLUMN_INDEX] == "mass_kg", "MASS_COLUMN_INDEX no longer points at mass_kg"
-    assert df["mass_kg"].ne(0).all(), "mass_kg contains zeros (feature engineering divides by it)"
-    assert set(df["hit_target"].unique()) <= {0, 1}, "hit_target is not 0/1"
-    assert set(df["is_outlier"].unique()) <= {"none", "gravity", "data_error"}, "unexpected is_outlier value"
-    assert df["group_id"].notna().all() and (df["group_id"] != "").all(), "group_id missing or empty"
-    # A single-board run is a legitimate (if degenerate) config, so this is a
-    # warning rather than an assert -- group-aware splitting only matters once
-    # there is more than one group to split across.
-    if df["group_id"].nunique() < 2:
-        print("  WARNING: group_id has fewer than 2 distinct values -- "
-              "group-aware splitting has nothing to split across")
-
-    # Range checks apply to clean rows only. data_error rows are corrupted on
-    # purpose -- scaled, sign-flipped or zeroed -- and violating these bounds is
-    # exactly what makes them useful for demonstrating clean:"range". The
-    # Python path's own pool has zeros and -10.0 in wind_direction_norm for the
-    # same reason.
-    clean = df[df["is_outlier"] != "data_error"]
-    assert set(clean["wind_direction_norm"].unique()) <= {-1.0, 1.0}, "wind_direction_norm is not +/-1 on clean rows"
-    assert clean["launch_angle_deg"].between(0, 90).all(), "launch_angle_deg outside 0-90 on clean rows"
-    assert (clean[["wind_speed_ms", "mass_kg", "radius_m", "drag_coeff",
-                   "launch_height_m", "landing_height_m", "landing_distance_m",
-                   "initial_velocity_ms"]] >= 0).all().all(), "negative value on a clean row"
-
-    both = set(df["hit_target"].unique()) == {0, 1}
-    if not both:
-        print("  WARNING: hit_target has a single class -- stratified splits will fail")
-    print("  Contract check: OK")
+    """Assert the 14-column contract. The checks themselves live in
+    data_generation/contract.py so that the Python producer and both training
+    loaders apply the identical ones -- this used to be a private copy here,
+    which meant only this producer was validated, and only under __main__
+    (AUDIT.md task 38)."""
+    return check_contract(df, source="gorillas")
 
 
 if __name__ == "__main__":

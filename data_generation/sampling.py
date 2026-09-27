@@ -13,7 +13,7 @@ import math
 import sys
 from dataclasses import dataclass
 
-from physics import simulate
+from physics import simulate_landing
 from data_generation.outliers import corrupt_row
 
 SPEED_RANGE          = (10.0, 80.0)   # m/s
@@ -69,6 +69,10 @@ _warned_columns = set()
 
 
 class UnreachableRangeError(RuntimeError):
+    pass
+
+
+class NonTerminatingShotError(RuntimeError):
     pass
 
 
@@ -140,7 +144,23 @@ def sample_shot(rng, elevation_dist, gravity=9.81):
     wind_x      = ws * wind_dir_norm
     height_diff = landing_h - launch_h
     drag_param  = (0.5 * RHO * Cd * math.pi * radius**2) / mass
-    traj        = simulate(v, el, wind_x, mass, radius, Cd, DT, ground_z=height_diff, gravity=gravity)
+    traj, landed = simulate_landing(v, el, wind_x, mass, radius, Cd, DT,
+                                    ground_z=height_diff, gravity=gravity)
+    # If the integration never crossed the landing height, traj[-1] is wherever
+    # the projectile happened to be when the loop gave up -- not a measurement.
+    # Recording it anyway is what AUDIT.md §1.2 believed was happening to 727
+    # rows; measuring it says otherwise (0 of 20,000 shots fail to land at the
+    # configured ranges, and the negative distances are genuine headwind
+    # landings). Raising keeps that true: widening SPEED_RANGE, raising DT, or
+    # lowering physics.simulate's max_time could make it false, and this says so
+    # instead of quietly writing meaningless rows (AUDIT.md task 13).
+    if not landed:
+        raise NonTerminatingShotError(
+            f"shot did not land within the integrator's max_time: speed={v:.2f} "
+            f"angle={el:.2f} wind_x={wind_x:.2f} mass={mass:.4f} radius={radius:.4f} "
+            f"Cd={Cd:.3f} ground_z={height_diff:.2f} gravity={gravity} -- its "
+            f"endpoint is not a landing point, so it must not become a row"
+        )
     landing_x   = traj[-1][1]
 
     return Shot(v=v, el=el, wind_speed=ws, wind_dir_norm=wind_dir_norm, wind_x=wind_x,
