@@ -304,13 +304,24 @@ def _to_contract(raw_rows, hit_tolerance, outlier_tag):
     return out, clipped
 
 
-def generate(n, seed=42, boards=None, throws=32, workers=8, input_mode="EFFORT",
+def generate(n, seed=42, throws=32, workers=8, boards_per_chunk=25, input_mode="EFFORT",
              hit_tolerance=HIT_TOLERANCE, animate=False, effort_jitter=True,
              banana_var=True, dt=0.1, max_ticks=0, angle_min=10.0, angle_max=88.0,
              effort_min=20.0, effort_max=100.0, vel_min=10.0, vel_max=80.0,
              dosbox=None, timeout=1800, keep_raw=None, allow_partial=False,
              with_outliers=True):
-    """Run the game until at least `n` usable rows exist, then map and shuffle."""
+    """Run the game until at least `n` usable rows exist, then map and shuffle.
+
+    Total board count is not a parameter: it is derived from `n`, `throws` and
+    the observed keep rate (see the chunk-sizing loop below), the same way
+    generate.py takes only `n` and figures out its own row count -- a fixed
+    total would either overshoot or leave `n` unmet depending on how many
+    throws happen to land. `boards_per_chunk` sizes each individual DOSBox
+    session; unlike `workers`, it DOES change the resulting data (it changes
+    how many distinct per-chunk seeds get drawn from the session's `seed`), so
+    it belongs in the dataset's identity alongside `throws`, not treated as a
+    tuning knob like `workers`.
+    """
     dosbox = find_dosbox(dosbox)
     if not (GAME_DIR / "gorilla.bas").is_file():
         raise GameRunFailed(f"game build not found at {GAME_DIR}")
@@ -355,16 +366,28 @@ def generate(n, seed=42, boards=None, throws=32, workers=8, input_mode="EFFORT",
                 keep = (len(got) / thrown) if thrown else 0.75
                 keep = min(max(keep, 0.25), 1.0)
                 need = int((want - len(got)) / keep) + throws
-                per_worker_boards = max(1, -(-need // (workers * throws)))
-                thrown += workers * per_worker_boards * throws
+                n_chunks = max(1, -(-need // (boards_per_chunk * throws)))
+                thrown += n_chunks * boards_per_chunk * throws
+
+                # Every chunk's seed is drawn here, single-threaded, in a fixed
+                # order determined only by (seed, n, throws, boards_per_chunk)
+                # and the keep rate observed so far -- never by `workers`. Draw
+                # them all before touching the thread pool, so the RNG stream
+                # can't interleave with worker completion order. `workers` then
+                # only controls how many of these chunks run at once: the same
+                # chunks run either way, just faster or slower. Without this
+                # separation, raising --workers to use more cores would also
+                # silently change which seeds got used and how many boards each
+                # one ran -- a different dataset under the same --seed, which
+                # would make the DVC cache for this stage meaningless.
+                chunk_seeds = [rng.randint(1, 30000) for _ in range(n_chunks)]
 
                 with ThreadPoolExecutor(max_workers=workers) as pool:
                     futures = [
                         pool.submit(_run_worker, dosbox,
-                                    base_short / f"w{tag}{attempt}_{w}", opts,
-                                    per_worker_boards,
-                                    rng.randint(1, 30000), gravity, timeout)
-                        for w in range(workers)
+                                    base_short / f"w{tag}{attempt}_{i}", opts,
+                                    boards_per_chunk, cs, gravity, timeout)
+                        for i, cs in enumerate(chunk_seeds)
                     ]
                     for fut in futures:
                         raw, to = fut.result()
@@ -486,7 +509,13 @@ if __name__ == "__main__":
                    help="throws per board; higher amortises board setup but "
                         "adds per-board correlation (default: 32)")
     p.add_argument("--workers", type=int, default=8,
-                   help="concurrent DOSBox instances (default: 8)")
+                   help="concurrent DOSBox instances -- performance only, does "
+                        "not change the resulting data (default: 8)")
+    p.add_argument("--boards-per-chunk", type=int, default=25,
+                   help="boards per DOSBox session; unlike --workers, this "
+                        "DOES change the data (changes how many per-session "
+                        "seeds get drawn), so it's part of the dataset's "
+                        "identity (default: 25)")
     p.add_argument("--animate", action="store_true",
                    help="watch it play; far slower, for demos")
     p.add_argument("--no-effort-jitter", dest="effort_jitter", action="store_false")
@@ -521,6 +550,7 @@ if __name__ == "__main__":
     t0 = time.time()
     df = generate(
         args.n, seed=args.seed, throws=args.throws, workers=args.workers,
+        boards_per_chunk=args.boards_per_chunk,
         input_mode=args.input_mode, hit_tolerance=args.hit_tolerance,
         animate=args.animate, effort_jitter=args.effort_jitter,
         banana_var=args.banana_var, dt=args.dt, max_ticks=args.max_ticks,

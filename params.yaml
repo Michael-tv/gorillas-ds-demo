@@ -1,0 +1,54 @@
+# DVC params -- see dvc.yaml `params:` sections and params.py.
+#
+# Changing a value here (or via `dvc exp run --set-param search.regression.
+# random_forest.n_iter=60`) marks the matching training stage(s) as stale, so
+# `dvc exp run`/`dvc repro` will retrain them and `dvc exp show`/`dvc exp
+# diff` will compare the resulting metrics side by side.
+#
+# `n_iter`/`cv` are the RandomizedSearchCV (or GridSearchCV/*CV) budget each
+# training script was hardcoding before; `null` means that algorithm doesn't
+# use that knob (e.g. LinearRegression has no search, decision_tree_overfit
+# intentionally skips cross-validation to demonstrate worst-case overfitting).
+
+# Which generated pool every training/evaluation script reads, by name --
+# matches a key in dvc_datasets.yaml (Python-generated) or a Gorillas dataset
+# key (see data_generation/gorillas.py), and resolves to data/<name>.parquet
+# via params.data_path(). Previously this filename was hardcoded in ~11 .py
+# files and 10 dvc.yaml deps: lines; changing it here (or via `dvc exp run
+# --set-param training_data=<name>`) now retargets every one of them at once,
+# and shows up as a compared column in `dvc exp show`.
+#
+# Switching this to a name nothing has generated yet just makes every
+# downstream stage fail on a missing dep -- run the matching generate/
+# generate_gorillas stage (or `dvc repro`) first.
+training_data: standard_training_data
+
+test_size: 0.2
+
+# Sample-size tier for the convergence experiment (run_raw/run_eng/
+# classification's run all read this instead of a fixed per-directory
+# constant) -- sweep it with e.g. `dvc exp run --set-param n_samples=20000`
+# and compare tiers with `dvc exp show`. Nested prefixes of the same seeded
+# pool (data/standard_training_data.parquet, 40000 rows), so growing
+# n_samples is the only thing that changes between runs.
+n_samples: 40000
+
+search:
+  regression:
+    linear_regression:      {n_iter: null, cv: 5}
+    ridge:                   {n_iter: null, cv: 5}
+    lasso:                   {n_iter: null, cv: 5}
+    polynomial:              {n_iter: null, cv: 5}
+    decision_tree:           {n_iter: 30,   cv: 5}
+    decision_tree_overfit:   {n_iter: null, cv: null}
+    knn:                     {n_iter: 20,   cv: 5}
+    random_forest:           {n_iter: 20,   cv: 5}
+    mlp:                     {n_iter: 15,   cv: 5}
+    xgboost:                 {n_iter: 20,   cv: 5}
+  classification:
+    logistic_regression:    {n_iter: null, cv: null}
+    decision_tree:           {n_iter: 30,   cv: 5}
+    knn:                     {n_iter: 12,   cv: 5}
+    random_forest:           {n_iter: 20,   cv: 5}
+    mlp:                     {n_iter: 15,   cv: 5}
+    xgboost:                 {n_iter: 20,   cv: 5}

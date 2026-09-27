@@ -220,6 +220,7 @@ model_*.joblib
 metrics_*.csv
 training_data/
 compare_models.png
+/data/
 
 # OS
 .DS_Store

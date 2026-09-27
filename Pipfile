@@ -9,6 +9,8 @@ scikit-learn = "*"
 pandas = "*"
 matplotlib = "*"
 xgboost = "*"
+pyarrow = "*"
+dvc = "*"
 
 [dev-packages]
 
