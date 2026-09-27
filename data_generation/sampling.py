@@ -2,9 +2,14 @@
 
 Extracted from the ~4x copy-pasted generate_data.py bodies that used to live in
 each regression/run_*/ and classification/run_*/ folder.
+
+Every draw takes an explicit `rng: random.Random` rather than using the global
+`random` module. The caller owns seeding (generate.generate() creates one
+`random.Random(seed)` per call and threads it through everything below), so
+determinism does not depend on the caller having remembered to seed a global
+singleton before importing this module -- see AUDIT.md task 2.
 """
 import math
-import random
 from dataclasses import dataclass
 
 from physics import simulate
@@ -34,6 +39,34 @@ GRAVITY_HIGH = (15.0, 25.0)  # m/s^2 - super-Earth to Jupiter (24.8)
 OUTLIER_FRAC     = 0.02  # ~2% of N - unmodeled gravity variation
 DATA_ERROR_FRAC  = 0.01  # ~1% of N - measurement / entry errors
 
+# Cap on rejection-sampling attempts per draw (mass/radius/Cd/elevation/wind
+# each retry until they land in their valid range). Without a cap, a
+# misconfigured distribution -- e.g. elevation_dist=(100.0, 5.0), whose mean
+# sits outside ELEVATION_RANGE -- hangs the stage forever with no diagnostic
+# (AUDIT.md task 2). 10,000 attempts is generous for any of this module's
+# distributions when configured sanely, and fails in well under a second when
+# it is not.
+MAX_REJECTION_ATTEMPTS = 10_000
+
+
+class UnreachableRangeError(RuntimeError):
+    pass
+
+
+def _bounded(rng, draw, lo, hi, name):
+    """Call draw() until the result falls in [lo, hi], capped at
+    MAX_REJECTION_ATTEMPTS so a distribution that rarely (or never) lands in
+    range fails loudly instead of hanging."""
+    for _ in range(MAX_REJECTION_ATTEMPTS):
+        x = draw()
+        if lo <= x <= hi:
+            return x
+    raise UnreachableRangeError(
+        f"{name}: no draw landed in [{lo}, {hi}] after {MAX_REJECTION_ATTEMPTS:,} "
+        f"attempts -- the sampling distribution is likely misconfigured to be "
+        f"mostly or entirely outside this range"
+    )
+
 
 @dataclass
 class Shot:
@@ -52,32 +85,18 @@ class Shot:
     landing_x: float
 
 
-def sample_shot(elevation_dist, gravity=9.81):
+def sample_shot(rng, elevation_dist, gravity=9.81):
     """Draw one random physical sample and simulate its trajectory."""
-    v = random.uniform(*SPEED_RANGE)
-    while True:
-        el = random.gauss(*elevation_dist)
-        if ELEVATION_RANGE[0] <= el <= ELEVATION_RANGE[1]:
-            break
-    while True:
-        ws = random.weibullvariate(*WIND_WEIBULL)
-        if ws <= WIND_SPEED_RANGE[1]:
-            break
-    wind_dir_norm = random.choice(WIND_DIR_CHOICES)
-    while True:
-        mass = random.gauss(*MASS_DIST)
-        if MASS_RANGE[0] <= mass <= MASS_RANGE[1]:
-            break
-    while True:
-        radius = random.gauss(*RADIUS_DIST)
-        if RADIUS_RANGE[0] <= radius <= RADIUS_RANGE[1]:
-            break
-    while True:
-        Cd = random.gauss(*CD_DIST)
-        if CD_RANGE[0] <= Cd <= CD_RANGE[1]:
-            break
-    launch_h  = random.uniform(*LAUNCH_HEIGHT_RANGE)
-    landing_h = random.uniform(*LANDING_HEIGHT_RANGE)
+    v  = rng.uniform(*SPEED_RANGE)
+    el = _bounded(rng, lambda: rng.gauss(*elevation_dist), *ELEVATION_RANGE, "launch_angle_deg")
+    ws = _bounded(rng, lambda: rng.weibullvariate(*WIND_WEIBULL),
+                  WIND_SPEED_RANGE[0], WIND_SPEED_RANGE[1], "wind_speed_ms")
+    wind_dir_norm = rng.choice(WIND_DIR_CHOICES)
+    mass   = _bounded(rng, lambda: rng.gauss(*MASS_DIST), *MASS_RANGE, "mass_kg")
+    radius = _bounded(rng, lambda: rng.gauss(*RADIUS_DIST), *RADIUS_RANGE, "radius_m")
+    Cd     = _bounded(rng, lambda: rng.gauss(*CD_DIST), *CD_RANGE, "drag_coeff")
+    launch_h  = rng.uniform(*LAUNCH_HEIGHT_RANGE)
+    landing_h = rng.uniform(*LANDING_HEIGHT_RANGE)
 
     wind_x      = ws * wind_dir_norm
     height_diff = landing_h - launch_h
@@ -91,17 +110,17 @@ def sample_shot(elevation_dist, gravity=9.81):
                 landing_x=landing_x)
 
 
-def sample_gravity():
+def sample_gravity(rng):
     """Draw an out-of-distribution gravity value (Moon/Mars-like or super-Earth-like)."""
-    return random.uniform(*GRAVITY_LOW) if random.random() < 0.5 else random.uniform(*GRAVITY_HIGH)
+    return rng.uniform(*GRAVITY_LOW) if rng.random() < 0.5 else rng.uniform(*GRAVITY_HIGH)
 
 
-def generate_rows(n, elevation_dist, build_row, no_zero_indices=frozenset()):
+def generate_rows(rng, n, elevation_dist, build_row, no_zero_indices=frozenset()):
     """Shared dataset-generation driver: samples n shots, injects gravity
     outliers and data-error corruption in the standard proportions, and
     returns the raw output rows. One shot per row -- no resampling/retrying.
 
-    build_row(shot, i) -> (numeric_values, extra_labels)
+    build_row(rng, shot, i) -> (numeric_values, extra_labels)
         numeric_values: list of floats to store (and, for data-error rows,
                          to corrupt); `i` is the 0-based index within the
                          current section (normal/gravity/data_error), useful
@@ -116,23 +135,23 @@ def generate_rows(n, elevation_dist, build_row, no_zero_indices=frozenset()):
     rows = []
 
     for i in range(n_normal):
-        shot = sample_shot(elevation_dist)
-        values, labels = build_row(shot, i)
+        shot = sample_shot(rng, elevation_dist)
+        values, labels = build_row(rng, shot, i)
         rows.append(values + labels + ["none"])
         if (i + 1) % 1000 == 0:
             print(f"  {i + 1}/{n}")
 
     print(f"\nGenerating {n_outliers} outliers (gravity variation)...")
     for i in range(n_outliers):
-        shot = sample_shot(elevation_dist, gravity=sample_gravity())
-        values, labels = build_row(shot, i)
+        shot = sample_shot(rng, elevation_dist, gravity=sample_gravity(rng))
+        values, labels = build_row(rng, shot, i)
         rows.append(values + labels + ["gravity"])
 
     print(f"\nGenerating {n_data_errors} data errors...")
     for i in range(n_data_errors):
-        shot = sample_shot(elevation_dist)
-        values, labels = build_row(shot, i)
-        values = corrupt_row(values, no_zero_indices=no_zero_indices)
+        shot = sample_shot(rng, elevation_dist)
+        values, labels = build_row(rng, shot, i)
+        values = corrupt_row(rng, values, no_zero_indices=no_zero_indices)
         rows.append(values + labels + ["data_error"])
 
     print(f"\nDone -- generated {n} samples")

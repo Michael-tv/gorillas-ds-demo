@@ -11,7 +11,6 @@ regression/run_leakage and run_bias_variance don't need their own entries --
 they draw a random 10k/20k sample straight out of standard_training_data via
 their own train_utils.py (`df.sample(n=N_SAMPLES, random_state=seed)`).
 """
-import random
 import time
 
 import yaml
@@ -30,9 +29,8 @@ def main():
         print(f"  {name}")
         print(f"{'='*60}")
         try:
-            random.seed(spec["seed"])
             df = generate.generate(
-                spec["n"],
+                spec["n"], spec["seed"],
                 elevation_dist=(spec["elevation_mean"], spec["elevation_std"]),
                 hit_tolerance=spec["hit_tolerance"],
             )

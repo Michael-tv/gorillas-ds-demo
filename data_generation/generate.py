@@ -22,13 +22,13 @@ MASS_COLUMN_INDEX = 4  # never corrupt to exactly 0 -- engineered features divid
 
 
 def _make_build_row(hit_tolerance):
-    def build_row(shot, i):
+    def build_row(rng, shot, i):
         hit = (i % 2 == 0)
         if hit:
-            offset = random.uniform(-(hit_tolerance - 0.1), hit_tolerance - 0.1)
+            offset = rng.uniform(-(hit_tolerance - 0.1), hit_tolerance - 0.1)
         else:
-            sign   = random.choice([-1, 1])
-            offset = sign * random.uniform(hit_tolerance + 5.0, hit_tolerance + 80.0)
+            sign   = rng.choice([-1, 1])
+            offset = sign * rng.uniform(hit_tolerance + 5.0, hit_tolerance + 80.0)
         target = round(shot.landing_x + offset, 4)
 
         values = [shot.v, shot.el, shot.wind_speed, float(shot.wind_dir_norm), shot.mass, shot.radius,
@@ -37,15 +37,22 @@ def _make_build_row(hit_tolerance):
     return build_row
 
 
-def generate(n, elevation_dist=DEFAULT_ELEVATION_DIST, hit_tolerance=HIT_TOLERANCE):
-    rows = generate_rows(n, elevation_dist, _make_build_row(hit_tolerance), no_zero_indices={MASS_COLUMN_INDEX})
+def generate(n, seed, elevation_dist=DEFAULT_ELEVATION_DIST, hit_tolerance=HIT_TOLERANCE):
+    """Generate `n` rows deterministically from `seed`.
+
+    Seeds its own random.Random rather than relying on the caller having
+    seeded the global `random` module first -- two calls with the same
+    arguments always produce the same DataFrame (AUDIT.md task 2).
+    """
+    rng = random.Random(seed)
+    rows = generate_rows(rng, n, elevation_dist, _make_build_row(hit_tolerance), no_zero_indices={MASS_COLUMN_INDEX})
     # generate_rows returns rows grouped by section (normal, then gravity
     # outliers, then data errors) -- shuffle so a prefix slice (see
     # models/regression/common/loader.py's `n_samples` slicing, used to nest
     # smaller sample-size tiers inside this pool for the convergence
     # experiment) keeps the same outlier mix and hit/miss balance as the full
     # pool, instead of slicing out only normal rows.
-    random.shuffle(rows)
+    rng.shuffle(rows)
     df = pd.DataFrame(rows, columns=COLUMNS)
     hits = int(df["hit_target"].sum())
     print(f"  Hits : {hits}   Misses : {len(df) - hits}   Tolerance : +/-{hit_tolerance} m")
@@ -59,8 +66,7 @@ if __name__ == "__main__":
     parser.add_argument("--elevation-mean", type=float, default=DEFAULT_ELEVATION_DIST[0])
     parser.add_argument("--elevation-std", type=float, default=DEFAULT_ELEVATION_DIST[1])
     parser.add_argument("--hit-tolerance", type=float, default=HIT_TOLERANCE)
-    parser.add_argument("--seed", type=int, default=42, help="seeds the shared `random` module for reproducible datasets")
+    parser.add_argument("--seed", type=int, default=42, help="seeds this run's own random.Random for reproducible datasets")
     args = parser.parse_args()
-    random.seed(args.seed)
-    df = generate(args.n, elevation_dist=(args.elevation_mean, args.elevation_std), hit_tolerance=args.hit_tolerance)
+    df = generate(args.n, args.seed, elevation_dist=(args.elevation_mean, args.elevation_std), hit_tolerance=args.hit_tolerance)
     write_parquet(df, resolve_output(args.out))
