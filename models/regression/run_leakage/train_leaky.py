@@ -18,7 +18,7 @@ from sklearn.tree import DecisionTreeRegressor
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from train_utils import load_data, model_path, print_metrics
 
-X_train, X_test, y_train, y_test = load_data()
+X_train, X_test, y_train, y_test, groups_train = load_data()
 
 X_train_leaky = np.vstack([X_train, X_test])
 y_train_leaky = np.concatenate([y_train, y_test])

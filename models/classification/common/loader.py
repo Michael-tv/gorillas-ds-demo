@@ -31,6 +31,8 @@ FEATURES = [
 ]
 TARGET = "hit_target"
 
+GROUP_COLUMN = "group_id"   # generate.COLUMNS' 14th column -- see splitting.py
+
 
 def load_data(data_path, n_samples=None):
     """Read, slice, and engineer the pool -- returns (X, y) for the caller to
@@ -60,8 +62,12 @@ def load_data(data_path, n_samples=None):
     df = add_engineered_columns(df)
     X = df[FEATURES].values
     y = df[TARGET].values
+    # See the note in models/regression/common/loader.py: group_id is not a
+    # feature, but a group-aware split is impossible without it (AUDIT.md task
+    # 36 / finding N2).
+    groups = df[GROUP_COLUMN].to_numpy()
     print(f"Loaded {len(X)} samples -- hits: {int(y.sum())}  misses: {len(y) - int(y.sum())}\n")
-    return X, y
+    return X, y, groups
 
 
 def model_path(models_dir, filename):
