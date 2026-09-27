@@ -1,92 +1,80 @@
-import csv as _csv
+"""Run config for the skewed-extrapolation demo.
+
+A thin shim over models/regression/common/loader.py, the same shape as
+run_raw/train_utils.py and run_eng/train_utils.py. It used to be a
+200-line near-duplicate with its own loader, splitter, metrics and a
+load-time angle filter; three things moved out of it (AUDIT.md tasks 8, 9, 7):
+
+  * The angle filter is now the `filter_skewed` DVC stage, so the filtered pool
+    is a real artifact, the bound is a sweepable param, and the excluded rows
+    survive as data/skewed_holdout.parquet instead of being silently dropped.
+  * MAX_ELEVATION_DEG is gone -- the bound lives in params.yaml as
+    `skew.max_angle_deg`.
+  * Feature engineering happens in the model's Pipeline via FEATURE_STEP, not at
+    load time, so the saved .joblib carries its own preprocessing.
+
+Defining FEATURE_STEP is also what unbreaks this run: the nine `train_skewed@*`
+stages import it from here, and its absence made every one of them die on
+`ImportError: cannot import name 'FEATURE_STEP'`.
+"""
 import os
 import sys
+from functools import partial
 
-import numpy as np
 import pandas as pd
-from sklearn.metrics import mean_absolute_error
 
 BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.join(BASE_DIR, "..", "..", "..")
 sys.path.insert(0, REPO_ROOT)
 
 import params
-import splitting
-from feature_engineering import add_engineered_columns
 from models.regression.common import loader
+from feature_engineering import EngineeredFeatures
+
+# The filtered slice, not the full pool -- produced by the filter_skewed stage.
+DATA         = os.path.join(REPO_ROOT, "data", "skewed_training_data.parquet")
+HOLDOUT_DATA = os.path.join(REPO_ROOT, "data", "skewed_holdout.parquet")
 
 MODELS_DIR = os.path.join(REPO_ROOT, "experiments", "regression", "run_skewed", "models")
-DATA       = params.data_path()
-MAX_ELEVATION_DEG = 30  # skewed = a low-angle-only slice of the standard pool, not a separate draw
+N_SAMPLES  = params.load_params()["n_samples"]
 
-FEATURES = ["launch_angle_deg", "wind_x_ms", "drag_param",
-            "height_diff_m", "landing_distance_m"]
-TARGET = "initial_velocity_ms"
+# Engineered feature set, same as run_eng: loader.load_data hands back the raw
+# columns and FEATURE_STEP derives these inside the Pipeline.
+FEATURES = ["launch_angle_deg", "wind_x_ms", "drag_param", "height_diff_m", "landing_distance_m"]
+TARGET   = loader.TARGET
 
+FEATURE_STEP = ("engineer", EngineeredFeatures(output_columns=FEATURES))
 
-def model_path(filename):
-    os.makedirs(MODELS_DIR, exist_ok=True)
-    name = os.environ.get("TRAIN_MODEL_NAME", "")
-    if name:
-        return os.path.join(MODELS_DIR, f"model_{name}.joblib")
-    return os.path.join(MODELS_DIR, filename)
-
-
-def _clean_no_outlier(df):
-    return df[df["is_outlier"] == "none"]
+# n_samples is deliberately NOT applied here. It sizes the sample-size tiers out
+# of the full pool; this run reads an already-filtered subset whose size is set
+# by skew.max_angle_deg, and slicing it again would confound the two knobs.
+load_data     = partial(loader.load_data, DATA, n_samples=None)
+model_path    = partial(loader.model_path, MODELS_DIR)
+save_metrics  = partial(loader.save_metrics, MODELS_DIR)
+print_metrics = partial(loader.print_metrics, MODELS_DIR)
 
 
-def load_data(test_size=0.2):
-    if not os.path.isfile(DATA):
-        print()
-        print(f"  [error] Training data not found: {DATA}")
-        print(  "  Run:    dvc repro generate")
-        print()
-        sys.exit(1)
-    df = pd.read_parquet(DATA)
-    n_pool = len(df)
-    df = df[df["launch_angle_deg"] <= MAX_ELEVATION_DEG]
-    print(f"  Skewed filter  : {n_pool} -> {len(df)} rows (kept launch_angle_deg <= {MAX_ELEVATION_DEG})")
-    df = add_engineered_columns(df)
-    n_orig = len(df)
-    clean  = os.environ.get("TRAIN_CLEAN", "")
-    if clean == "no_outlier":
-        df = _clean_no_outlier(df)
-        print(f"  No-outlier cleaning: {n_orig} -> {len(df)} rows ({n_orig - len(df)} removed)")
-    X = df[FEATURES].values
-    y = df[TARGET].values
-    groups = df[loader.GROUP_COLUMN].to_numpy()
-    # Group-aware whenever the active pool has groups -- see splitting.py and
-    # AUDIT.md task 36/§5.1. groups_train is returned alongside the split so a
-    # caller that cross-validates can pass it to splitting.cv_for().
-    X_train, X_test, y_train, y_test, groups_train = splitting.split(
-        X, y, groups, test_size=test_size, random_state=42)
-    print(f"Loaded {len(X_train)} train / {len(X_test)} test samples\n")
-    return X_train, X_test, y_train, y_test, groups_train
+def load_holdout():
+    """The out-of-distribution rows -- everything ABOVE skew.max_angle_deg.
+
+    This is the set the demo's claim is actually about. Without it "extrapolates
+    poorly beyond the cap" was asserted against a test split drawn from the same
+    filtered slice, which has the same hole (AUDIT.md task 10).
+    """
+    return loader.load_data(HOLDOUT_DATA, n_samples=None)
 
 
-def save_metrics(model_name, **kw):
-    os.makedirs(MODELS_DIR, exist_ok=True)
-    path = os.path.join(MODELS_DIR, f"metrics_{model_name}.csv")
-    with open(path, "w", newline="") as f:
-        w = _csv.writer(f)
-        w.writerow(["model"] + list(kw.keys()))
-        w.writerow([model_name] + [f"{v:.6f}" if isinstance(v, float) else str(v) for v in kw.values()])
+def skewed_row_count():
+    """How many rows the skewed run trains on.
+
+    The balanced model exists to be compared against the skewed one, so it has
+    to be the same size: otherwise part of any difference between them is just
+    "one saw more data", which is a different lesson from the one being taught
+    (AUDIT.md task 11 -- the two were 8,525 vs a hardcoded 8,000).
+    """
+    return len(pd.read_parquet(DATA))
 
 
-def print_metrics(y_test, y_pred, model_name=None):
-    mae  = mean_absolute_error(y_test, y_pred)
-    mse  = np.mean((y_test - y_pred) ** 2)
-    rmse = np.sqrt(mse)
-    print(f"  MAE  : {mae:.3f} m/s")
-    print(f"  MSE  : {mse:.3f} m^2/s^2")
-    print(f"  RMSE : {rmse:.3f} m/s\n")
-    print(f"  {'Actual':>10}  {'Predicted':>10}  {'Error':>8}")
-    for a, p in zip(y_test[:6], y_pred[:6]):
-        print(f"  {a:>10.2f}  {p:>10.2f}  {a - p:>+8.2f} m/s")
-    if model_name is None:
-        model_name = os.environ.get("TRAIN_MODEL_NAME", "")
-        if not model_name:
-            script = os.path.splitext(os.path.basename(sys.argv[0]))[0]
-            model_name = script[6:] if script.startswith("train_") else script
-    save_metrics(model_name, mae=mae, mse=mse, rmse=rmse)
+def load_full_pool(n_samples=None):
+    """The unfiltered pool -- the full angle range, for the balanced comparison."""
+    return loader.load_data(params.data_path(), n_samples=n_samples)

@@ -33,6 +33,17 @@ test_size: 0.2
 # n_samples is the only thing that changes between runs.
 n_samples: 40000
 
+# The skewed-extrapolation demo. data_generation/filter_skewed.py splits the pool
+# at this launch angle: rows at or below it become the skewed training set, rows
+# above it become data/skewed_holdout.parquet -- the out-of-distribution test set
+# that makes "extrapolates poorly beyond the cap" measurable instead of asserted.
+# Sweep it with `dvc exp run --set-param skew.max_angle_deg=40` and compare in
+# `dvc exp show`; it used to be a Python constant (MAX_ELEVATION_DEG) and so was
+# neither sweepable nor visible. Pool coverage at the time of writing: 5-30 deg
+# = 10,624 rows, 30-50 = 19,520, 50-85 = 19,786.
+skew:
+  max_angle_deg: 30
+
 search:
   regression:
     linear_regression:      {n_iter: null, cv: 5}
