@@ -63,7 +63,13 @@ def generate(n, seed, elevation_dist=DEFAULT_ELEVATION_DIST, hit_tolerance=HIT_T
     df = pd.DataFrame(rows, columns=COLUMNS)
     hits = int(df["hit_target"].sum())
     print(f"  Hits : {hits}   Misses : {len(df) - hits}   Tolerance : +/-{hit_tolerance} m")
-    return df
+    # Validated here rather than only in the CLI, so an in-process caller
+    # (generate_all.py, a test) gets the same guarantee. The checks are shared
+    # with the Gorillas producer and both training loaders -- see
+    # data_generation/contract.py (AUDIT.md task 38). Imported inside the
+    # function because contract.py imports this module for COLUMNS.
+    from data_generation.contract import check_contract
+    return check_contract(df, source="generate")
 
 
 if __name__ == "__main__":

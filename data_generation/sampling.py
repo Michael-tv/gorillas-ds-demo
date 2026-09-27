@@ -10,9 +10,10 @@ determinism does not depend on the caller having remembered to seed a global
 singleton before importing this module -- see AUDIT.md task 2.
 """
 import math
+import sys
 from dataclasses import dataclass
 
-from physics import simulate
+from physics import simulate_landing
 from data_generation.outliers import corrupt_row
 
 SPEED_RANGE          = (10.0, 80.0)   # m/s
@@ -40,26 +41,68 @@ OUTLIER_FRAC     = 0.02  # ~2% of N - unmodeled gravity variation
 DATA_ERROR_FRAC  = 0.01  # ~1% of N - measurement / entry errors
 
 # Cap on rejection-sampling attempts per draw (mass/radius/Cd/elevation/wind
-# each retry until they land in their valid range). Without a cap, a
-# misconfigured distribution -- e.g. elevation_dist=(100.0, 5.0), whose mean
-# sits outside ELEVATION_RANGE -- hangs the stage forever with no diagnostic
-# (AUDIT.md task 2). 10,000 attempts is generous for any of this module's
-# distributions when configured sanely, and fails in well under a second when
-# it is not.
+# each retry until they land in their valid range). Without a cap a
+# distribution that can never land in range hangs the stage forever with no
+# diagnostic (AUDIT.md task 2). 10,000 attempts is generous for any of this
+# module's distributions when configured sanely, and fails in well under a
+# second when it is not.
 MAX_REJECTION_ATTEMPTS = 10_000
+
+# The cap alone only catches the *unreachable* case. Between "returns on the
+# first try" and "never returns" sits a band that does neither, and it is the
+# dangerous one: a range the distribution reaches only rarely completes
+# normally while quietly reshaping the marginal into a truncated tail piled
+# against the clip bound. Measured against ELEVATION_RANGE (AUDIT.md task 2b /
+# finding N1):
+#
+#   gauss(45, 20) ->     1.1 attempts   the configured default
+#   gauss(100, 20) ->    4.7 attempts   accepted draws: mean 73.4 deg, 30% >= 80
+#   gauss(100, 5)  ->  694.4 attempts   ~600x the sampling cost, still completes
+#   gauss(100, 2)  -> 10,000 attempts   raises
+#
+# So warn once per column when the observed acceptance rate is poor enough that
+# the accepted draws can no longer be read as samples from the configured
+# distribution. Warn, not raise: a deliberately truncated distribution is a
+# legitimate thing to sample, it just must not be silent.
+MIN_ACCEPTANCE_RATE = 0.10   # 1 accepted draw per 10 attempts
+_warned_columns = set()
 
 
 class UnreachableRangeError(RuntimeError):
     pass
 
 
+class NonTerminatingShotError(RuntimeError):
+    pass
+
+
+def reset_rejection_warnings():
+    """Forget which columns have already warned. Only needed by tests that
+    assert on the warning; generation itself wants one warning per process."""
+    _warned_columns.clear()
+
+
 def _bounded(rng, draw, lo, hi, name):
-    """Call draw() until the result falls in [lo, hi], capped at
-    MAX_REJECTION_ATTEMPTS so a distribution that rarely (or never) lands in
-    range fails loudly instead of hanging."""
-    for _ in range(MAX_REJECTION_ATTEMPTS):
+    """Call draw() until the result falls in [lo, hi].
+
+    Capped at MAX_REJECTION_ATTEMPTS so a distribution that can never land in
+    range raises instead of hanging, and warns once per column when acceptance
+    is rare enough that the accepted draws no longer represent the configured
+    distribution (see MIN_ACCEPTANCE_RATE).
+    """
+    for attempts in range(1, MAX_REJECTION_ATTEMPTS + 1):
         x = draw()
         if lo <= x <= hi:
+            if 1.0 / attempts < MIN_ACCEPTANCE_RATE and name not in _warned_columns:
+                _warned_columns.add(name)
+                print(
+                    f"  WARNING: {name}: needed {attempts:,} draws to land one value "
+                    f"in [{lo}, {hi}] (acceptance ~{100.0 / attempts:.2f}%). The "
+                    f"configured distribution mostly misses this range, so the "
+                    f"accepted values are a truncated tail piled against the bound, "
+                    f"not samples from the distribution you configured.",
+                    file=sys.stderr,
+                )
             return x
     raise UnreachableRangeError(
         f"{name}: no draw landed in [{lo}, {hi}] after {MAX_REJECTION_ATTEMPTS:,} "
@@ -101,7 +144,23 @@ def sample_shot(rng, elevation_dist, gravity=9.81):
     wind_x      = ws * wind_dir_norm
     height_diff = landing_h - launch_h
     drag_param  = (0.5 * RHO * Cd * math.pi * radius**2) / mass
-    traj        = simulate(v, el, wind_x, mass, radius, Cd, DT, ground_z=height_diff, gravity=gravity)
+    traj, landed = simulate_landing(v, el, wind_x, mass, radius, Cd, DT,
+                                    ground_z=height_diff, gravity=gravity)
+    # If the integration never crossed the landing height, traj[-1] is wherever
+    # the projectile happened to be when the loop gave up -- not a measurement.
+    # Recording it anyway is what AUDIT.md §1.2 believed was happening to 727
+    # rows; measuring it says otherwise (0 of 20,000 shots fail to land at the
+    # configured ranges, and the negative distances are genuine headwind
+    # landings). Raising keeps that true: widening SPEED_RANGE, raising DT, or
+    # lowering physics.simulate's max_time could make it false, and this says so
+    # instead of quietly writing meaningless rows (AUDIT.md task 13).
+    if not landed:
+        raise NonTerminatingShotError(
+            f"shot did not land within the integrator's max_time: speed={v:.2f} "
+            f"angle={el:.2f} wind_x={wind_x:.2f} mass={mass:.4f} radius={radius:.4f} "
+            f"Cd={Cd:.3f} ground_z={height_diff:.2f} gravity={gravity} -- its "
+            f"endpoint is not a landing point, so it must not become a row"
+        )
     landing_x   = traj[-1][1]
 
     return Shot(v=v, el=el, wind_speed=ws, wind_dir_norm=wind_dir_norm, wind_x=wind_x,

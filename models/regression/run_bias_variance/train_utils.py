@@ -3,7 +3,6 @@ import os
 import sys
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error
 
 BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
@@ -11,7 +10,9 @@ REPO_ROOT = os.path.join(BASE_DIR, "..", "..", "..")
 sys.path.insert(0, REPO_ROOT)
 
 import params
+import splitting
 from feature_engineering import add_engineered_columns
+from models.regression.common import loader
 
 MODELS_DIR = os.path.join(REPO_ROOT, "experiments", "regression", "run_bias_variance", "models")
 DATA       = params.data_path()
@@ -33,7 +34,11 @@ def load_data(test_size=0.2, seed=42):
     df = df.sample(n=N_SAMPLES, random_state=seed).reset_index(drop=True)
     X  = df[FEATURES].values
     y  = df[TARGET].values
-    return train_test_split(X, y, test_size=test_size, random_state=seed)
+    groups = df[loader.GROUP_COLUMN].to_numpy()
+    # Group-aware whenever the active pool has groups -- see splitting.py and
+    # AUDIT.md task 36/§5.1. groups_train is returned alongside the split so a
+    # caller that cross-validates can pass it to splitting.cv_for().
+    return splitting.split(X, y, groups, test_size=test_size, random_state=seed)
 
 
 def model_path(filename):

@@ -28,7 +28,7 @@ TARGET = "landing_distance_m"
 DT     = 0.02   # matches generate_data.py
 
 # ── Load ─────────────────────────────────────────────────────────────────────
-df  = pd.read_parquet(DATA).iloc[:N_SAMPLES]
+df  = params.take_samples(pd.read_parquet(DATA), N_SAMPLES)  # take_samples raises instead of silently truncating (AUDIT.md task 35)
 X   = df[FEATURES].values
 y   = df[TARGET].values
 rng = np.random.default_rng(42)
