@@ -30,7 +30,7 @@ pipenv shell
 
 dvc repro generate                  # build the simulated pool (~1 min)
 dvc repro train_raw@random_forest    # train one model on it
-dvc repro                            # the whole DAG: 42 stages
+dvc repro                            # the whole DAG: 43 stages
 ```
 
 If `pipenv` picks up the wrong virtualenv, prefix with `PIPENV_IGNORE_VIRTUALENVS=1`.
@@ -135,6 +135,7 @@ Eight stage groups:
 | Stage | What it shows |
 |---|---|
 | `generate` / `generate_gorillas` | the two producers |
+| `filter_skewed` | splits the pool at `skew.max_angle_deg` into a low-angle training slice and an out-of-distribution holdout |
 | `train_raw` | 9 models on the 9 raw columns |
 | `train_eng` | the same 9 models, with the 3 derived features — same data, different first Pipeline step |
 | `train_skewed` | the same models on a low-angle slice, for extrapolation |
@@ -213,9 +214,24 @@ difference is the first step of the Pipeline.
 **Overfitting:** `train_bias_variance_underfitting` vs `…_overfitting`, or the
 `decision_tree_overfit` model — the same algorithm with no depth limit.
 
-**Distribution shift:** `train_skewed` trains on a low-angle slice only. Beyond the training
-range a linear model keeps extrapolating while a forest flatlines at its boundary leaf mean.
-That contrast is why `ridge` and `lasso` appear in `skewed_models` and nowhere else.
+**Distribution shift:** `train_skewed` trains on a low-angle slice only (`skew.max_angle_deg`),
+and `filter_skewed` keeps the excluded rows as `data/skewed_holdout.parquet` — so the claim is
+measured on angles the model never saw, not on a test set that shares its blind spot:
+
+| | in-distribution MAE | holdout MAE | |
+|---|---|---|---|
+| skewed | 4.383 | 8.847 | **2.0× worse** |
+| balanced | 7.530 | 6.234 | 0.8× — no penalty |
+
+Note the inversion: the narrow model looks *better* in-distribution precisely because its test set
+has the same hole. `train_balanced_concept` is the control — same architecture, same split, and
+sized by reading the skewed run's row count. Beyond the training range a linear model keeps
+extrapolating while a forest flatlines at its boundary leaf mean, which is why `ridge` and `lasso`
+appear in `skewed_models` and nowhere else.
+
+```bash
+dvc exp run --set-param skew.max_angle_deg=40    # move the cap; both runs follow
+```
 
 **Class imbalance:** switch to a Gorillas pool and run any classification stage. The hit rate
 is ~7%, so predicting "miss" every time scores ~93%. The metrics report leads with
@@ -258,7 +274,6 @@ version produced results that looked fine and were not.
 | `GameRunFailed: N worker(s) hit the timeout` | A half-written CSV would make the dataset depend on machine speed rather than `--seed` | Raise `--timeout`, lower `--boards-per-chunk`, or pass `--allow-partial` to accept a non-reproducible run |
 | `DosboxNotFound` | DOSBox is not installed or not where it's looked for | Install DOSBox Staging, or set `GORILLAS_DOSBOX` |
 | `UnreachableRangeError` | A sampling distribution in `dvc_datasets.yaml` mostly or never lands in its valid range | Fix the distribution. A *rarely*-reachable range warns instead, saying the accepted values are a truncated tail rather than what you configured |
-| `ImportError: cannot import name 'FEATURE_STEP'` | The 9 `train_skewed@*` stages are known-broken | Not yet fixed — task 8 in `AUDIT.md` |
 
 ---
 
@@ -268,10 +283,9 @@ version produced results that looked fine and were not.
 of what is and isn't done, and it carries an implementation log. Currently open and worth
 knowing about:
 
-- **The pipeline has never been fully reproduced.** `dvc.lock` covers 4 of 42 stages, and its
+- **The pipeline has never been fully reproduced.** `dvc.lock` covers 4 of 43 stages, and its
   entries predate the current code. Everything in `experiments/` was produced outside DVC.
   Task 12.
-- **9 `train_skewed@*` stages cannot run** (`FEATURE_STEP`). Task 8.
 - **Pre-split cleaning leaks** in the regression loader — IQR quantiles over the whole pool,
   and row filtering on the target. Task 14.
 - **`clean: "range"` discards valid data**, as above. Task 13b.
