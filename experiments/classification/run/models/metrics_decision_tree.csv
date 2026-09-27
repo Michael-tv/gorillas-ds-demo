@@ -1,0 +1,2 @@
+model,accuracy,precision,recall,f1,roc_auc
+decision_tree,0.802375,0.783056,0.836500,0.808896,0.863832
