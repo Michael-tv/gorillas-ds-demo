@@ -1,0 +1,12 @@
+# Generated at run time, not source.
+
+# Written by each launcher's [autoexec], which copies the variant's .CFG over
+# it -- so whatever is here is just a copy of whichever launcher ran last.
+GORCFG.TXT
+
+# Throw logs.
+*.CSV
+*.csv
+
+# Diagnostic output from SUB Dbg.
+DIAG.TXT
