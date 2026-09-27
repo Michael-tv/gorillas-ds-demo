@@ -16,15 +16,16 @@ what moves the score — but risk #2 (the pipeline has never been reproduced) is
 that is the one gating everything in phases 6–9.
 
 **Implementation status — updated 2026-09-27, branch `audit/phase-1`.** Done and verified:
-**1** (metrics tracking), **2** + **2b** (deterministic generation, rare-range warning), **32**
-(Gorillas group key), **33** (timing-independent chunk plan), **35** (`n_samples` fails loudly),
-**36** (group-aware splits and CV), **38** (one dataset contract, checked on write and on read),
-and **4b**'s deletion half (18 stale size-tier directories, 30 files). **34** is blocked on
-choosing a remote — the one thing here only the repo owner can supply. **Task 13 is withdrawn**:
-measurement disproved its premise, and **13b** replaces it (§0). Open in Phase 1b: **34**, **37**,
-**39**, plus 4b's second half. Everything from Phase 2 onward is untouched apart from that
-deletion. **§0** records what was verified and how, the claims in this audit the work proved
-wrong, and the findings it exposed. Each completed task's checkbox carries its own note.
+**1** (metrics tracking), **2** + **2b** (deterministic generation, rare-range warning), **3** (the
+model matrix cut to a documented seven-algorithm sweep, 76 stages → 42), **32** (Gorillas group
+key), **33** (timing-independent chunk plan), **34** (regeneration as the recovery path, reframed
+by the repo owner — no remote needed), **35** (`n_samples` fails loudly), **36** (group-aware splits
+and CV, with the leakage measured at 20%), **38** (one dataset contract, checked on write and on
+read), and **4b**'s deletion half (18 stale size-tier directories, 30 files). **Task 13 is
+withdrawn**: measurement disproved its premise, and **13b** replaces it (§0). Still open in Phase
+1b: **37** and **39**, plus 4b's second half. **§0** records what was verified and how, the claims
+in this audit the work proved wrong, the findings it exposed, and — read this before the next run
+on an existing checkout — the three silent substitutions that are now hard failures.
 
 ---
 
@@ -142,6 +143,38 @@ with group-aware folds, for a stratified classification run as well as a regress
 
 **A side effect of task 1 worth knowing:** metrics CSVs are versioned by Git now, so any test
 training run dirties the working tree. One had to be reverted while verifying this task.
+
+**Task 3 — the model matrix, cut to a documented sweep** (`1f08340`). `dvc_models.yaml` now
+states its rule at the top: the sweep is seven regression algorithms (`linear_regression`,
+`decision_tree`, `knn`, `polynomial`, `random_forest`, `mlp`, `xgboost`), each once per run at the
+default cleaning, with exactly three deviations, each carrying its reason — `decision_tree_overfit`
+(the overfitting slide), `random_forest_no_outlier` (one cleaning contrast), and `ridge`/`lasso` in
+`skewed_models` only (regularised-linear vs tree *is* that run's extrapolation contrast). All
+`*_range` variants are gone. **76 stages → 42.** This also closes §2.7: the matrix is now stated
+rather than inferred, so a gap reads as a decision.
+
+**Task 34 — reframed by the repo owner, and improved by it** (`1f08340`). The requirement is that
+results be regenerable from the Windows machine, not that a remote hold a backup. That is the
+better shape — it makes regeneration a real recovery path rather than a claim, and applies the same
+reasoning the Python pool already got. The actual blocker was §5.3: `find_dosbox` searched four
+hardcoded install paths, so a machine with DOSBox elsewhere could not regenerate at all. It now
+resolves `--dosbox` → `$GORILLAS_DOSBOX` → `dosbox` on `PATH` → the known locations, so the
+location is stated once per machine instead of edited into the file. **No DVC remote is needed
+under this framing**, which is why task 34 is now closed rather than blocked.
+
+### Behaviour that changed — read this before the next run on an existing checkout
+
+Three of these tasks deliberately turn a silent substitution into a hard failure. Each is correct
+and each will stop a previously-working run until acted on:
+
+| What now fails | Why | The fix |
+|---|---|---|
+| Every training stage, on an existing `data/*.parquet` | Task 38 validates the contract on read, and a pool generated before task 32 has 13 columns, no `group_id` | `dvc repro generate` / `dvc repro generate_gorillas`. The error says exactly this, and nothing is lost — both producers are deterministic for a fixed seed |
+| Training on a Gorillas pool with the default `n_samples: 40000` | Task 35: the pool holds 5,000 rows, and silently training on 5,000 made the run incomparable with every other size tier (§5.5) | `--set-param n_samples=5000`, or lower it in `params.yaml` |
+| `generate_gorillas` when a worker hits the timeout | Task 33: accepting a half-written CSV is what made the row set depend on machine speed rather than `--seed` | Raise `--timeout`, lower `--boards-per-chunk`, or pass `--allow-partial` to accept a non-reproducible run |
+
+All four `dvc.lock` entries were already stale before any of this (§0), so the regeneration was
+owed regardless.
 
 ### Corrections to this audit's own claims
 
@@ -793,9 +826,8 @@ and **change the data before you invest in models** (task 2 alters the draw, so 
 trained before it is thrown away).
 
 Checkboxes are live: `[x]` means done and verified (see §0 for how), `[ ]` means untouched.
-**Done: 1, 2, 2b, 32, 33, 35, 36, 38, and 4b's deletion half.** **Task 13 is withdrawn** — its
-premise was disproved, and task **13b** replaces it. **Task 34 is blocked** on choosing a remote
-location. Everything else below is open.
+**Done: 1, 2, 2b, 3, 32, 33, 34, 35, 36, 38, and 4b's deletion half.** **Task 13 is withdrawn** —
+its premise was disproved, and task **13b** replaces it. Everything else below is open.
 
 ### Phase 1 — Make results recordable and the data recoverable — **1 and 2 done**
 
@@ -858,15 +890,17 @@ blocking-class: each one can silently produce wrong results or unrecoverable dat
       pure with equal-sized rounds, `--workers 2` == `--workers 8` still holds exactly, a
       simulated timeout raises, and all 75 groups have a single wind value. Still to run for real
       on the Windows machine, where DOSBox exists.
-- [ ] **34.** **BLOCKED — needs a decision.** Add a DVC remote and push the four Gorillas
-      outputs. They cannot be regenerated off this machine (§5.3), so the local cache is currently
-      their only copy. This narrows the no-remote decision rather than reversing it: the Python
-      pool still needs no remote. Blocked on two things only the repo owner can supply: **where**
-      the remote should live (S3/GCS/Azure, a Google Drive folder, or a plain directory on a
-      synced/backed-up path), and its credentials. The four outputs are
-      `data/gorillas_{effort,velocity}_data.parquet` and their `_throws.csv` companions, and the
-      push has to run on the machine that holds the cache — not from a fresh clone, which has
-      nothing to push.
+- [x] **34.** ~~Add a DVC remote and push the four Gorillas outputs.~~ **Reframed by the repo
+      owner and done — `1f08340`: the requirement is that results be regenerable from the Windows
+      machine, so regeneration is the recovery path and no remote is needed.** That is the stronger
+      guarantee and it matches the reasoning the Python pool already got — a remote holding a copy
+      would not have made the *pipeline* runnable, only the bytes recoverable. What actually blocked
+      regeneration was §5.3: `find_dosbox` searched four hardcoded install paths, so a machine with
+      DOSBox anywhere else failed outright. Resolution order is now `--dosbox` → `$GORILLAS_DOSBOX`
+      → `dosbox` on `PATH` → the known locations, and the not-found error names all three. Combined
+      with tasks 33 and 2, a fixed `--seed` now reproduces the pool rather than approximately
+      reproducing it. **If the datasets ever need to be shareable with someone who has no DOSBox,
+      that is a new task, not this one.**
 - [x] **35.** ~~Make `n_samples` fail loudly when it exceeds the pool (§5.5).~~ **Done —
       `259bea7`.** `params.take_samples(df, n_samples, pool_name)` returns the prefix slice or
       raises `PoolTooSmall` naming both row counts and the two ways to fix it; `n_samples=None`
@@ -907,10 +941,17 @@ blocking-class: each one can silently produce wrong results or unrecoverable dat
 
 ### Phase 2 — Delete
 
-- [ ] **3.** Cut `regression_models` from 22 entries to the ~4 models that will appear on a
-      slide, plus one `_no_outlier` variant to make the cleaning point. Drop `*_range`
-      entirely or keep exactly one. Apply the same cut to `skewed_models` and
-      `classification_models`. 44 regression stages → ~10.
+- [x] **3.** ~~Cut `regression_models` from 22 entries.~~ **Done — `1f08340`, at the repo owner's
+      chosen breadth: a seven-algorithm sweep rather than the ~4 this task first proposed.**
+      `linear_regression`, `decision_tree`, `knn`, `polynomial`, `random_forest`, `mlp`, `xgboost`,
+      each once per run at the default cleaning, plus three documented deviations
+      (`decision_tree_overfit`; `random_forest_no_outlier` as the single cleaning contrast;
+      `ridge`/`lasso` in `skewed_models` only, where regularised-linear vs tree is the point). All
+      `*_range` variants dropped. `skewed_models` mirrors the same seven so the only difference from
+      `train_raw` is the data; `classification_models` is the sweep minus `polynomial`, which has no
+      classifier script. **76 stages → 42.** The rule is written at the top of
+      `dvc_models.yaml`, which is what §2.7 asked for — a gap now reads as a decision. Verified no
+      dropped key is referenced anywhere and no `train_*.py` is newly orphaned.
 - [ ] **4.** Delete orphans: `train_linear_regression_sqrt.py` (unreachable — 0 references in
       `dvc_models.yaml`. **Not** for the reason first given: its sign-preserving-sqrt rationale is
       correct physics, and the C8 warning about it is withdrawn, so if anything it is the file
@@ -1084,10 +1125,11 @@ exists, survives a timeout, and now actually reaches the splitter — with the l
 measured at 20%.
 
 Next in order: **37** (the 5–7% hit rate — `class_weight`/`scale_pos_weight` and leading with
-precision/recall/PR-AUC instead of accuracy), **39** (the §5.6 smaller items), **4b**'s second
-half, then **13b**, then the rest of Phase 2 — of which **task 3** (cutting the model matrix from
-22 entries to the ~4 that will appear on a slide) needs a decision about what the talk shows, not
-just a refactor. **34** needs the repo owner.
+precision/recall/PR-AUC instead of accuracy), **39** (the §5.6 smaller items), **4b**'s second half,
+**13b**, then **4**/**4c** to finish Phase 2 and **5–7** for Phase 3. Task **12** — the `dvc repro`
+milestone that everything in phases 6–9 waits on — is now much cheaper than when this was written:
+42 stages instead of 76, and the 19 that could not run are down to the 9 `train_skewed@*` (task 8's
+`FEATURE_STEP`) now that task 3 dropped `decision_tree_overfit_no_outlier`.
 
 Note that task 2 changed the draw exactly as this plan predicted, and task 32 changed the schema:
 all four `dvc.lock` entries are stale — every generation dep's md5 differs from what the lock
