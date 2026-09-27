@@ -13,13 +13,17 @@ MODELS_TO_COMPARE = [
     # n_samples via `dvc exp run --set-param n_samples=...` for the
     # convergence comparison instead of separate per-size directories.
 
+    # Model names must be keys in dvc_models.yaml's regression_models -- the
+    # sweep is the seven algorithms plus decision_tree_overfit and
+    # random_forest_no_outlier (see that file's matrix rule). Two of the
+    # commented examples here used to name decision_tree_range and
+    # decision_tree_no_outlier, which task 3 removed.
     # ("run_raw", "knn"),
     ("run_raw", "decision_tree_overfit"),
     ("run_eng", "decision_tree"),
-    # ("run_eng", "decision_tree_range"),
     # ("run_raw", "random_forest"),
     # ("run_raw", "xgboost"),
-    # ("run_raw", "decision_tree_no_outlier"),
+    # ("run_raw", "random_forest_no_outlier"),
     # ("run_eng", "random_forest"),
 ]
 # ─────────────────────────────────────────────────────────────────────────────
