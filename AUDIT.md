@@ -20,12 +20,14 @@ that is the one gating everything in phases 6–9.
 model matrix cut to a documented seven-algorithm sweep, 76 stages → 42), **32** (Gorillas group
 key), **33** (timing-independent chunk plan), **34** (regeneration as the recovery path, reframed
 by the repo owner — no remote needed), **35** (`n_samples` fails loudly), **36** (group-aware splits
-and CV, with the leakage measured at 20%), **38** (one dataset contract, checked on write and on
-read), and **4b**'s deletion half (18 stale size-tier directories, 30 files). **Task 13 is
-withdrawn**: measurement disproved its premise, and **13b** replaces it (§0). Still open in Phase
-1b: **37** and **39**, plus 4b's second half. **§0** records what was verified and how, the claims
-in this audit the work proved wrong, the findings it exposed, and — read this before the next run
-on an existing checkout — the three silent substitutions that are now hard failures.
+and CV, with the leakage measured at 20%), **37** (the 5–7% hit rate, with accuracy demoted below
+the always-miss baseline), **38** (one dataset contract, checked on write and on read), plus
+**4b**'s deletion half (18 stale size-tier directories, 30 files) and **30**'s README half (an
+end-to-end guide, replacing `need to add some stuff here`). **Task 13 is withdrawn**: measurement
+disproved its premise, and **13b** replaces it (§0). Still open in Phase 1b: **39**, plus 4b's
+second half. **§0** records what was verified and how, the claims in this audit the work proved
+wrong, the findings it exposed, and — read this before the next run on an existing checkout — the
+three silent substitutions that are now hard failures.
 
 ---
 
@@ -161,6 +163,35 @@ hardcoded install paths, so a machine with DOSBox elsewhere could not regenerate
 resolves `--dosbox` → `$GORILLAS_DOSBOX` → `dosbox` on `PATH` → the known locations, so the
 location is stated once per machine instead of edited into the file. **No DVC remote is needed
 under this framing**, which is why task 34 is now closed rather than blocked.
+
+**Task 37 — the 5–7% hit rate, handled rather than hidden** (`fd4f61b`). `print_metrics` led
+with accuracy, so on a Gorillas pool a model that had learned nothing looked like it worked.
+Precision, recall, F1 and PR-AUC now lead; accuracy comes last, printed beside the always-miss
+baseline, with an explicit NOTE when the baseline wins. `class_weight="balanced"` where the
+estimator supports it, `scale_pos_weight` (from the *training* labels only) for XGBoost, and an
+honest note on `KNeighborsClassifier` and `MLPClassifier`, which have no such parameter at all —
+"not every model exposes the knob" is worth saying out loud. Every search now tunes on
+`average_precision` rather than `roc_auc`. Verified by running it against a pool with the Gorillas
+shape (6.8% hit rate, 32 rows per group):
+
+```
+Precision : 0.3043      PR-AUC   : 0.2058  (positive rate 0.0650 = random)
+Recall    : 0.1346      ROC-AUC  : 0.7293
+Accuracy  : 0.9237   (always-miss baseline 0.9350  <-- accuracy beats the model here)
+```
+
+That is §5.4's lesson landing unassisted: 92% accurate, worse than a constant, and PR-AUC 3×
+random showing it did learn something real.
+
+**Task 30, README half — an end-to-end guide** (`28bffe7`). `README.md` was
+`need to add some stuff here`. It now covers the two producers and why there are two, the
+14-column contract, what `group_id` is for (with the measured 20%), how to generate/train/compare/
+evaluate, the one edit that demonstrates each lesson, and a table of the deliberate hard failures
+with their fixes. Every claim was checked against the repo, which caught two real problems: the
+evaluation commands were wrong (only the six `evaluate_features.py` scripts need the PYTHONPATH
+wrapper), and `run_raw`/`run_eng`'s `predict.py` still offered `ridge`/`lasso`, which task 3 moved
+to `skewed_models` only — selecting either would have failed on a missing `.joblib`. Both fixed.
+Still open in task 30: moving the `.docx`/`.pptx` out of Git and renaming `claude sessions/`.
 
 ### Behaviour that changed — read this before the next run on an existing checkout
 
@@ -826,8 +857,9 @@ and **change the data before you invest in models** (task 2 alters the draw, so 
 trained before it is thrown away).
 
 Checkboxes are live: `[x]` means done and verified (see §0 for how), `[ ]` means untouched.
-**Done: 1, 2, 2b, 3, 32, 33, 34, 35, 36, 38, and 4b's deletion half.** **Task 13 is withdrawn** —
-its premise was disproved, and task **13b** replaces it. Everything else below is open.
+**Done: 1, 2, 2b, 3, 32, 33, 34, 35, 36, 37, 38, plus 4b's deletion half and 30's README half.**
+**Task 13 is withdrawn** — its premise was disproved, and task **13b** replaces it. Everything
+else below is open.
 
 ### Phase 1 — Make results recordable and the data recoverable — **1 and 2 done**
 
@@ -920,10 +952,15 @@ blocking-class: each one can silently produce wrong results or unrecoverable dat
       MAE 12.944 against the group-aware 16.157 — 20% optimistic. Verified by running real
       training stages on both pool shapes; with no group structure it degrades to an ordinary
       random split, byte-identical, so one path serves both producers.
-- [ ] **37.** Handle the 5–7% hit rate (§5.4). Add `class_weight="balanced"` /
-      `scale_pos_weight`, and lead the classification metrics with precision/recall/PR-AUC
-      rather than accuracy. Worth building the talk around: predicting all-miss scores 93–95%,
-      which is the canonical "accuracy is the wrong metric" lesson arriving for free.
+- [x] **37.** ~~Handle the 5–7% hit rate (§5.4).~~ **Done — `fd4f61b`.** Precision, recall, F1 and
+      PR-AUC lead the report; accuracy is last, beside the always-miss baseline, with a NOTE when
+      the baseline wins. `class_weight="balanced"` on the logistic/tree/forest models,
+      `scale_pos_weight` from the training labels only for XGBoost, and searches retuned on
+      `average_precision`. **`KNeighborsClassifier` and `MLPClassifier` have no `class_weight`
+      parameter at all** — both now carry a note saying so rather than quietly going unweighted,
+      and the KNN note warns that `weights="distance"` weights neighbours, not classes, so it is
+      not a substitute. Verified on a 6.8%-hit-rate pool: accuracy 0.9237 against a 0.9350
+      baseline, PR-AUC 0.2058 against 0.0650 random. The lesson now lands from the output itself.
 - [x] **38.** ~~Wire `_check_contract` into the pipeline.~~ **Done — `eb923f5`.** The checks are
       now `data_generation/contract.py`: both producers validate on write (`generate()` and
       `gorillas._check_contract`, which delegates rather than keeping a private copy) and both
@@ -1097,10 +1134,13 @@ blocking-class: each one can silently produce wrong results or unrecoverable dat
 - [ ] **29.** Refactor training scripts to `main()` + `if __name__ == "__main__"` so they are
       importable. Keep `print()` — the audience watches console output; the duplication behind
       the 320 calls is resolved by tasks 5 and 17, not by a logging framework.
-- [ ] **30.** Purge unrelated content: move the `.docx`/`.pptx` out of Git, rename
-      `claude sessions/` → `claude_sessions/`, write a real `README.md`. **`qbasic_gorillas/`
-      stays** — it is a pipeline dependency now, not an unrelated project. Only its five
-      superseded builds go, in task 4c.
+- [~] **30.** Purge unrelated content. **README half done — `28bffe7`:** `README.md` was
+      `need to add some stuff here` and is now an end-to-end guide — the two producers, the
+      14-column contract, `group_id` and the measured 20%, how to run each stage group, the one
+      edit that demonstrates each lesson, and a table of the deliberate hard failures with their
+      fixes. Writing it found two real bugs (see §0). **Still open:** move the `.docx`/`.pptx` out
+      of Git and rename `claude sessions/` → `claude_sessions/`. **`qbasic_gorillas/` stays** — it
+      is a pipeline dependency now. Only its five superseded builds go, in task 4c.
 - [ ] **31.** Fix doc drift: the `run_10k` / `run_raw_10k` / `train_all.py` /
       `generate_data.py` references in 8 live docstrings, and the intended `foreach` matrix
       after task 3.
@@ -1124,12 +1164,13 @@ Both producers are deterministic, both validate one contract on write and on rea
 exists, survives a timeout, and now actually reaches the splitter — with the leakage it prevents
 measured at 20%.
 
-Next in order: **37** (the 5–7% hit rate — `class_weight`/`scale_pos_weight` and leading with
-precision/recall/PR-AUC instead of accuracy), **39** (the §5.6 smaller items), **4b**'s second half,
-**13b**, then **4**/**4c** to finish Phase 2 and **5–7** for Phase 3. Task **12** — the `dvc repro`
-milestone that everything in phases 6–9 waits on — is now much cheaper than when this was written:
-42 stages instead of 76, and the 19 that could not run are down to the 9 `train_skewed@*` (task 8's
-`FEATURE_STEP`) now that task 3 dropped `decision_tree_overfit_no_outlier`.
+Next in order: **39** (the §5.6 smaller items), **4b**'s second half, **13b**, then **4**/**4c** to
+finish Phase 2 and **5–7** for Phase 3. Task **12** — the `dvc repro` milestone that everything in
+phases 6–9 waits on — is now much cheaper than when this was written: 42 stages instead of 76, and
+the 19 that could not run are down to the 9 `train_skewed@*` (task 8's `FEATURE_STEP`) now that
+task 3 dropped `decision_tree_overfit_no_outlier`. **Task 8 is arguably the highest-value thing
+left**: it is the only remaining blocker to a fully green `dvc repro`, and task 12 is what phases
+6–9 all wait on.
 
 Note that task 2 changed the draw exactly as this plan predicted, and task 32 changed the schema:
 all four `dvc.lock` entries are stale — every generation dep's md5 differs from what the lock
