@@ -14,7 +14,7 @@ from sklearn.ensemble import RandomForestRegressor
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from train_utils import load_data, model_path, print_metrics
 
-X_train, X_test, y_train, y_test = load_data()
+X_train, X_test, y_train, y_test, groups_train = load_data()
 
 print(f"Train set size (skewed) : {len(X_train):,}  (elevation 5–30°)")
 print(f"Test  set size          : {len(X_test):,}")

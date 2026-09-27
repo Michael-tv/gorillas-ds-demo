@@ -13,7 +13,7 @@ from sklearn.tree import DecisionTreeRegressor
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from train_utils import load_data, model_path, print_metrics
 
-X_train, X_test, y_train, y_test = load_data()
+X_train, X_test, y_train, y_test, groups_train = load_data()
 
 print(f"Train set size (clean) : {len(X_train):,}")
 print(f"Test  set size         : {len(X_test):,}")

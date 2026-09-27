@@ -31,6 +31,8 @@ FEATURES = ["launch_angle_deg", "wind_speed_ms", "wind_direction_norm",
             "mass_kg", "radius_m", "drag_coeff", "launch_height_m", "landing_height_m", "landing_distance_m"]
 TARGET = "initial_velocity_ms"
 
+GROUP_COLUMN = "group_id"   # generate.COLUMNS' 14th column -- see splitting.py
+
 # Valid physical ranges for each raw feature and the target. Cleaning always
 # runs on these raw columns, before the pipeline's engineering step -- so
 # run_raw_* and run_eng_* apply the exact same cleaning.
@@ -114,8 +116,15 @@ def load_data(data_path, n_samples=None):
         print(f"  No-outlier cleaning: {n_orig} -> {len(df)} rows ({n_orig - len(df)} removed)")
     X = df[FEATURES]
     y = df[TARGET].values
+    # group_id travels with (X, y) rather than being dropped here: it is not a
+    # feature, but the caller cannot build a group-aware split without it, and
+    # dropping it at the loader is what made task 36 impossible even after task
+    # 32 created the key (AUDIT.md finding N2). splitting.split() decides what to
+    # do with it -- a Gorillas pool groups 32 throws per board, the Python pool
+    # gives every row its own id and so degrades to an ordinary random split.
+    groups = df[GROUP_COLUMN].to_numpy()
     print(f"Loaded {len(X)} samples\n")
-    return X, y
+    return X, y, groups
 
 
 def model_path(models_dir, filename):
