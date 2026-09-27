@@ -225,6 +225,60 @@ hardcoding 10,000 against its 8,525.
 This also closes §2.5 — every model-producing stage now declares the `metrics_*.csv` it writes;
 the three data stages correctly declare none.
 
+**Task 13b — `clean: "range"` stops deleting valid data** (`6a90610`). Measured what that
+strategy actually dropped, over the 50,000-row pool:
+
+```
+clean:"range" dropped                          964 rows
+  of which the landing_distance_m >= 0 bound    807  (84%)
+    of which is_outlier == "none"               727  <- physically valid
+  every other bound, clean rows dropped           0  <- all doing their job
+```
+
+Nine of the ten bounds were precise; one was deleting real data in bulk. With the lower bound
+removed, `clean:"range"` drops **167 rows, 100% of them `data_error`**. Verified on a 20,000-row
+pool: zero valid rows lost, where the old bound would have taken ~290. The trade is worth showing
+rather than hiding — it now catches 167 of ~500 corrupted rows instead of 237, because a
+sign-flipped distance is genuinely indistinguishable from a headwind landing. Less sensitive, far
+more precise.
+
+**Task 4b, second half — every run responds to `n_samples`** (`dde1822`). `run_leakage` (10,000)
+and `run_bias_variance` (20,000) now read `params.yaml` and prefix-slice via
+`params.take_samples`. Verified they track the param, where before they were frozen:
+
+```
+n_samples=2000   leakage train 1,600   bias_variance train 1,600
+n_samples=5000   leakage train 4,000   bias_variance train 4,000
+n_samples=8000   leakage train 6,400   bias_variance train 6,400
+```
+
+The evaluation side had the same defect in **more places than this task listed**, all fixed: the
+two plot scripts with the *"matches train_utils.py"* comment (and their docstrings, which claimed a
+seed-matched random sample), two `evaluate_features.py`, and six `df.sample(n=…)` call sites across
+both shared `feature_evaluation.py` modules. A plot describing a different subset than the model
+trained on is worse than no plot. **No `.sample(n=…)` remains under `models/` or `evaluation/`.**
+
+**Task 39 — the §5.6 items, with one deliberate divergence** (`26cdf74`).
+
+- *Constant `drag_coeff`*: cannot be dropped (both producers must emit the same columns), so
+  `check_contract` now **warns about any zero-variance feature on read**, judged on clean rows —
+  generic, so the next constant column announces itself too. Verified it fires for `drag_coeff` and
+  does not false-positive on a real Python pool.
+- *Raw logs as parquet*: **measured, because the audit's "several times smaller" needed checking.**
+  2.8× on a realistically-structured 8,000-throw log (1,418,962 → 508,263 bytes) but only 1.2× on
+  random floats. The win is real and depends on the data's redundancy. Columns also come back typed.
+- *The `landing_height_m` clip*: **this task asked for a column and I did not add one.** The audit
+  itself says a clip over 3 m "suggests a mapping bug, not a ground hit" — so those rows should not
+  reach a training set, and a column would faithfully record corrupt data rather than refuse it.
+  A column would also be zero-variance in every pool either producer makes, which is the dead
+  weight the *first* item of this same task criticises. A clip beyond 0.01 m now **fails the run**,
+  naming the likely cause, with per-throw amounts in the raw log. No rows are affected today.
+
+**Found while verifying task 39: `gorillas.generate()` was not validating the contract at all.**
+`_check_contract` ran only in the CLI, so the DVC stage was covered but an in-process caller was
+not — task 38's claim that *both* producers validate on write was only true of the Python one.
+Fixed.
+
 ### Behaviour that changed — read this before the next run on an existing checkout
 
 Three of these tasks deliberately turn a silent substitution into a hard failure. Each is correct
@@ -889,10 +943,11 @@ and **change the data before you invest in models** (task 2 alters the draw, so 
 trained before it is thrown away).
 
 Checkboxes are live: `[x]` means done and verified (see §0 for how), `[ ]` means untouched.
-**Done: 1, 2, 2b, 3, 8, 9, 10, 11, 32, 33, 34, 35, 36, 37, 38, plus 4b's deletion half and 30's
-README half.** **Task 13 is withdrawn** — its premise was disproved, and task **13b** replaces it.
-**No stage in the DAG is known-broken**, so task **12** (`dvc repro`) is now unblocked. Everything
-else below is open.
+**Done: 1, 2, 2b, 3, 4b, 8, 9, 10, 11, 13b, 32, 33, 34, 35, 36, 37, 38, 39, plus 30's README
+half.** **Task 13 is withdrawn** — its premise was disproved, and **13b** replaced it.
+**No stage in the DAG is known-broken**, so task **12** (`dvc repro`) is unblocked and is the next
+thing that matters. **All of Phase 1, Phase 1b and Phase 4 is complete.** Everything else below is
+open.
 
 ### Phase 1 — Make results recordable and the data recoverable — **1 and 2 done**
 
@@ -1004,10 +1059,20 @@ blocking-class: each one can silently produce wrong results or unrecoverable dat
       degenerate-but-legitimate states (one group, one class) warn. This also covers the schema
       half of task 28, leaving the determinism test and the `pytest`/`ruff` config for it.
       **Enforcing it is what disproved task 13** — see §0.
-- [ ] **39.** Smaller items from §5.6: drop or document the constant `drag_coeff` (zero variance
-      on clean rows, dead weight in every model); write the raw throw logs as parquet rather
-      than 1.9 MB + 2.4 MB of CSV; record the `landing_height_m` clip in a column instead of
-      only a stderr warning.
+- [x] **39.** ~~Smaller items from §5.6.~~ **Done — `26cdf74`, with one item deliberately not done
+      as written.**
+      - *Constant `drag_coeff`*: documented **and** made self-announcing — `check_contract` warns
+        about any zero-variance feature on read, judged on clean rows. Generic, so the next constant
+        column announces itself too.
+      - *Raw logs as parquet*: done, and the size claim measured rather than repeated — **2.8×** on a
+        realistically-structured log, only **1.2×** on random floats. The win depends on the data's
+        redundancy. Columns also come back typed instead of as strings.
+      - *The `landing_height_m` clip*: **no column added.** This audit says a clip over 3 m "suggests
+        a mapping bug, not a ground hit", so those rows should not reach a training set — a column
+        would faithfully record corrupt data instead of refusing it, and would be zero-variance in
+        every pool, which is the dead weight this task's own first item criticises. A clip beyond
+        0.01 m now **fails the run** with the likely cause named, and per-throw amounts go to the raw
+        log. No rows are affected today.
 
 ### Phase 2 — Delete
 
@@ -1213,13 +1278,17 @@ Both producers are deterministic, both validate one contract on write and on rea
 exists, survives a timeout, and now actually reaches the splitter — with the leakage it prevents
 measured at 20%.
 
-**Task 12 is now the thing to do next.** Every stage in the DAG can run, there are 43 of them
-instead of 76, and nothing else in phases 6–9 is measurable until `dvc repro` has covered the whole
-graph once and `dvc.lock` is committed. It needs a machine with DOSBox for the two
-`generate_gorillas` stages; everything else runs anywhere.
+**Phases 1, 1b and 4 are complete, and task 12 is the milestone everything else waits on.** Every
+stage in the DAG can run, there are 43 of them instead of 76, and nothing in phases 6–9 is
+measurable until `dvc repro` has covered the whole graph once and `dvc.lock` is committed. It needs
+a machine with DOSBox for the two `generate_gorillas` stages; everything else runs anywhere.
 
-After that: **39** (the §5.6 smaller items), **4b**'s second half, **13b**, then **4**/**4c** to
-finish Phase 2 and **5–7** for Phase 3.
+After that, in order: **4** and **4c** to finish Phase 2 (orphan and superseded-build deletion),
+then **5–7** for Phase 3 — task **5** (replacing the PYTHONPATH injection with one `train.py`) is
+the largest remaining refactor and the one that most improves this repo as teaching material, since
+C1 is still the worst clarity offender. Then **14** (move cleaning behind the split), which is
+risk #5 and the last open correctness risk, followed by **15**, **16**, and the simplification and
+hygiene phases.
 
 Note that task 2 changed the draw exactly as this plan predicted, and task 32 changed the schema:
 all four `dvc.lock` entries are stale — every generation dep's md5 differs from what the lock
