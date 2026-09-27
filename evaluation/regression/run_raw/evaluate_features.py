@@ -4,8 +4,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import pandas as pd
 from feature_evaluation import evaluate, plot_features, plot_outliers
 from train_utils import DATA, FEATURES, TARGET, N_SAMPLES
+import params  # train_utils put the repo root on sys.path
 
-df = pd.read_parquet(DATA).iloc[:N_SAMPLES]
+df = params.take_samples(pd.read_parquet(DATA), N_SAMPLES)  # take_samples raises instead of silently truncating (AUDIT.md task 35)
 
 label = f"run_raw ({N_SAMPLES:,} samples)"
 evaluate(df, FEATURES, TARGET, label=label)

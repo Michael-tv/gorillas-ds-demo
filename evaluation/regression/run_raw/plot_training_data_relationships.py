@@ -34,7 +34,7 @@ FEATURES = [
 TARGET = "landing_distance_m"
 
 # ── Load and split the full DataFrame so every column is available ────────────
-df = pd.read_parquet(DATA).iloc[:N_SAMPLES]
+df = params.take_samples(pd.read_parquet(DATA), N_SAMPLES)  # take_samples raises instead of silently truncating (AUDIT.md task 35)
 df_train, df_test = train_test_split(df, test_size=TEST_SIZE, random_state=RANDOM_STATE)
 
 X_train = df_train[FEATURES].values

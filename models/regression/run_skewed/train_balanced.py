@@ -32,7 +32,7 @@ if not os.path.isfile(DATA):
     print()
     sys.exit(1)
 
-df = pd.read_parquet(DATA).iloc[:N_SAMPLES]
+df = params.take_samples(pd.read_parquet(DATA), N_SAMPLES)  # take_samples raises instead of silently truncating (AUDIT.md task 35)
 df = add_engineered_columns(df)
 X = df[FEATURES].values
 y = df[TARGET].values
