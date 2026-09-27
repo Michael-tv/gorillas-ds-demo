@@ -1,0 +1,18 @@
+# Which classification models each training stage expands into. dvc.yaml
+# reads this via `vars:` and turns every entry into one independently-cached
+# stage. Split from the former dvc_models.yaml so regression and
+# classification are configured, and can be changed, independently of each
+# other.
+#
+# classification_models also drives the Gorillas effort/velocity groups
+# (train_classification_effort, train_classification_velocity) -- the same
+# matrix, against a different (fixed) pool per group.
+
+classification_models:
+  # The same sweep minus polynomial, for which there is no classifier script.
+  logistic_regression: {script: train_logistic_regression.py, model: logistic_regression}
+  decision_tree:       {script: train_decision_tree.py,       model: decision_tree}
+  knn:                 {script: train_knn.py,                 model: knn}
+  random_forest:       {script: train_random_forest.py,       model: random_forest}
+  mlp:                 {script: train_mlp.py,                 model: mlp}
+  xgboost:             {script: train_xgboost.py,             model: xgboost}

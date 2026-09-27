@@ -21,9 +21,23 @@ datasets:
   # integrator), with its own foreach stage (generate_gorillas) below.
 
 gorillas_datasets:
-  # Two variants of the same physical setup (same seed, same board count),
-  # differing only in what the thrower controls -- see data_generation/
-  # gorillas.py and qbasic_gorillas/dosbox-datagen/ for what that means.
+  # Four variants of the same physical setup (same board count), differing in
+  # what the thrower controls (input_mode) and which model domain trains on
+  # them -- see data_generation/gorillas.py and qbasic_gorillas/dosbox-datagen/
+  # for what input_mode means.
+  #
+  # Regression and classification each get their own generated file per mode,
+  # at the repo owner's request: train_raw_effort/train_eng_effort read
+  # gorillas_effort_regression.parquet, train_classification_effort reads
+  # gorillas_effort_classification.parquet, and neither branch shares a
+  # dvc.yaml stage node with the other. This is NOT because the game
+  # distinguishes "regression data" from "classification data" -- one throw
+  # produces both initial_velocity_ms and hit_target at once, the same way the
+  # Python-generated pool does, and that pool still keeps the one-file design
+  # (AUDIT.md's design decisions). It is only so the two branches are fully
+  # independent DVC pipeline runs end to end, at the cost of running DOSBox
+  # twice per mode instead of once. The four entries differ only in seed, so
+  # they are not byte-identical draws of the same throws.
   #
   # n=5000 lands in the "real one-off pool" range this build measures at
   # (roughly 15-200 rows/s depending on --workers; DVC doesn't pass --workers
@@ -35,7 +49,7 @@ gorillas_datasets:
   # `throws` and `boards_per_chunk` DO belong here (unlike n_iter/cv-style
   # tuning knobs) -- both change the resulting rows, not just how fast they
   # arrive, so a value change here correctly reruns generate_gorillas@<key>.
-  gorillas_effort_data:
+  gorillas_effort_regression:
     n: 5000
     seed: 42
     input_mode: EFFORT
@@ -43,9 +57,25 @@ gorillas_datasets:
     boards_per_chunk: 25
     hit_tolerance: 5.0
 
-  gorillas_velocity_data:
+  gorillas_effort_classification:
     n: 5000
-    seed: 42
+    seed: 43
+    input_mode: EFFORT
+    throws: 32
+    boards_per_chunk: 25
+    hit_tolerance: 5.0
+
+  gorillas_velocity_regression:
+    n: 5000
+    seed: 44
+    input_mode: VELOCITY
+    throws: 32
+    boards_per_chunk: 25
+    hit_tolerance: 5.0
+
+  gorillas_velocity_classification:
+    n: 5000
+    seed: 45
     input_mode: VELOCITY
     throws: 32
     boards_per_chunk: 25

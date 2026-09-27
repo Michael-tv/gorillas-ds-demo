@@ -1,0 +1,31 @@
+# Standalone pipeline: every classification model, trained on the Gorillas
+# velocity-mode pool. See pipelines/effort_regression/dvc.yaml's header for
+# the full explanation of this pattern.
+
+vars:
+  - ../../dvc_models_classification.yaml
+  - ../../params.yaml
+
+stages:
+
+  train_classification_velocity:
+    foreach: ${classification_models}
+    do:
+      cmd: python ../../scripts/run_with_pythonpath.py ../../models/classification/run_velocity ../../models/classification/${item.script} TRAIN_MODEL_NAME=${key}
+      deps:
+        - ../../data/gorillas_velocity_classification.parquet
+        - ../../models/classification/${item.script}
+        - ../../models/classification/run_velocity/train_utils.py
+        - ../../models/classification/common/loader.py
+        - ../../feature_engineering.py
+        - ../../splitting.py
+      params:
+        - ../../params.yaml:
+            - test_size
+            - search.classification.${item.model}.n_iter
+            - search.classification.${item.model}.cv
+      outs:
+        - ../../experiments/classification/run_velocity/models/model_${key}.joblib
+      metrics:
+        - ../../experiments/classification/run_velocity/models/metrics_${key}.csv:
+            cache: false

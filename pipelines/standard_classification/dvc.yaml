@@ -1,0 +1,41 @@
+# Standalone pipeline: every classification model, on the switchable
+# training_data pool (params.yaml -- standard_training_data by default, or
+# any Gorillas *_classification pool via --set-param). See
+# pipelines/effort_regression/dvc.yaml's header for the full explanation of
+# the cross-pipeline-dependency / ../../-path / explicit-params.yaml pattern
+# this file follows.
+#
+# Unlike the four Gorillas-source pipelines, this one still reads
+# ${training_data} rather than a hardcoded file -- it is the switchable-pool
+# mechanism's own home, not one of the four fixed groups, so training_data
+# and n_samples stay tracked `params:` here.
+
+vars:
+  - ../../dvc_models_classification.yaml
+  - ../../params.yaml
+
+stages:
+
+  train_classification:
+    foreach: ${classification_models}
+    do:
+      cmd: python ../../scripts/run_with_pythonpath.py ../../models/classification/run ../../models/classification/${item.script} TRAIN_MODEL_NAME=${key}
+      deps:
+        - ../../data/${training_data}.parquet
+        - ../../models/classification/${item.script}
+        - ../../models/classification/run/train_utils.py
+        - ../../models/classification/common/loader.py
+        - ../../feature_engineering.py
+        - ../../splitting.py
+      params:
+        - ../../params.yaml:
+            - training_data
+            - n_samples
+            - test_size
+            - search.classification.${item.model}.n_iter
+            - search.classification.${item.model}.cv
+      outs:
+        - ../../experiments/classification/run/models/model_${key}.joblib
+      metrics:
+        - ../../experiments/classification/run/models/metrics_${key}.csv:
+            cache: false

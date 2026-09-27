@@ -1,0 +1,76 @@
+# Standalone pipeline: every regression model, trained on the Gorillas
+# effort-mode pool. One of six {source} x {domain} pipelines the repo owner
+# asked for, so "run everything for effort-regression" is one `dvc repro`
+# from this directory (or `dvc repro pipelines/effort_regression/dvc.yaml`
+# from the repo root) instead of naming stages individually. See the
+# top-level README's "Running one source-domain pipeline" section.
+#
+# Depends on data/gorillas_effort_regression.parquet, produced by the
+# generate_gorillas@gorillas_effort_regression stage in the ROOT dvc.yaml --
+# DVC resolves that cross-pipeline dependency by the file path itself, not by
+# an explicit pipeline reference, the same way any two stages depend on each
+# other. Run the root's generate_gorillas stage first if that file doesn't
+# exist yet (or run `dvc repro -P` from the repo root, which reproduces
+# every pipeline in dependency order).
+#
+# All paths below are relative to THIS file's directory, two levels under
+# the repo root -- DVC resolves deps/outs/cmd relative to the dvc.yaml that
+# declares them, not to the repo root or wherever `dvc repro` was invoked
+# from, so every path here is prefixed ../../ relative to the equivalent
+# entry in the root dvc.yaml.
+#
+# `params:` entries below name ../../params.yaml explicitly. `vars:` above
+# only affects ${...} template interpolation at parse time -- a stage's
+# `params:` staleness-tracking list is a SEPARATE mechanism that otherwise
+# defaults to a `params.yaml` next to THIS dvc.yaml, which doesn't exist.
+# Confirmed by testing: the bare key form failed with "Parameters
+# 'test_size, ...' are missing from 'params.yaml'" until this was explicit.
+
+vars:
+  - ../../dvc_models_regression.yaml
+  - ../../params.yaml
+
+stages:
+
+  train_raw_effort:
+    foreach: ${regression_models}
+    do:
+      cmd: python ../../scripts/run_with_pythonpath.py ../../models/regression/run_raw_effort ../../models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
+      deps:
+        - ../../data/gorillas_effort_regression.parquet
+        - ../../models/regression/${item.script}
+        - ../../models/regression/run_raw_effort/train_utils.py
+        - ../../models/regression/common/loader.py
+        - ../../splitting.py
+      params:
+        - ../../params.yaml:
+            - test_size
+            - search.regression.${item.model}.n_iter
+            - search.regression.${item.model}.cv
+      outs:
+        - ../../experiments/regression/run_raw_effort/models/model_${key}.joblib
+      metrics:
+        - ../../experiments/regression/run_raw_effort/models/metrics_${key}.csv:
+            cache: false
+
+  train_eng_effort:
+    foreach: ${regression_models}
+    do:
+      cmd: python ../../scripts/run_with_pythonpath.py ../../models/regression/run_eng_effort ../../models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
+      deps:
+        - ../../data/gorillas_effort_regression.parquet
+        - ../../models/regression/${item.script}
+        - ../../models/regression/run_eng_effort/train_utils.py
+        - ../../models/regression/common/loader.py
+        - ../../feature_engineering.py
+        - ../../splitting.py
+      params:
+        - ../../params.yaml:
+            - test_size
+            - search.regression.${item.model}.n_iter
+            - search.regression.${item.model}.cv
+      outs:
+        - ../../experiments/regression/run_eng_effort/models/model_${key}.joblib
+      metrics:
+        - ../../experiments/regression/run_eng_effort/models/metrics_${key}.csv:
+            cache: false
