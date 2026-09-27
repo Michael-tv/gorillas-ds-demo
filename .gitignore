@@ -216,8 +216,12 @@ __marimo__/
 .streamlit/secrets.toml
 
 # ML project — generated artifacts
-model_*.joblib
-metrics_*.csv
+# Models are DVC-cached (cache: false is not set on them) so Git must ignore
+# them; metrics ARE cache: false in dvc.yaml, meaning DVC intends Git to
+# version them (for `dvc metrics diff` / `dvc exp show` across commits) --
+# so metrics_*.csv must NOT be ignored. Scoped to experiments/ so a
+# same-named file elsewhere in the repo isn't caught by accident.
+experiments/**/model_*.joblib
 training_data/
 compare_models.png
 /data/
