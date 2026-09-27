@@ -248,6 +248,7 @@ DIM SHARED RowsSinceFlush
 DIM SHARED CsvIsOpen
 DIM SHARED RowsWritten&
 DIM SHARED CfgFound           'set at module level before ReadCfg runs
+DIM SHARED CfgPath$           'where the config was actually found (D: or C:)
 DIM SHARED FastDrawSet        'was FASTDRAW given explicitly in the config?
 
 'Screen Mode Variables
@@ -279,12 +280,30 @@ DIM SHARED MachSpeed AS SINGLE
   'QuickBASIC/VB), and RETURNing out of an error handler is not valid either --
   'so neither an inline guard nor a GOSUB can clear the error state. RESUME
   '<label> can, and only works where the handler is in this same scope.
+  'Look on D: first, then in the game folder.
+  '
+  'The D: path is what makes parallel generation possible. DOSBox emulates on
+  'one thread, so the only way to use the rest of the machine is to run several
+  'instances at once -- but they would all be reading one GORCFG.TXT and
+  'writing one THROWS.CSV if the config could only live beside the game. With
+  'this, each worker mounts its own private D: holding its own config and
+  'collecting its own CSV, and the game folder can be shared read-only by all
+  'of them. It also keeps a DVC-tracked directory free of generated files.
+  CfgPath$ = "D:GORCFG.TXT"
   CfgFound = 1
-  ON ERROR GOTO CfgErr
-  OPEN "GORCFG.TXT" FOR INPUT AS #CFGCHAN
+  ON ERROR GOTO CfgErrD
+  OPEN CfgPath$ FOR INPUT AS #CFGCHAN
   CLOSE #CFGCHAN
   GOTO CfgDone
-CfgErr:
+CfgErrD:
+  RESUME CfgTryC
+CfgTryC:
+  CfgPath$ = "GORCFG.TXT"
+  ON ERROR GOTO CfgErrC
+  OPEN CfgPath$ FOR INPUT AS #CFGCHAN
+  CLOSE #CFGCHAN
+  GOTO CfgDone
+CfgErrC:
   CfgFound = 0
   RESUME CfgDone
 CfgDone:
@@ -1748,7 +1767,8 @@ SUB ReadCfg
   'cleared properly -- see the comment there.
   IF CfgFound = 0 THEN EXIT SUB   'no config file: stay a normal playable game
 
-  OPEN "GORCFG.TXT" FOR INPUT AS #CFGCHAN
+  'CfgPath$ is whichever of D: or the game folder the file was found on.
+  OPEN CfgPath$ FOR INPUT AS #CFGCHAN
 
   DO WHILE NOT EOF(CFGCHAN)
     LINE INPUT #CFGCHAN, ln$
