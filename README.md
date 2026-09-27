@@ -47,7 +47,7 @@ regeneration — not a stored copy — is the recovery path. A fresh clone there
 params.yaml            ← the knobs you actually turn
 dvc_datasets.yaml      ← which datasets exist, and their generation parameters
 dvc_models.yaml        ← which models each training stage expands into
-dvc.yaml               ← the pipeline: 8 stage groups, 42 stages
+dvc.yaml               ← the pipeline: 9 stage groups, 43 stages
 
 physics.py             RK4 projectile integrator with drag and wind
 data_generation/       the two producers, plus the shared contract
