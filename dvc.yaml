@@ -78,7 +78,7 @@ stages:
   generate_gorillas:
     foreach: ${gorillas_datasets}
     do:
-      cmd: python -m data_generation.gorillas --n ${item.n} --seed ${item.seed} --input-mode ${item.input_mode} --throws ${item.throws} --boards-per-chunk ${item.boards_per_chunk} --hit-tolerance ${item.hit_tolerance} --overwrite --out data/${key}.parquet --raw-out data/${key}_throws.csv
+      cmd: python -m data_generation.gorillas --n ${item.n} --seed ${item.seed} --input-mode ${item.input_mode} --throws ${item.throws} --boards-per-chunk ${item.boards_per_chunk} --hit-tolerance ${item.hit_tolerance} --overwrite --out data/${key}.parquet --raw-out data/${key}_throws.parquet
       deps:
         - data_generation/gorillas.py
         - data_generation/outliers.py
@@ -86,7 +86,7 @@ stages:
         - qbasic_gorillas/dosbox-datagen/gorilla.bas
       outs:
         - data/${key}.parquet
-        - data/${key}_throws.csv
+        - data/${key}_throws.parquet
 
   # ── Regression: raw feature set ──────────────────────────────────────────
 
