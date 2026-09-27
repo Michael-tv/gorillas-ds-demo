@@ -1,50 +1,69 @@
+# Which models each training stage expands into. dvc.yaml reads this via `vars:`
+# and turns every entry into one independently-cached stage.
+#
+# THE MATRIX RULE, stated so it is not guesswork (AUDIT.md task 3, §2.7):
+#
+#   The sweep is seven regression algorithms, chosen to span the arc a talk
+#   needs -- underfit, overfit, instance-based, ensemble:
+#
+#       linear_regression  decision_tree  knn  polynomial
+#       random_forest      mlp            xgboost
+#
+#   Each appears exactly ONCE per run, with the default cleaning (clean: "").
+#   Deviations from that rule are deliberate and listed below, and there are
+#   only three of them. Anything not listed does not exist -- previously the
+#   matrix carried *_range for 6 of 10 models and *_no_outlier for 8, with
+#   nothing recording whether the gaps were intentional, so a reader could not
+#   tell a decision from an oversight.
+#
+# This replaces 22 regression entries (44 stages across train_raw and train_eng)
+# and 17 skewed entries. The *_range variants are gone entirely: `clean: "range"`
+# is demonstrated once, by the one no_outlier/cleaning contrast below, rather
+# than duplicated across six algorithms that all make the same point.
+
 regression_models:
-  linear_regression:                {script: train_linear_regression.py,          clean: "",           model: linear_regression}
-  decision_tree:                    {script: train_decision_tree.py,              clean: "",           model: decision_tree}
-  decision_tree_overfit:            {script: train_decision_tree_overfit.py,      clean: "",           model: decision_tree_overfit}
-  knn:                              {script: train_knn.py,                        clean: "",           model: knn}
-  polynomial:                       {script: train_polynomial.py,                 clean: "",           model: polynomial}
-  random_forest:                    {script: train_random_forest.py,              clean: "",           model: random_forest}
-  mlp:                              {script: train_mlp.py,                        clean: "",           model: mlp}
-  xgboost:                          {script: train_xgboost.py,                    clean: "",           model: xgboost}
-  linear_regression_range:          {script: train_linear_regression.py,          clean: "range",      model: linear_regression}
-  decision_tree_range:              {script: train_decision_tree.py,              clean: "range",      model: decision_tree}
-  knn_range:                        {script: train_knn.py,                        clean: "range",      model: knn}
-  polynomial_range:                 {script: train_polynomial.py,                 clean: "range",      model: polynomial}
-  random_forest_range:              {script: train_random_forest.py,              clean: "range",      model: random_forest}
-  xgboost_range:                    {script: train_xgboost.py,                    clean: "range",      model: xgboost}
-  linear_regression_no_outlier:     {script: train_linear_regression.py,          clean: "no_outlier", model: linear_regression}
-  decision_tree_no_outlier:         {script: train_decision_tree.py,              clean: "no_outlier", model: decision_tree}
-  decision_tree_overfit_no_outlier: {script: train_decision_tree_overfit.py,      clean: "no_outlier", model: decision_tree_overfit}
-  knn_no_outlier:                   {script: train_knn.py,                        clean: "no_outlier", model: knn}
-  polynomial_no_outlier:            {script: train_polynomial.py,                 clean: "no_outlier", model: polynomial}
-  random_forest_no_outlier:         {script: train_random_forest.py,              clean: "no_outlier", model: random_forest}
-  mlp_no_outlier:                   {script: train_mlp.py,                        clean: "no_outlier", model: mlp}
-  xgboost_no_outlier:               {script: train_xgboost.py,                    clean: "no_outlier", model: xgboost}
+  # The seven-model sweep.
+  linear_regression:  {script: train_linear_regression.py, clean: "", model: linear_regression}
+  decision_tree:      {script: train_decision_tree.py,     clean: "", model: decision_tree}
+  knn:                {script: train_knn.py,               clean: "", model: knn}
+  polynomial:         {script: train_polynomial.py,        clean: "", model: polynomial}
+  random_forest:      {script: train_random_forest.py,     clean: "", model: random_forest}
+  mlp:                {script: train_mlp.py,              clean: "", model: mlp}
+  xgboost:            {script: train_xgboost.py,           clean: "", model: xgboost}
+
+  # Deviation 1: an unregularised tree, kept because "the same algorithm, no
+  # depth limit" is the clearest single-slide overfitting demo there is.
+  decision_tree_overfit: {script: train_decision_tree_overfit.py, clean: "", model: decision_tree_overfit}
+
+  # Deviation 2: one cleaning contrast. The same model twice, differing only in
+  # `clean`, is what makes the cleaning strategy visible in `dvc exp show`;
+  # repeating it for every algorithm adds stages without adding a lesson.
+  # (Note its `no_outlier` strategy is itself an oracle -- see AUDIT.md task 15.)
+  random_forest_no_outlier: {script: train_random_forest.py, clean: "no_outlier", model: random_forest}
 
 classification_models:
+  # The same sweep minus polynomial, for which there is no classifier script.
   logistic_regression: {script: train_logistic_regression.py, model: logistic_regression}
   decision_tree:       {script: train_decision_tree.py,       model: decision_tree}
-  random_forest:       {script: train_random_forest.py,       model: random_forest}
   knn:                 {script: train_knn.py,                 model: knn}
+  random_forest:       {script: train_random_forest.py,       model: random_forest}
   mlp:                 {script: train_mlp.py,                 model: mlp}
   xgboost:             {script: train_xgboost.py,             model: xgboost}
 
 skewed_models:
-  linear_regression:            {script: train_linear_regression.py, clean: "",           model: linear_regression}
-  ridge:                         {script: train_ridge.py,              clean: "",           model: ridge}
-  lasso:                         {script: train_lasso.py,              clean: "",           model: lasso}
-  decision_tree:                 {script: train_decision_tree.py,      clean: "",           model: decision_tree}
-  knn:                           {script: train_knn.py,                clean: "",           model: knn}
-  polynomial:                    {script: train_polynomial.py,         clean: "",           model: polynomial}
-  random_forest:                 {script: train_random_forest.py,      clean: "",           model: random_forest}
-  mlp:                           {script: train_mlp.py,                clean: "",           model: mlp}
-  xgboost:                       {script: train_xgboost.py,            clean: "",           model: xgboost}
-  linear_regression_no_outlier:  {script: train_linear_regression.py, clean: "no_outlier",  model: linear_regression}
-  ridge_no_outlier:               {script: train_ridge.py,              clean: "no_outlier", model: ridge}
-  lasso_no_outlier:               {script: train_lasso.py,              clean: "no_outlier", model: lasso}
-  decision_tree_no_outlier:       {script: train_decision_tree.py,      clean: "no_outlier", model: decision_tree}
-  knn_no_outlier:                 {script: train_knn.py,                clean: "no_outlier", model: knn}
-  polynomial_no_outlier:          {script: train_polynomial.py,         clean: "no_outlier", model: polynomial}
-  random_forest_no_outlier:       {script: train_random_forest.py,      clean: "no_outlier", model: random_forest}
-  xgboost_no_outlier:             {script: train_xgboost.py,            clean: "no_outlier", model: xgboost}
+  # The same seven-model sweep on the angle-capped pool, so the only difference
+  # between this run and train_raw is the data it sees.
+  linear_regression: {script: train_linear_regression.py, clean: "", model: linear_regression}
+  decision_tree:     {script: train_decision_tree.py,     clean: "", model: decision_tree}
+  knn:               {script: train_knn.py,               clean: "", model: knn}
+  polynomial:        {script: train_polynomial.py,        clean: "", model: polynomial}
+  random_forest:     {script: train_random_forest.py,     clean: "", model: random_forest}
+  mlp:               {script: train_mlp.py,               clean: "", model: mlp}
+  xgboost:           {script: train_xgboost.py,           clean: "", model: xgboost}
+
+  # Deviation 3: ridge and lasso appear here and nowhere else, because
+  # regularised-linear versus tree is exactly the extrapolation contrast this
+  # run exists to show -- beyond the training range a linear model keeps going
+  # while a forest flatlines at its boundary leaf.
+  ridge: {script: train_ridge.py, clean: "", model: ridge}
+  lasso: {script: train_lasso.py, clean: "", model: lasso}

@@ -63,9 +63,20 @@ def check_contract(df, source="dataset", verbose=True):
         if not cond:
             raise ContractViolation(f"{source}: {msg}")
 
+    missing = [c for c in gen.COLUMNS if c not in df.columns]
+    stale_note = ""
+    if missing == ["group_id"]:
+        # By far the most likely way this fires: a pool generated before task 32
+        # added group_id. data/ is DVC-cached rather than in Git, so an existing
+        # pool on disk silently predates the code that reads it.
+        stale_note = ("\n  This pool predates the group_id column (AUDIT.md task 32), so it "
+                      "cannot\n  support a group-aware split. Regenerate it:\n"
+                      "    dvc repro generate                  # the Python pool\n"
+                      "    dvc repro generate_gorillas         # the game pools (needs DOSBox)\n"
+                      "  Nothing is lost -- both producers are deterministic for a fixed seed.")
     require(list(df.columns) == gen.COLUMNS,
             f"column set/order does not match generate.COLUMNS\n"
-            f"  expected: {gen.COLUMNS}\n  got:      {list(df.columns)}")
+            f"  expected: {gen.COLUMNS}\n  got:      {list(df.columns)}" + stale_note)
     require(df.columns[gen.MASS_COLUMN_INDEX] == "mass_kg",
             "MASS_COLUMN_INDEX no longer points at mass_kg")
     require(len(df) > 0, "no rows")

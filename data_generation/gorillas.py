@@ -94,20 +94,52 @@ class GameRunFailed(RuntimeError):
     pass
 
 
+DOSBOX_ENV_VAR = "GORILLAS_DOSBOX"
+
+
 def find_dosbox(explicit=None):
+    """Locate the DOSBox executable.
+
+    Resolution order, most explicit first: the `--dosbox` argument, the
+    GORILLAS_DOSBOX environment variable, `dosbox` on PATH, then the known
+    install locations. The env var and the PATH lookup exist because
+    regeneration is this dataset's ONLY recovery path -- there is no DVC remote
+    holding a copy -- so being able to say where DOSBox lives, once, without
+    editing this file is part of making that path dependable (AUDIT.md task 34 /
+    §5.3). Hardcoded candidates alone meant a machine that had DOSBox somewhere
+    else could not regenerate at all.
+    """
     if explicit:
         p = Path(explicit)
         if not p.is_file():
             raise DosboxNotFound(f"--dosbox given but not a file: {p}")
         return p
+
+    from_env = os.environ.get(DOSBOX_ENV_VAR)
+    if from_env:
+        p = Path(from_env)
+        if not p.is_file():
+            raise DosboxNotFound(
+                f"{DOSBOX_ENV_VAR} is set to {p}, which is not a file. Fix or "
+                f"unset it, or pass --dosbox <path>."
+            )
+        return p
+
+    on_path = shutil.which("dosbox") or shutil.which("dosbox.exe")
+    if on_path:
+        return Path(on_path)
+
     for p in DOSBOX_CANDIDATES:
         if p.is_file():
             return p
+
     searched = "\n  ".join(str(p) for p in DOSBOX_CANDIDATES)
     raise DosboxNotFound(
-        "DOSBox not found. Searched:\n  " + searched +
-        "\nInstall DOSBox Staging (winget install DOSBoxStaging.DOSBoxStaging) "
-        "or pass --dosbox <path>."
+        f"DOSBox not found. Checked ${DOSBOX_ENV_VAR}, `dosbox` on PATH, then:\n  "
+        + searched +
+        "\nInstall DOSBox Staging (winget install DOSBoxStaging.DOSBoxStaging), "
+        f"pass --dosbox <path>, or set {DOSBOX_ENV_VAR} to its full path so every "
+        "later run finds it."
     )
 
 
