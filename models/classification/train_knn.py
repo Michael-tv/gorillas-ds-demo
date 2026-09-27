@@ -12,6 +12,11 @@ _search = params.search_params("classification", "knn")
 N_ITER  = _search["n_iter"]
 CV      = _search["cv"]
 
+# Tune on PR-AUC, not ROC-AUC: with a 5-7% positive rate ROC-AUC is flattered by
+# the large true-negative pool, while average precision tracks the thing we
+# actually care about -- how good the positive predictions are (AUDIT.md task 37).
+SCORING = "average_precision"
+
 X, y, groups = load_data()
 # Group-aware when the active pool has groups -- a Gorillas pool shares one
 # board's wind and skyline across all 32 of its throws, so a random split would
@@ -26,6 +31,14 @@ X_train, X_test, y_train, y_test, groups_train = splitting.split(
 # group-aware split would leak across folds instead of across the test set.
 CV_FOLDS = splitting.cv_for(CV, X_train, y_train, groups_train, stratify=True)
 
+# KNeighborsClassifier has NO class_weight parameter -- unlike the logistic,
+# tree and forest models, it cannot be reweighted for the 5-7% hit rate
+# (AUDIT.md task 37 / §5.4). Left as-is deliberately rather than papered over:
+# "not every model exposes the knob" is worth saying out loud, and the
+# precision/recall/PR-AUC reported below show what that costs. Resampling the
+# training set would be the alternative, at the price of a second mechanism to
+# explain. weights="distance" is in the search space but weights NEIGHBOURS by
+# distance, not CLASSES by frequency -- it is not a substitute.
 pipeline = Pipeline([("scaler", StandardScaler()), ("model", KNeighborsClassifier())])
 
 param_dist = {
@@ -37,13 +50,13 @@ param_dist = {
 search = RandomizedSearchCV(
     pipeline,
     param_distributions=param_dist,
-    n_iter=N_ITER, cv=CV_FOLDS, scoring="roc_auc",
+    n_iter=N_ITER, cv=CV_FOLDS, scoring=SCORING,
     random_state=42, n_jobs=-1, verbose=1,
 )
 search.fit(X_train, y_train)
 
 print(f"\nBest params : {search.best_params_}")
-print(f"Best CV AUC : {search.best_score_:.4f}\n")
+print(f"Best CV {SCORING}: {search.best_score_:.4f}\n")
 
 best   = search.best_estimator_
 y_pred = best.predict(X_test)

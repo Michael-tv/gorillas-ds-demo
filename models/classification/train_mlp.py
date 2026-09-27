@@ -12,6 +12,11 @@ _search = params.search_params("classification", "mlp")
 N_ITER  = _search["n_iter"]
 CV      = _search["cv"]
 
+# Tune on PR-AUC, not ROC-AUC: with a 5-7% positive rate ROC-AUC is flattered by
+# the large true-negative pool, while average precision tracks the thing we
+# actually care about -- how good the positive predictions are (AUDIT.md task 37).
+SCORING = "average_precision"
+
 X, y, groups = load_data()
 # Group-aware when the active pool has groups -- a Gorillas pool shares one
 # board's wind and skyline across all 32 of its throws, so a random split would
@@ -27,6 +32,10 @@ X_train, X_test, y_train, y_test, groups_train = splitting.split(
 CV_FOLDS = splitting.cv_for(CV, X_train, y_train, groups_train, stratify=True)
 
 pipeline = Pipeline([("scaler", StandardScaler()),
+                      # MLPClassifier has NO class_weight parameter either (see
+                      # train_knn.py's note) -- sample reweighting would have to be
+                      # done by resampling. Judge it on precision/recall/PR-AUC below,
+                      # not accuracy (AUDIT.md task 37 / §5.4).
                       ("model", MLPClassifier(max_iter=500, early_stopping=True, random_state=42))])
 
 param_dist = {
@@ -39,13 +48,13 @@ param_dist = {
 search = RandomizedSearchCV(
     pipeline,
     param_distributions=param_dist,
-    n_iter=N_ITER, cv=CV_FOLDS, scoring="roc_auc",
+    n_iter=N_ITER, cv=CV_FOLDS, scoring=SCORING,
     random_state=42, n_jobs=-1, verbose=1,
 )
 search.fit(X_train, y_train)
 
 print(f"\nBest params : {search.best_params_}")
-print(f"Best CV AUC : {search.best_score_:.4f}\n")
+print(f"Best CV {SCORING}: {search.best_score_:.4f}\n")
 
 best   = search.best_estimator_
 y_pred = best.predict(X_test)
