@@ -5,14 +5,15 @@ import sys
 import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error
-from sklearn.model_selection import train_test_split
 
 BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.join(BASE_DIR, "..", "..", "..")
 sys.path.insert(0, REPO_ROOT)
 
 import params
+import splitting
 from feature_engineering import add_engineered_columns
+from models.regression.common import loader
 
 MODELS_DIR = os.path.join(REPO_ROOT, "experiments", "regression", "run_skewed", "models")
 DATA       = params.data_path()
@@ -54,9 +55,14 @@ def load_data(test_size=0.2):
         print(f"  No-outlier cleaning: {n_orig} -> {len(df)} rows ({n_orig - len(df)} removed)")
     X = df[FEATURES].values
     y = df[TARGET].values
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
+    groups = df[loader.GROUP_COLUMN].to_numpy()
+    # Group-aware whenever the active pool has groups -- see splitting.py and
+    # AUDIT.md task 36/§5.1. groups_train is returned alongside the split so a
+    # caller that cross-validates can pass it to splitting.cv_for().
+    X_train, X_test, y_train, y_test, groups_train = splitting.split(
+        X, y, groups, test_size=test_size, random_state=42)
     print(f"Loaded {len(X_train)} train / {len(X_test)} test samples\n")
-    return X_train, X_test, y_train, y_test
+    return X_train, X_test, y_train, y_test, groups_train
 
 
 def save_metrics(model_name, **kw):

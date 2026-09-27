@@ -11,7 +11,6 @@ import sys
 import pandas as pd
 import joblib
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from train_utils import model_path, print_metrics, FEATURES, TARGET
@@ -20,6 +19,7 @@ HERE      = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.join(HERE, "..", "..", "..")
 sys.path.insert(0, REPO_ROOT)
 import params
+import splitting
 from feature_engineering import add_engineered_columns
 
 DATA      = params.data_path()
@@ -32,11 +32,13 @@ if not os.path.isfile(DATA):
     print()
     sys.exit(1)
 
-df = pd.read_parquet(DATA).iloc[:N_SAMPLES]
+df = params.take_samples(pd.read_parquet(DATA), N_SAMPLES)  # take_samples raises instead of silently truncating (AUDIT.md task 35)
 df = add_engineered_columns(df)
 X = df[FEATURES].values
 y = df[TARGET].values
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# Group-aware when the pool has groups -- see splitting.py, AUDIT.md task 36.
+X_train, X_test, y_train, y_test, groups_train = splitting.split(
+    X, y, df["group_id"].to_numpy(), test_size=0.2, random_state=42)
 
 print(f"Train set size (balanced) : {len(X_train):,}  (elevation 5–85°)")
 print(f"Test  set size            : {len(X_test):,}")

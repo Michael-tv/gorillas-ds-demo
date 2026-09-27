@@ -17,9 +17,21 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error
 
+# params lives at the repo root. The run_*/train_utils.py shims already put it
+# on sys.path before importing this module, but doing it here too means the
+# loader works when imported directly (e.g. from a test or a notebook).
+_REPO_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+import params
+from data_generation.contract import check_contract
+
 FEATURES = ["launch_angle_deg", "wind_speed_ms", "wind_direction_norm",
             "mass_kg", "radius_m", "drag_coeff", "launch_height_m", "landing_height_m", "landing_distance_m"]
 TARGET = "initial_velocity_ms"
+
+GROUP_COLUMN = "group_id"   # generate.COLUMNS' 14th column -- see splitting.py
 
 # Valid physical ranges for each raw feature and the target. Cleaning always
 # runs on these raw columns, before the pipeline's engineering step -- so
@@ -76,13 +88,21 @@ def load_data(data_path, n_samples=None):
         print(  "  Run:    dvc repro (or the matching data_generation script)")
         print()
         sys.exit(1)
-    df = pd.read_parquet(data_path)
-    if n_samples is not None:
-        # data_path is the shared, pre-shuffled pool -- slicing a prefix here
-        # (rather than caching a separate generated file per size) gives the
-        # 10k/20k/40k tiers nested samples of one draw, so growing the sample
-        # size is the only thing that changes between tiers.
-        df = df.iloc[:n_samples]
+    # Validated on read, not only on write: data/ is DVC-cached rather than in
+    # Git, so the pool on disk can predate the current code (e.g. a 13-column
+    # pool generated before group_id existed) with nothing in the working tree
+    # showing it. Both producers write through the same checks -- see
+    # data_generation/contract.py (AUDIT.md task 38).
+    df = check_contract(pd.read_parquet(data_path), source=os.path.basename(data_path),
+                        verbose=False)
+    # data_path is the shared, pre-shuffled pool -- prefix-slicing here (rather
+    # than caching a separate generated file per size) gives the size tiers
+    # nested samples of one draw, so growing the sample size is the only thing
+    # that changes between tiers. take_samples raises rather than silently
+    # returning a short frame when the pool holds fewer than n_samples rows,
+    # which a Gorillas pool (5,000 rows vs n_samples: 40000) does (AUDIT.md
+    # task 35 / §5.5).
+    df = params.take_samples(df, n_samples, pool_name=os.path.basename(data_path))
     n_orig = len(df)
     clean  = os.environ.get("TRAIN_CLEAN", "")
     if clean == "iqr":
@@ -96,8 +116,15 @@ def load_data(data_path, n_samples=None):
         print(f"  No-outlier cleaning: {n_orig} -> {len(df)} rows ({n_orig - len(df)} removed)")
     X = df[FEATURES]
     y = df[TARGET].values
+    # group_id travels with (X, y) rather than being dropped here: it is not a
+    # feature, but the caller cannot build a group-aware split without it, and
+    # dropping it at the loader is what made task 36 impossible even after task
+    # 32 created the key (AUDIT.md finding N2). splitting.split() decides what to
+    # do with it -- a Gorillas pool groups 32 throws per board, the Python pool
+    # gives every row its own id and so degrades to an ordinary random split.
+    groups = df[GROUP_COLUMN].to_numpy()
     print(f"Loaded {len(X)} samples\n")
-    return X, y
+    return X, y, groups
 
 
 def model_path(models_dir, filename):

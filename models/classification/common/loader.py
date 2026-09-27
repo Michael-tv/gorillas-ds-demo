@@ -15,11 +15,23 @@ from sklearn.metrics import (accuracy_score, confusion_matrix, f1_score,
 
 from feature_engineering import add_engineered_columns
 
+# params lives at the repo root. The run_*/train_utils.py shims already put it
+# on sys.path before importing this module, but doing it here too means the
+# loader works when imported directly (e.g. from a test or a notebook).
+_REPO_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+import params
+from data_generation.contract import check_contract
+
 FEATURES = [
     "initial_velocity_ms", "launch_angle_deg", "wind_x_ms",
     "drag_param", "height_diff_m", "target_distance_m",
 ]
 TARGET = "hit_target"
+
+GROUP_COLUMN = "group_id"   # generate.COLUMNS' 14th column -- see splitting.py
 
 
 def load_data(data_path, n_samples=None):
@@ -32,18 +44,30 @@ def load_data(data_path, n_samples=None):
         print(  "  Run:    dvc repro (or the matching data_generation script)")
         print()
         sys.exit(1)
-    df = pd.read_parquet(data_path)
-    if n_samples is not None:
-        # data_path is the shared, pre-shuffled pool -- slicing a prefix here
-        # (rather than caching a separate generated file per size) gives the
-        # 10k/20k/40k tiers nested samples of one draw, so growing the sample
-        # size is the only thing that changes between tiers.
-        df = df.iloc[:n_samples]
+    # Validated on read, not only on write: data/ is DVC-cached rather than in
+    # Git, so the pool on disk can predate the current code (e.g. a 13-column
+    # pool generated before group_id existed) with nothing in the working tree
+    # showing it. Both producers write through the same checks -- see
+    # data_generation/contract.py (AUDIT.md task 38).
+    df = check_contract(pd.read_parquet(data_path), source=os.path.basename(data_path),
+                        verbose=False)
+    # data_path is the shared, pre-shuffled pool -- prefix-slicing here (rather
+    # than caching a separate generated file per size) gives the size tiers
+    # nested samples of one draw, so growing the sample size is the only thing
+    # that changes between tiers. take_samples raises rather than silently
+    # returning a short frame when the pool holds fewer than n_samples rows,
+    # which a Gorillas pool (5,000 rows vs n_samples: 40000) does (AUDIT.md
+    # task 35 / §5.5).
+    df = params.take_samples(df, n_samples, pool_name=os.path.basename(data_path))
     df = add_engineered_columns(df)
     X = df[FEATURES].values
     y = df[TARGET].values
+    # See the note in models/regression/common/loader.py: group_id is not a
+    # feature, but a group-aware split is impossible without it (AUDIT.md task
+    # 36 / finding N2).
+    groups = df[GROUP_COLUMN].to_numpy()
     print(f"Loaded {len(X)} samples -- hits: {int(y.sum())}  misses: {len(y) - int(y.sum())}\n")
-    return X, y
+    return X, y, groups
 
 
 def model_path(models_dir, filename):
