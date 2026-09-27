@@ -151,6 +151,21 @@ dvc repro train_raw@random_forest            # one model
 dvc repro train_classification               # one group
 ```
 
+**All four Gorillas variants, generation through training** — the permanent parallel groups
+from `dvc_datasets.yaml`/§4 above, without the rest of the DAG:
+
+```bash
+dvc repro generate_gorillas \
+          train_raw_effort train_raw_velocity \
+          train_eng_effort train_eng_velocity \
+          train_classification_effort train_classification_velocity
+```
+
+`generate_gorillas` alone expands to all four `generate_gorillas@<key>` stages (§1 above); the
+six named groups are what read those four files. This runs 4 DOSBox sessions and 48 training
+stages (4 regression groups × 9 models = 36, 2 classification groups × 6 models = 12); nothing
+else in the DAG.
+
 Fifteen stage groups:
 
 | Stage | What it shows |
