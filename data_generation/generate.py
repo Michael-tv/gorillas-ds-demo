@@ -15,8 +15,15 @@ HIT_TOLERANCE = 5.0  # a shot is a "hit" if it lands within this many metres of 
 COLUMNS = [
     "initial_velocity_ms", "launch_angle_deg", "wind_speed_ms", "wind_direction_norm",
     "mass_kg", "radius_m", "drag_coeff", "launch_height_m", "landing_height_m",
-    "landing_distance_m", "target_distance_m", "hit_target", "is_outlier",
+    "landing_distance_m", "target_distance_m", "hit_target", "is_outlier", "group_id",
 ]
+# group_id: rows sharing a value were drawn under correlated conditions and
+# must not be split across train/test independently of each other (AUDIT.md
+# task 32/36). This path's rows are i.i.d. -- sample_shot draws every physical
+# input independently per row, so there is no real correlation structure --
+# so generate_rows() assigns each row its own unique id (no grouping effect).
+# The Gorillas path (gorillas.py) is the opposite case: 32 throws share a
+# board's wind and skyline, so its group_id is genuinely shared across rows.
 
 MASS_COLUMN_INDEX = 4  # never corrupt to exactly 0 -- engineered features divide by it
 

@@ -205,6 +205,12 @@ def _conf_text(worker_dir, animate):
 def _run_worker(dosbox, worker_dir, opts, boards, seed, gravity, timeout):
     """Run one DOSBox instance to completion and return its parsed rows."""
     worker_dir.mkdir(parents=True, exist_ok=True)
+    # `seed` here is this chunk's own seed (the caller's `cs`) -- recorded so
+    # _dump_raw can recover it later. Board numbers restart at 1 in every
+    # worker's own THROWS.CSV, so `board` alone collides across workers; a
+    # worker-level chunk_seed is what turns (chunk_seed, board) into a real
+    # global group key for the raw log too (AUDIT.md task 32/§5.1).
+    (worker_dir / "CHUNKSEED.TXT").write_text(str(seed))
     _write_dos_text(worker_dir / "GORCFG.TXT", _config_text(opts, boards, seed, gravity))
     conf = worker_dir / "run.conf"
     _write_dos_text(conf, _conf_text(worker_dir, opts["animate"]))
@@ -252,8 +258,16 @@ def _parse_csv(path):
         return [r for r in reader if len(r) == len(CSV_HEADER)]
 
 
-def _to_contract(raw_rows, hit_tolerance, outlier_tag):
-    """Map the game's throw records onto generate.COLUMNS."""
+def _to_contract(raw_rows, hit_tolerance, outlier_tag, chunk_seed):
+    """Map the game's throw records onto generate.COLUMNS.
+
+    `chunk_seed` is this worker's own seed -- every throw in `raw_rows` came
+    from throwing at the same sequence of boards under it, so
+    f"{chunk_seed}_{board}" is a real global group key: throws sharing it
+    share that board's wind and skyline (AUDIT.md task 32/§5.1). The game's
+    own `board` column alone is not a group key -- it restarts at 1 in every
+    worker's own CSV, so plain `board` values collide across workers.
+    """
     idx = {name: i for i, name in enumerate(CSV_HEADER)}
     out, clipped = [], []
 
@@ -296,10 +310,13 @@ def _to_contract(raw_rows, hit_tolerance, outlier_tag):
         # landing_x +/- offset and hit_target is exactly this test.
         hit = int(abs(landing_distance - target_distance) <= hit_tolerance)
 
+        board = int(float(r[idx["board"]]))
+        group_id = f"{chunk_seed}_{board}"
+
         out.append([
             velocity, angle, wind_speed, wind_dir, mass, radius, BANANA_CD,
             launch_h, landing_h, landing_distance, round(target_distance, 4),
-            hit, outlier_tag,
+            hit, outlier_tag, group_id,
         ])
     return out, clipped
 
@@ -383,16 +400,23 @@ def generate(n, seed=42, throws=32, workers=8, boards_per_chunk=25, input_mode="
                 chunk_seeds = [rng.randint(1, 30000) for _ in range(n_chunks)]
 
                 with ThreadPoolExecutor(max_workers=workers) as pool:
+                    # Paired with its chunk seed explicitly -- a bare list of
+                    # futures loses that association, since the list
+                    # comprehension that submits them is its own scope and
+                    # `cs` does not survive into the loop below it. Without
+                    # this pairing, _to_contract has no way to know which
+                    # chunk (and therefore which group) a completed future's
+                    # rows came from (AUDIT.md task 32).
                     futures = [
-                        pool.submit(_run_worker, dosbox,
-                                    base_short / f"w{tag}{attempt}_{i}", opts,
-                                    boards_per_chunk, cs, gravity, timeout)
+                        (cs, pool.submit(_run_worker, dosbox,
+                                          base_short / f"w{tag}{attempt}_{i}", opts,
+                                          boards_per_chunk, cs, gravity, timeout))
                         for i, cs in enumerate(chunk_seeds)
                     ]
-                    for fut in futures:
+                    for cs, fut in futures:
                         raw, to = fut.result()
                         timeouts += int(to)
-                        mapped, clipped = _to_contract(raw, hit_tolerance, tag)
+                        mapped, clipped = _to_contract(raw, hit_tolerance, tag, cs)
                         got.extend(mapped)
                         clipped_all.extend(clipped)
                 attempt += 1
@@ -435,24 +459,33 @@ def generate(n, seed=42, throws=32, workers=8, boards_per_chunk=25, input_mode="
     for c in gen.COLUMNS[:11]:
         df[c] = df[c].astype("float64")
     df["hit_target"] = df["hit_target"].astype("int64")
+    df["group_id"] = df["group_id"].astype(str)
 
     _report(df, clipped_all, timeouts)
     return df
 
 
 def _dump_raw(base, dest):
-    """Concatenate every worker's CSV into one file, keeping the board column."""
+    """Concatenate every worker's CSV into one file, keeping the board column
+    and adding chunk_seed/group_id so groups are reconstructable from this
+    file too (AUDIT.md task 32/§5.1) -- `board` alone restarts at 1 in every
+    worker's own CSV and so collides across workers; CHUNKSEED.TXT (written
+    by _run_worker) is what disambiguates them."""
     dest.parent.mkdir(parents=True, exist_ok=True)
+    board_idx = CSV_HEADER.index("board")
     with open(dest, "w", newline="") as out:
         w = csv.writer(out)
-        w.writerow(CSV_HEADER)
+        w.writerow(CSV_HEADER + ["chunk_seed", "group_id"])
         for p in sorted(base.glob("*/THROWS.CSV")):
+            seed_path = p.parent / "CHUNKSEED.TXT"
+            chunk_seed = seed_path.read_text().strip() if seed_path.is_file() else ""
             with open(p, newline="") as fh:
                 rd = csv.reader(fh)
                 next(rd, None)
                 for r in rd:
                     if len(r) == len(CSV_HEADER):
-                        w.writerow(r)
+                        group_id = f"{chunk_seed}_{r[board_idx]}" if chunk_seed else ""
+                        w.writerow(r + [chunk_seed, group_id])
     print(f"Raw throw log -> {dest}")
 
 
@@ -477,6 +510,13 @@ def _check_contract(df):
     assert df["mass_kg"].ne(0).all(), "mass_kg contains zeros (feature engineering divides by it)"
     assert set(df["hit_target"].unique()) <= {0, 1}, "hit_target is not 0/1"
     assert set(df["is_outlier"].unique()) <= {"none", "gravity", "data_error"}, "unexpected is_outlier value"
+    assert df["group_id"].notna().all() and (df["group_id"] != "").all(), "group_id missing or empty"
+    # A single-board run is a legitimate (if degenerate) config, so this is a
+    # warning rather than an assert -- group-aware splitting only matters once
+    # there is more than one group to split across.
+    if df["group_id"].nunique() < 2:
+        print("  WARNING: group_id has fewer than 2 distinct values -- "
+              "group-aware splitting has nothing to split across")
 
     # Range checks apply to clean rows only. data_error rows are corrupted on
     # purpose -- scaled, sign-flipped or zeroed -- and violating these bounds is
