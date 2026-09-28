@@ -1,37 +1,48 @@
 # Repository audit — shortcomings & refactor plan
 
-Audit date: 2026-09-27 · Audited at `5ce27f3` · DVC 3.67.1 · 76 stages (→ 77 with
-`filter_skewed`, then far fewer once the model matrices are cut)
-Last updated: 2026-09-27 on branch `audit/phase-1` (§0)
+Audit date: 2026-09-27 · Audited at `5ce27f3` · DVC 3.67.1 · **93 stages across 7 `dvc.yaml`
+files** (root + six under `pipelines/`) as of 2026-09-28 — see below; 76 at audit time.
+Last updated: 2026-09-28, on `main` (§0)
 
-**Rescanned 2026-09-27 after the QBasic Gorillas integration** — a second data producer,
-`params.yaml: training_data`, and `params.data_path()`. See §5 and Phase 1b. Two earlier
-recommendations were wrong and are corrected: purging `qbasic_gorillas/` (§3, C8, task 30)
-and the no-remote decision.
+**Rescanned 2026-09-27 after the QBasic Gorillas integration**, and again 2026-09-28 after the
+repo owner's own restructuring pass (§0's tasks 5/6/7 entry, and the two new design decisions on
+`pipelines/` and the effort/velocity split). Three earlier recommendations were wrong and are
+corrected: purging `qbasic_gorillas/` (§3, C8, task 30), the no-remote decision, and — as of
+2026-09-28 — C1/C3/C4's "still open" status.
 
-**Health score: 4 / 10 at audit time; 5 / 10 as of the 2026-09-27 update.** The architecture is
-well-conceived; it has never been executed end-to-end, and the reproducibility layer is
-load-bearing in name only. Two of the seven critical risks (#3, #4) are now closed, which is
-what moves the score — but risk #2 (the pipeline has never been reproduced) is untouched, and
-that is the one gating everything in phases 6–9.
+**Health score: 4 / 10 at audit time; 6 / 10 as of 2026-09-28.** The architecture is
+well-conceived and, as of this update, no longer just aspirational in its own code organisation:
+the worst clarity offender this audit found (C1) is fixed, verified with real `dvc repro` runs,
+not just parsed. What still gates the score: risk #2 (the pipeline has never been fully
+reproduced — `dvc.lock` coverage is partial, not zero, but nowhere near complete) and risk #5
+(pre-split cleaning still leaks in the regression loader, task 14, untouched).
 
-**Implementation status — updated 2026-09-27, branch `audit/phase-1`.** Done and verified:
-**1** (metrics tracking), **2** + **2b** (deterministic generation, rare-range warning), **3** (the
-model matrix cut to a documented seven-algorithm sweep, 76 stages → 43), **32** (Gorillas group
-key), **33** (timing-independent chunk plan), **34** (regeneration as the recovery path, reframed
-by the repo owner — no remote needed), **35** (`n_samples` fails loudly), **36** (group-aware splits
-and CV, with the leakage measured at 20%), **37** (the 5–7% hit rate, with accuracy demoted below
-the always-miss baseline), **38** (one dataset contract, checked on write and on read), **8–11**
-(the `filter_skewed` stage, which unbroke the last nine broken stages and made the extrapolation
-claim measurable), plus **4b**'s deletion half (18 stale size-tier directories, 30 files) and
-**30**'s README half (an end-to-end guide, replacing `need to add some stuff here`). **Task 13 is
-withdrawn**: measurement disproved its premise, and **13b** replaces it (§0).
+**Implementation status — updated 2026-09-28.** Done and verified: **1** (metrics tracking),
+**2** + **2b** (deterministic generation, rare-range warning), **3** (the model matrix cut to a
+documented seven-algorithm sweep), **32** (Gorillas group key), **33** (timing-independent chunk
+plan), **34** (regeneration as the recovery path, reframed by the repo owner — no remote needed),
+**35** (`n_samples` fails loudly), **36** (group-aware splits and CV, with the leakage measured at
+20%), **37** (the 5–7% hit rate, with accuracy demoted below the always-miss baseline), **38**
+(one dataset contract, checked on write and on read), **8–11** (the `filter_skewed` stage, which
+unbroke the `train_skewed@*` stages and made the extrapolation claim measurable), **4b**'s
+deletion half, **39**, and **30**'s README half. **Still open from Phase 2: 4b's second half**
+(three runs still hardcode their own sample size). **5, 6, 7** (§0) — the entire
+`run_*/train_utils.py` PYTHONPATH-injection pattern (C1), gone; **C3/C4 fixed for the matrix
+path** (§4). **Task 13 is withdrawn**: measurement disproved its premise, and **13b** replaces
+it.
 
-**Risk #1 is closed: no stage in the DAG is known-broken, so task 12 — the `dvc repro` milestone
-everything in phases 6–9 waits on — is unblocked for the first time.** Still open in Phase 1b:
-**39**, plus 4b's second half. **§0** records what was verified and how, the claims in this audit
-the work proved wrong, the findings it exposed, and — read this before the next run on an existing
-checkout — the three silent substitutions that are now hard failures.
+**Two architectural decisions since the last full pass, both the repo owner's, neither
+originating from this audit's plan:** the DAG is now **seven `dvc.yaml` files** (root + one per
+{source} × {domain} under `pipelines/`), not one, and the Gorillas effort/velocity split now
+generates **four** datasets (regression and classification each get their own file per mode,
+not two shared ones). Both are recorded as new entries under "Design decisions" and neither
+appears anywhere else in the numbered task list below — they were not proposed by this audit,
+they were requested directly and implemented in response.
+
+**Risk #1 is closed: no stage in the DAG is known-broken.** Task 12 (the full `dvc repro`
+milestone) is still open — **§0** records what was verified and how, the claims in this audit
+the work proved wrong, the findings it exposed, and — read this before the next run on an
+existing checkout — the silent substitutions that are now hard failures.
 
 ---
 
@@ -279,6 +290,52 @@ trained on is worse than no plot. **No `.sample(n=…)` remains under `models/` 
 not — task 38's claim that *both* producers validate on write was only true of the Python one.
 Fixed.
 
+**Tasks 5, 6, 7 — the `run_*/train_utils.py` PYTHONPATH-injection pattern, gone (2026-09-28,
+main).** Done at the repo owner's direct request, after they asked why every `models/regression/
+run_*/` folder held only a `train_utils.py` and what it was for — pointed straight at C1. Full
+scope agreed up front (not just removing the indirection): consolidate into one config registry
+and one entrypoint per domain, not a lighter fix. `models/<domain>/runs.py` (one dict, the run
+configs nine `train_utils.py` shims used to hold) + `models/<domain>/train.py` (one entrypoint:
+`--run --algorithm --key --clean`) + `models/<domain>/algorithms/<name>.py` (one small module per
+algorithm, everything that genuinely differs — estimator, Pipeline shape, search space — with
+every hyperparameter grid preserved exactly). `decision_tree_overfit` stays standalone rather
+than folding into the generic driver, deliberately (task 6's entry above); `run_leakage`/
+`run_bias_variance`/the two `run_skewed` concept scripts stay on `scripts/run_with_pythonpath.py`
+too, deliberately (their `train_utils.py` is folder-local, used by scripts that live beside it,
+never the shared-script-multiple-configs ambiguity C1 is about — touching them would have been
+scope creep without fixing the actual complaint).
+
+Two real bugs found while wiring this into `pipelines/*/dvc.yaml`, both by testing rather than
+assumed, both written up in the design decision on `pipelines/` above and the README's "5.
+Running one pipeline at a time": `python -m` needs the PYTHONPATH wrapper for the same cwd reason
+a script-path invocation used to, just pointed at the repo root; and `filter_skewed`'s pre-
+existing `--out`/`--holdout-out` `cmd:` (from the earlier `pipelines/` split, not this task) had
+the identical bug — confirmed live, it silently wrote `skewed_training_data.parquet` two
+directories above the repo root rather than failing.
+
+**Also found and fixed collaterally:** `evaluation/regression/run_raw/evaluate_features.py`,
+`run_eng/evaluate_features.py`, and `evaluation/classification/run/evaluate_features.py`
+imported `from train_utils import ...` from folders this task deleted — not caught by grepping
+`dvc.yaml`/`models/`, only by grepping `evaluation/` for the same import before deleting anything.
+All three now import `DATA`/`FEATURES`/`TARGET`/`N_SAMPLES` from `models.<domain>.runs` directly
+and no longer need the wrapper at all — they were the only evaluation scripts that did.
+
+Verified incrementally, not just at the end: every `models/<domain>/train.py` path smoke-tested
+directly (`python -m ...`, no DVC involved) before any `dvc.yaml` was touched — a no-search
+algorithm in each domain, the Gorillas effort pool with a real group-aware split (250 groups →
+200/50, matching the task-32 verification numbers), and the standalone
+`train_decision_tree_overfit.py`. Every `pipelines/*/dvc.yaml` stage that changed was then
+re-verified with a real (non-`--dry`) `dvc repro` run: `train_raw_effort_decision_tree_overfit`
+and `train_raw_effort@linear_regression`, `train_classification@logistic_regression`, and the
+full `filter_skewed` → `train_skewed@ridge` chain plus `train_skewed_concept` (the only path
+that exercises the shrunk `run_skewed/train_utils.py`). `dvc stage list --all` reported 93
+before touching any `dvc.yaml` and 93 after every pipeline was rewritten.
+
+**Left alone on purpose:** `models/regression/train_linear_regression_sqrt.py` also imports from
+a deleted `train_utils.py` — it is the pre-existing orphan task 4 already covers (unreferenced by
+`dvc_models_regression.yaml`, unreachable by any stage), not touched here to keep this change
+scoped to what is actually wired into the DAG.
+
 ### Behaviour that changed — read this before the next run on an existing checkout
 
 Three of these tasks deliberately turn a silent substitution into a hard failure. Each is correct
@@ -461,6 +518,51 @@ dependency, so `generate_gorillas` fails on a fresh clone, on Linux/macOS, or on
 without DOSBox Staging. Their determinism is also timing-dependent (§5.2). If the local cache
 is lost, `data/gorillas_*.parquet` is gone — there is no command that recreates it. Push at
 least these four outputs somewhere (task 34).
+
+### Effort/velocity are permanent pipelines, each with its own generated file per domain
+
+Two decisions the repo owner made directly, superseding this audit's own recommendations:
+
+- **Permanent, not switchable.** `train_raw_effort`/`train_raw_velocity` (and their `_eng`/
+  classification counterparts) are fixed pipelines that always exist on disk side by side,
+  rather than one shared group reached through `training_data`. Chosen explicitly over the
+  cheaper switchable-pool alternative, knowingly reintroducing some of the duplication task 3/4b
+  removed — the trade-off was named before the decision was made.
+- **Regression and classification each get their own generated Gorillas file per mode** — four
+  datasets (`gorillas_{effort,velocity}_{regression,classification}`) instead of two, at
+  different seeds, running DOSBox twice as often. The game has no actual "regression mode" vs
+  "classification mode" (one throw carries both `initial_velocity_ms` and `hit_target`, same as
+  the Python pool) — this is purely so the two domains are fully independent DVC pipeline
+  branches sharing no stage node, at the cost stated above.
+
+### Seven `dvc.yaml` files, not one — `pipelines/` holds every standalone group
+
+DVC supports multiple `dvc.yaml` files in one project; cross-pipeline dependencies resolve by
+file path, the same way two stages in one file depend on each other, no special syntax needed.
+The root `dvc.yaml` now holds only the two shared data producers (`generate`/`generate_gorillas`,
+5 stages); every training stage lives in its own file under `pipelines/<name>/dvc.yaml`, one per
+{source} × {domain} — `standard_regression`, `standard_classification`, `effort_regression`,
+`effort_classification`, `velocity_regression`, `velocity_classification`. Chosen over two
+cheaper alternatives an explicit design question weighed: an explicit target-list script (no new
+DVC concepts, but no structural separation), and staying in one `dvc.yaml` (simplest, but
+provides no way to `cd` into "just effort" and run it). Genuine structural separation was worth
+the cost of every path in a pipeline file needing a `../../` prefix.
+
+Two DVC subtleties this surfaced, both confirmed by testing rather than assumed, both now load-
+bearing across every `pipelines/*/dvc.yaml` file:
+
+- A stage's `params:` staleness-tracking list is unrelated to the `vars:` block used for `${...}`
+  template interpolation — it defaults to a `params.yaml` next to the *stage's own* `dvc.yaml`,
+  which doesn't exist two directories under the repo root, and fails immediately
+  ("Parameters '...' are missing from 'params.yaml'") until the file is named explicitly.
+- `python -m package.module` resolves against the current working directory, which DVC sets to
+  the calling `dvc.yaml`'s own directory — not the repo root — so it needs the same
+  `scripts/run_with_pythonpath.py` wrapper a script-path invocation does, just pointed at the
+  repo root instead of a run folder. See C1 for where this bit for real.
+
+Stage count is conserved by construction and was checked by construction, not just once at the
+end: `dvc stage list --all` before touching a `dvc.yaml`, after the `pipelines/` split, and again
+after task 5's consolidation all report 93.
 
 ---
 
@@ -679,11 +781,11 @@ trains on these.
 Target: **a reader should be able to answer "where does my training data come from?" by
 reading one file.** Today it takes four. Ranked by cost to a reader, not lines saved.
 
-### C1 — PYTHONPATH dependency injection (worst offender)
+### C1 — PYTHONPATH dependency injection (worst offender) — **fixed (task 5)**
 
-A reader opens [train_random_forest.py](models/regression/train_random_forest.py#L5) and sees
-`from train_utils import load_data, FEATURE_STEP`. **There are six different `train_utils.py`
-files and nothing in the file says which one this is.**
+A reader used to open `train_random_forest.py` and see `from train_utils import load_data,
+FEATURE_STEP`, with **twelve** different `train_utils.py` files (nine after task 3's cut) and
+nothing in the file saying which one this was:
 
 ```
 dvc.yaml  cmd: python scripts/run_with_pythonpath.py models/regression/run_raw  models/regression/train_random_forest.py  TRAIN_MODEL_NAME=…  TRAIN_CLEAN=…
@@ -694,9 +796,31 @@ dvc.yaml  cmd: python scripts/run_with_pythonpath.py models/regression/run_raw  
                            └─> and reads TRAIN_CLEAN out of os.environ at load time
 ```
 
-Four levels of indirection, two invisible from any source file, plus behaviour smuggled in
-through environment variables. Also fragile: adding any `models/regression/train_utils.py`
-would silently shadow all six.
+**Gone.** `models/<domain>/runs.py` is one config registry per domain; `models/<domain>/train.py`
+is one entrypoint taking `--run --algorithm --key --clean` as explicit CLI arguments, not
+environment variables; the sixteen duplicated algorithm scripts collapsed into
+`models/<domain>/algorithms/<name>.py`, one small module per algorithm holding only what
+genuinely differs (estimator, Pipeline shape, search space). `scripts/run_with_pythonpath.py`
+was **not** deleted as task 5 originally proposed — it's still needed for the non-matrix stages
+(`run_leakage`/`run_bias_variance`/the two `run_skewed` concept scripts, out of scope for this
+task — see the design decision below) and, as it turns out, for a reason task 5 didn't
+anticipate: `python -m package.module` resolves against the *current working directory*, and
+every `pipelines/*/dvc.yaml` stage runs with cwd set to its own directory, not the repo root —
+so a bare `-m` invocation there fails immediately with `ModuleNotFoundError: No module named
+'models'`. The wrapper was widened to pass through arbitrary `python` args instead of only
+`<script> KEY=VALUE`, and every `-m` invocation now routes through it with the repo root as its
+PYTHONPATH argument. Confirmed by testing: this is exactly how the gap surfaced, and a second,
+unrelated instance of the same bug was found and fixed in `filter_skewed`'s pre-existing `cmd:`
+while this file was open (a `../../`-prefixed `--out` path silently wrote two directories above
+the repo root, because `data_generation/io.py`'s `resolve_output()` anchors relative paths to
+its own hardcoded repo root, not cwd).
+
+Nine `run_*/train_utils.py` shims and sixteen algorithm scripts deleted. Verified: every
+`models/<domain>/train.py` path smoke-tested directly before any `dvc.yaml` was touched, then
+every `pipelines/*/dvc.yaml` stage that uses it re-verified with a real (non-`--dry`) `dvc repro`
+run — including the full `filter_skewed` → `train_skewed@ridge` chain and `train_skewed_concept`
+(exercising the shrunk `run_skewed/train_utils.py`, which still exists for the two standalone
+concept scripts). Repo-wide stage count unchanged throughout: 93 before, 93 after.
 
 ### C2 — 44 regression stages for a talk
 
@@ -704,22 +828,34 @@ would silently shadow all six.
 stages**, covering `polynomial_range`, `knn_no_outlier`, `xgboost_range` and similar. No talk
 shows 44 models, and the asymmetry (§2.7) means a reader cannot infer the rule.
 
-### C3 — Two ways to engineer features, and the intended one is the minority
+### C3 — Two ways to engineer features — **fixed for the matrix path, deliberately not
+elsewhere (task 5/7)**
 
-| API | Files | Derives features… |
-|---|---|---|
-| `add_engineered_columns` (plain function) | **16** | at load time, *outside* the Pipeline |
-| `EngineeredFeatures` (sklearn transformer) | **3** | on the fly, *inside* the Pipeline |
+| API | Derives features… |
+|---|---|
+| `add_engineered_columns` (plain function) | at load time, *outside* the Pipeline |
+| `EngineeredFeatures` (sklearn transformer) | on the fly, *inside* the Pipeline |
 
-Five runs — `run_skewed`, `run_leakage`, `run_bias_variance`, `classification`,
-`train_decision_tree_overfit` — derive at load time. Only `run_eng` does it on the fly. Two
-APIs for one job means a reader must learn both and work out when each applies.
+`models/<domain>/runs.py`'s `feature_step()` now builds `EngineeredFeatures` uniformly for
+**every** run `models/<domain>/train.py` serves — `train_raw`/`train_eng`/`train_skewed` and all
+four Gorillas regression pipelines — so the nine-algorithm matrix has one API, not two.
 
-### C4 — `FEATURE_STEP = ("engineer", "passthrough")`
+**Deliberately left on `add_engineered_columns`:** `run_leakage`, `run_bias_variance` (out of
+scope this task — see the design decision on why), `train_decision_tree_overfit` (no sklearn
+Pipeline at all — it fits `DecisionTreeRegressor` directly, so there is no step to put the
+transform in), and classification's loader (classification never had a raw-vs-engineered
+contrast to begin with; its `load_data` has always derived features at load time, unchanged by
+this task). Four call sites, not zero — task 7's original text asked for all five to convert;
+one (`classification`) turned out not to need converting since it isn't part of the raw/eng
+contrast, and the other three are the same scope boundary as C1's fix.
 
-A do-nothing sklearn step ([run_raw/train_utils.py:20](models/regression/run_raw/train_utils.py#L20))
-whose only purpose is tuple-shape parity with the engineered run. A reader will lose minutes
-deciding whether it matters.
+### C4 — `FEATURE_STEP = ("engineer", "passthrough")` — **fixed (task 5/7)**
+
+The do-nothing sentinel is gone. `run_raw`'s config in `models/regression/runs.py` uses the same
+`feature_step()` as every other run, just with `RAW_FEATURES` (the 9 raw columns) as
+`output_columns` — `EngineeredFeatures.transform` computes the 3 derived columns and discards
+them, which is free, and it means one step type with one config difference, not a sentinel a
+reader has to stop and puzzle over.
 
 ### C5 — `evaluation/` is the biggest thing in the repo and the least governed
 
@@ -1110,32 +1246,33 @@ blocking-class: each one can silently produce wrong results or unrecoverable dat
       `dosbox-modified-physics-metrics-var`. Keep `dosbox-datagen/`, which `generate_gorillas`
       depends on.
 
-### Phase 3 — Collapse the indirection
+### Phase 3 — Collapse the indirection — **done (§0, C1/C3/C4)**
 
-- [ ] **5.** Replace the PYTHONPATH injection with one `train.py` taking explicit arguments —
-      `python -m models.regression.train --run raw --model random_forest --clean none` —
-      with each run's config in a plain dict. Deletes
-      [scripts/run_with_pythonpath.py](scripts/run_with_pythonpath.py), all six
-      `run_*/train_utils.py`, the `TRAIN_MODEL_NAME` / `TRAIN_CLEAN` env vars and every
-      `sys.path.insert`. Safe to attempt now: `train_raw@*` and `train_classification@*` work
-      today and serve as the reference to validate against.
-- [ ] **6.** Fold `train_decision_tree_overfit.py` into that contract: route it through the
-      shared loader so `--clean` applies, and let the run config name its output instead of
-      hardcoding `save_metrics("decision_tree_overfit")`. **Fixes the 2 broken
-      `*_overfit_no_outlier` stages and the duplicate-model problem.**
-- [ ] **7.** One feature-engineering API. Keep `EngineeredFeatures`; make
-      `add_engineered_columns` private to it. Convert the five load-time call sites —
-      `run_skewed`, `run_leakage`, `run_bias_variance`, `classification`,
-      `train_decision_tree_overfit` — to the Pipeline step. Then make the step uniform:
-
-      ```python
-      FEATURE_STEP = ("features", EngineeredFeatures(output_columns=FEATURES))
-      ```
-
-      with `run_raw` passing the 9 raw columns instead of the `"passthrough"` sentinel.
-      `transform` is already `add_engineered_columns(X)[output_columns]`, so the raw list
-      computes three columns and discards them — free, and it replaces an opaque sentinel with
-      one step type and one config difference.
+- [x] **5.** ~~Replace the PYTHONPATH injection with one `train.py` taking explicit
+      arguments.~~ **Done.** `models/<domain>/train.py` takes `--run --algorithm --key --clean`;
+      `models/<domain>/runs.py` holds each run's config in a plain dict; the sixteen algorithm
+      scripts collapsed into `models/<domain>/algorithms/<name>.py`. One deviation from the
+      original text: `scripts/run_with_pythonpath.py` was **kept**, not deleted — it's still
+      needed for the stages task 5 didn't cover (see task 6's design-decision note) and, found
+      while wiring this in, for `python -m` itself (DVC runs `cmd:` with cwd set to the calling
+      `dvc.yaml`'s directory, so a bare `-m` invocation from a `pipelines/*/dvc.yaml` stage
+      can't find the `models` package). Nine `run_*/train_utils.py` shims deleted (task 3's cut
+      had already reduced twelve to nine). See §0 for what was verified and how.
+- [x] **6.** ~~Fold `train_decision_tree_overfit.py` into that contract.~~ **Kept standalone
+      instead, deliberately** — its whole point is a different control flow (fits on 100% of the
+      data, no split, scores on training data only), and forcing that into the generic
+      `train.py` harness would either break the one thing it exists to demonstrate or make the
+      harness worse for every other algorithm to accommodate one exception. It moved out of
+      `${regression_models}`'s foreach matrix into its own explicit stage per regression
+      pipeline instead. `--clean` now applies (routes through the shared loader) and `--key`
+      names its output — both bugs this task named are fixed, by a different mechanism than
+      proposed.
+- [~] **7.** ~~One feature-engineering API.~~ **Done for the matrix path, deliberately not
+      elsewhere** — see C3/C4. `EngineeredFeatures` is now uniform across every run
+      `train.py` serves, including `run_raw` (no more `"passthrough"` sentinel). Not converted:
+      `run_leakage`, `run_bias_variance` (same scope boundary as task 5), `decision_tree_overfit`
+      (no Pipeline to put a step in), and classification (never had a raw/eng contrast to begin
+      with). Three of the five call sites this task named, not five.
 
 ### Phase 4 — Restructure the skew demo
 
@@ -1261,43 +1398,29 @@ blocking-class: each one can silently produce wrong results or unrecoverable dat
 
 ---
 
-Phases 1 through 5 — tasks 1, 2, 32–39, 3, 4, 4b, 4c, then 5–12 in order — take the repo from
-"the pipeline is aspirational" to "`dvc repro` reproduces the DAG and `dvc exp show` compares
-it." Tasks 5 and 36 are the only substantial refactors in that stretch; the rest are small or
-pure deletion. Nothing in phases 6–9 is worth starting before task 12, because until then there
-is no reliable way to observe whether a change helped.
+**Where things stand as of 2026-09-28.** Phases 1, 1b, 4 and now **3** are complete. Open:
+**4** (delete two remaining orphans), **4b second half**, **4c** (five superseded DOSBox builds)
+to finish Phase 2; then **12** — the `dvc repro` milestone everything in phases 6–9 still waits
+on, unmoved by tonight's work since it's a reproduce-and-lock step, not a code change. Task **14**
+(move cleaning behind the split, risk #5) is the last open *correctness* risk and does not depend
+on 12.
 
-**Where that leaves the run as of 2026-09-27:** tasks **1, 2, 2b, 32, 33, 35** and **38** are
-done. Both producers are now deterministic for a fixed seed, both validate one shared contract on
-write and on read, the Gorillas group key exists and survives a timeout, and a sample size the
-pool cannot honour is an error rather than a silent substitution. Task **13** is withdrawn and
-**13b** replaces it. Of the remaining blocking-class Phase 1b work, **34** is blocked on a remote
-location and **36** is the substantial one.
+C1 — the worst clarity offender this audit found — is fixed, not just planned: `models/<domain>/
+runs.py` + `train.py` + `algorithms/*.py` replaced twelve `run_*/train_utils.py` shims and
+sixteen duplicated algorithm scripts, verified with real `dvc repro` runs across every
+pipeline that changed, not just parsed. See §0's task-5/6/7 entry and the two new design
+decisions above it for what changed and why — the `pipelines/` split (seven `dvc.yaml` files, not
+one) and the four-way Gorillas dataset split (regression/classification each get their own
+generated file per mode) are both the repo owner's decisions, made and implemented directly, not
+proposed anywhere in this plan before they happened.
 
-Both producers are deterministic, both validate one contract on write and on read, the group key
-exists, survives a timeout, and now actually reaches the splitter — with the leakage it prevents
-measured at 20%.
+**Task 12 still needs a machine with DOSBox** for the four `generate_gorillas` variants (`§5`'s
+count, current as of the effort/velocity split); everything else runs anywhere. `dvc.lock`
+coverage is partial rather than zero as of tonight (`pipelines/effort_regression/dvc.lock` and
+`pipelines/standard_{regression,classification}/dvc.lock` each cover the one or two stages
+exercised during verification, not their whole file) — task 12 is a full `dvc repro -P` and a
+`dvc.lock` commit per pipeline, still entirely ahead.
 
-**Phases 1, 1b and 4 are complete, and task 12 is the milestone everything else waits on.** Every
-stage in the DAG can run, there are 43 of them instead of 76, and nothing in phases 6–9 is
-measurable until `dvc repro` has covered the whole graph once and `dvc.lock` is committed. It needs
-a machine with DOSBox for the two `generate_gorillas` stages; everything else runs anywhere.
-
-After that, in order: **4** and **4c** to finish Phase 2 (orphan and superseded-build deletion),
-then **5–7** for Phase 3 — task **5** (replacing the PYTHONPATH injection with one `train.py`) is
-the largest remaining refactor and the one that most improves this repo as teaching material, since
-C1 is still the worst clarity offender. Then **14** (move cleaning behind the split), which is
-risk #5 and the last open correctness risk, followed by **15**, **16**, and the simplification and
-hygiene phases.
-
-Note that task 2 changed the draw exactly as this plan predicted, and task 32 changed the schema:
-all four `dvc.lock` entries are stale — every generation dep's md5 differs from what the lock
-records — so the pre-existing models are throwaway and task 12 starts from scratch rather than
-topping up a partial lock. Any pool already on disk is now **rejected on read** by task 38's
-contract check if it predates `group_id`, which is the intended behaviour: regenerate rather than
-train on a 13-column pool.
-
-If the talk is going to use a Gorillas pool at all, tasks 32 and 36 come before any model
-result is worth quoting: with 32 throws sharing a board's wind and skyline, a random split
-leaks across groups, and the grouping key is currently discarded before the data reaches the
-pipeline.
+If the talk is going to use a Gorillas pool at all, tasks 32 and 36 (both done) are why a random
+split no longer leaks across boards — 32 throws share one board's wind and skyline, and a plain
+split used to put them on both sides of train/test.
