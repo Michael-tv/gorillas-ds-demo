@@ -31,7 +31,7 @@ _REPO_ROOT  = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."
 DATA        = os.path.join(_REPO_ROOT, "data", "gorillas_velocity.parquet")
 MODELS_DIR  = os.path.join(_REPO_ROOT, "experiments_results", "regression", "velocity", "experiment_row_count", "models")
 KEY         = "mlp"
-TIERS       = [500, 1000, 2000, 3000, 4000, 5000]
+TIERS       = params.load_experiment_params(__file__)["tiers"]
 
 
 def main():

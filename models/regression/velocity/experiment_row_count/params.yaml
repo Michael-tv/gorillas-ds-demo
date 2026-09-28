@@ -1,0 +1,7 @@
+# Sample-size tiers for this experiment's convergence sweep -- nested prefix
+# slices of one seeded pool (data/gorillas_velocity.parquet, 5000 rows), so
+# growing a tier is the only thing that changes between runs. See
+# train_linear_regression.py's docstring for the general row-count-sweep
+# rationale. Tracked as a DVC params: dependency (see this pool's dvc.yaml),
+# so changing this list marks every train_row_count_velocity_* stage stale.
+tiers: [500, 1000, 2000, 3000, 4000, 5000]

@@ -22,6 +22,15 @@ def search_params(domain, model):
     return load_params()["search"][domain][model]
 
 
+def load_experiment_params(script_file):
+    """Load the params.yaml colocated with a training script's own directory
+    -- experiment-specific config (e.g. row-count sweep tiers) that varies by
+    pool/experiment rather than being shared globally like params.yaml."""
+    path = os.path.join(os.path.dirname(os.path.abspath(script_file)), "params.yaml")
+    with open(path) as f:
+        return yaml.safe_load(f)
+
+
 class PoolTooSmall(RuntimeError):
     pass
 

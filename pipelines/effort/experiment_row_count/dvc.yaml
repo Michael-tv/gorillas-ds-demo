@@ -24,6 +24,8 @@ stages:
           - test_size
           - search.regression.linear_regression.n_iter
           - search.regression.linear_regression.cv
+      - ../../../models/regression/effort/experiment_row_count/params.yaml:
+          - tiers
     outs:
       - ../../../experiments_results/regression/effort/experiment_row_count/models/model_linear_regression_n500.joblib
       - ../../../experiments_results/regression/effort/experiment_row_count/models/model_linear_regression_n1000.joblib
@@ -49,6 +51,8 @@ stages:
           - test_size
           - search.regression.decision_tree.n_iter
           - search.regression.decision_tree.cv
+      - ../../../models/regression/effort/experiment_row_count/params.yaml:
+          - tiers
     outs:
       - ../../../experiments_results/regression/effort/experiment_row_count/models/model_decision_tree_n500.joblib
       - ../../../experiments_results/regression/effort/experiment_row_count/models/model_decision_tree_n1000.joblib
@@ -74,6 +78,8 @@ stages:
   #         - test_size
   #         - search.regression.knn.n_iter
   #         - search.regression.knn.cv
+  #     - ../../../models/regression/effort/experiment_row_count/params.yaml:
+  #         - tiers
   #   outs:
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_knn_n500.joblib
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_knn_n1000.joblib
@@ -99,6 +105,8 @@ stages:
   #         - test_size
   #         - search.regression.polynomial.n_iter
   #         - search.regression.polynomial.cv
+  #     - ../../../models/regression/effort/experiment_row_count/params.yaml:
+  #         - tiers
   #   outs:
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_polynomial_n500.joblib
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_polynomial_n1000.joblib
@@ -124,6 +132,8 @@ stages:
   #         - test_size
   #         - search.regression.random_forest.n_iter
   #         - search.regression.random_forest.cv
+  #     - ../../../models/regression/effort/experiment_row_count/params.yaml:
+  #         - tiers
   #   outs:
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_random_forest_n500.joblib
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_random_forest_n1000.joblib
@@ -149,6 +159,8 @@ stages:
   #         - test_size
   #         - search.regression.mlp.n_iter
   #         - search.regression.mlp.cv
+  #     - ../../../models/regression/effort/experiment_row_count/params.yaml:
+  #         - tiers
   #   outs:
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_mlp_n500.joblib
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_mlp_n1000.joblib
@@ -174,6 +186,8 @@ stages:
   #         - test_size
   #         - search.regression.xgboost.n_iter
   #         - search.regression.xgboost.cv
+  #     - ../../../models/regression/effort/experiment_row_count/params.yaml:
+  #         - tiers
   #   outs:
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_xgboost_n500.joblib
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_xgboost_n1000.joblib
@@ -199,6 +213,8 @@ stages:
   #         - test_size
   #         - search.regression.ridge.n_iter
   #         - search.regression.ridge.cv
+  #     - ../../../models/regression/effort/experiment_row_count/params.yaml:
+  #         - tiers
   #   outs:
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_ridge_n500.joblib
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_ridge_n1000.joblib
@@ -224,6 +240,8 @@ stages:
   #         - test_size
   #         - search.regression.lasso.n_iter
   #         - search.regression.lasso.cv
+  #     - ../../../models/regression/effort/experiment_row_count/params.yaml:
+  #         - tiers
   #   outs:
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_lasso_n500.joblib
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_lasso_n1000.joblib
@@ -250,6 +268,8 @@ stages:
   #         - test_size
   #         - search.classification.logistic_regression.n_iter
   #         - search.classification.logistic_regression.cv
+  #     - ../../../models/classification/effort/experiment_row_count/params.yaml:
+  #         - tiers
   #   outs:
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_logistic_regression_n500.joblib
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_logistic_regression_n1000.joblib
@@ -275,6 +295,8 @@ stages:
   #         - test_size
   #         - search.classification.decision_tree.n_iter
   #         - search.classification.decision_tree.cv
+  #     - ../../../models/classification/effort/experiment_row_count/params.yaml:
+  #         - tiers
   #   outs:
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_decision_tree_n500.joblib
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_decision_tree_n1000.joblib
@@ -300,6 +322,8 @@ stages:
   #         - test_size
   #         - search.classification.knn.n_iter
   #         - search.classification.knn.cv
+  #     - ../../../models/classification/effort/experiment_row_count/params.yaml:
+  #         - tiers
   #   outs:
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_knn_n500.joblib
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_knn_n1000.joblib
@@ -325,6 +349,8 @@ stages:
   #         - test_size
   #         - search.classification.random_forest.n_iter
   #         - search.classification.random_forest.cv
+  #     - ../../../models/classification/effort/experiment_row_count/params.yaml:
+  #         - tiers
   #   outs:
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_random_forest_n500.joblib
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_random_forest_n1000.joblib
@@ -350,6 +376,8 @@ stages:
   #         - test_size
   #         - search.classification.mlp.n_iter
   #         - search.classification.mlp.cv
+  #     - ../../../models/classification/effort/experiment_row_count/params.yaml:
+  #         - tiers
   #   outs:
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_mlp_n500.joblib
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_mlp_n1000.joblib
@@ -375,6 +403,8 @@ stages:
   #         - test_size
   #         - search.classification.xgboost.n_iter
   #         - search.classification.xgboost.cv
+  #     - ../../../models/classification/effort/experiment_row_count/params.yaml:
+  #         - tiers
   #   outs:
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_xgboost_n500.joblib
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_xgboost_n1000.joblib
