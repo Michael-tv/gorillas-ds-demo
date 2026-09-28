@@ -34,7 +34,7 @@ def main():
         X, y, groups, test_size=params.load_params()["test_size"], random_state=42, stratify=True)
 
     search = params.search_params("classification", KEY)
-    cv_folds = splitting.cv_for(search["cv"], X_train, y_train, groups_train, stratify=True)
+    cv_folds = splitting.single_split_cv()
 
     print(f"{algo.NAME} -- experiment_classification\n")
     model = algo.fit(X_train, y_train, {"n_iter": search["n_iter"], "cv": cv_folds})

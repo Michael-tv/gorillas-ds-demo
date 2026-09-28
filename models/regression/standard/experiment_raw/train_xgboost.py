@@ -36,7 +36,7 @@ def main():
         X, y, groups, test_size=params.load_params()["test_size"], random_state=42)
 
     search = params.search_params("regression", KEY)
-    cv_folds = splitting.cv_for(search["cv"], X_train, y_train, groups_train)
+    cv_folds = splitting.single_split_cv()
 
     feature_step = ("features", EngineeredFeatures(output_columns=RAW_FEATURES))
     print(f"{algo.NAME} -- experiment_raw\n")

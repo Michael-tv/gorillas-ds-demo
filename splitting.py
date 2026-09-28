@@ -22,7 +22,8 @@ the same behaviour from one implementation:
 """
 import numpy as np
 from sklearn.model_selection import (GroupKFold, GroupShuffleSplit,
-                                     StratifiedGroupKFold, train_test_split)
+                                     ShuffleSplit, StratifiedGroupKFold,
+                                     train_test_split)
 
 
 def has_groups(groups):
@@ -113,3 +114,13 @@ def cv_for(cv, X, y, groups_train, stratify=False):
     else:
         print(f"  CV: {n_splits}-fold, group-aware ({n_groups:,} groups)")
     return list(splitter.split(X, y, groups=groups_train))
+
+
+def single_split_cv(test_size=0.2, random_state=42):
+    """A single train/validation split to use as `cv=` in place of k-fold CV.
+
+    For pools with no group structure to protect (see `cv_for`), fitting each
+    search candidate 5x buys nothing over fitting it once -- the fold count
+    only matters when groups need spreading across folds without leaking.
+    """
+    return ShuffleSplit(n_splits=1, test_size=test_size, random_state=random_state)
