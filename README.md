@@ -35,7 +35,7 @@ dvc repro pipelines/standard/experiment_raw/dvc.yaml:train_raw_random_forest   #
 dvc repro -P                                 # the whole repo (dvc stage list --all for the current count)
 ```
 
-The pipeline is split into 16 `dvc.yaml` files — one root file with the shared data producers
+The pipeline is split into 17 `dvc.yaml` files — one root file with the shared data producers
 (physics + game generation; standard and Gorillas pools are generated and trained on
 separately, never merged), and one file per {**mode**, **experiment**} under
 `pipelines/<mode>/<experiment>/dvc.yaml` (`standard`, `effort`, `velocity` × whichever
@@ -73,6 +73,7 @@ pipelines/                     ← one dvc.yaml per {MODE, EXPERIMENT}, not per 
     experiment_leakage/dvc.yaml
     experiment_bias_variance/dvc.yaml
     experiment_row_count/dvc.yaml
+    experiment_cv_baseline/dvc.yaml  ← experiment_raw's 5-fold-CV "before" twin, see below
   effort/                        same 4 non-demo experiments, permanently on
                                   data/gorillas_effort.parquet (real game data only -- not
                                   merged with the standard pool; see "Two producers" below)
@@ -99,7 +100,11 @@ models/regression/
     experiment_skew/         + train_skewed_concept.py / train_balanced_concept.py
     experiment_leakage/       train_clean.py / train_leaky.py
     experiment_bias_variance/ train_underfitting.py / train_overfitting.py
-    experiment_row_count/    sweeps 6 sample-size tiers per model internally
+    experiment_row_count/    sweeps sample-size tiers per model internally (tier list lives in
+                             this folder's own params.yaml, not the shared root one)
+    experiment_cv_baseline/  experiment_raw, but keeps 5-fold CV in the hyperparameter search
+                             instead of the single validation split the other standard-pool
+                             experiments use (see "Cross-validation" below)
   effort/                  experiment_raw/, experiment_eng/, experiment_row_count/
                            (no skew/leakage/bias-variance here -- standard-pool-only demos)
   velocity/                same shape as effort/
@@ -379,16 +384,49 @@ scopes to one mode's experiments without listing every other mode too.
   `experiments_results/.../standard/experiment_raw/` and `.../effort/experiment_raw/` directly.
 
 **Does more data help?** `experiment_row_count/` (all three modes, both `models/regression/`
-and `models/classification/`) — one script per model sweeps 6 sample-size tiers internally and
+and `models/classification/`) — one script per model sweeps sample-size tiers internally and
 writes one metrics row per tier, so the whole learning curve is in one file, no `--set-param`
-sweep needed. Tiers differ by mode, matched to each pool's actual size: `standard`'s tiers are
-`[1000, 2000, 5000, 10000, 20000, 50000]` (the 50,000-row physics pool); `effort`'s/
-`velocity`'s are `[500, 1000, 2000, 3000, 4000, 5000]` (the Gorillas pool is only 5,000 rows —
-`pandas.iloc[:n]` silently returns fewer rows than asked rather than raising, so a tier list
-sized for the bigger pool would silently duplicate its largest tiers instead of erroring).
+sweep needed. The tier list is **not** in the shared root `params.yaml` — each
+`experiment_row_count/` folder has its own local `params.yaml` (just `tiers: [...]`), read via
+`params.load_experiment_params(__file__)`, since the right tiers depend on the pool's actual
+size: `standard`'s are `[1000, 2000, 5000, 10000, 20000, 50000]` (the 50,000-row physics pool);
+`effort`'s/`velocity`'s are `[500, 1000, 2000, 3000, 4000, 5000]` (the Gorillas pool is only
+5,000 rows — `pandas.iloc[:n]` silently returns fewer rows than asked rather than raising, so a
+tier list sized for the bigger pool would silently duplicate its largest tiers instead of
+erroring).
+
+Each model's per-tier outputs live in their own `experiments_results/<domain>/<mode>/
+experiment_row_count/tiers/<model>/model_n<size>.joblib`, declared in `dvc.yaml` as a single
+**directory** `outs:` entry rather than one hand-listed file per tier — DVC then tracks
+whatever's actually in that folder. Before training, each script deletes any tier file no
+longer in the current `tiers:` list, so editing the tier list and re-running both adds the new
+tier's output *and* removes a dropped tier's old one automatically; the combined
+`metrics_<model>.csv` (one row per tier) still lands in the plain `models/` folder alongside
+every other experiment's metrics.
+
 (`params.yaml: n_samples` still exists too, for shrinking `experiment_raw`/`experiment_eng`/
 `experiment_classification`'s single-size runs — a `dvc exp run --set-param n_samples=...`
 sweep across those is a second, coarser way to see the same trend.)
+
+**Cross-validation.** Hyperparameter search (`RandomizedSearchCV`/`GridSearchCV`/`RidgeCV`/
+`LassoCV`) needs a `cv=` strategy either way, but the standard and Gorillas pools use different
+ones, both built in `splitting.py`:
+
+- **Standard pool** (`experiment_raw`, `experiment_eng`, `experiment_skew`,
+  `experiment_row_count`, `experiment_classification`): `splitting.single_split_cv()` — one
+  `ShuffleSplit(n_splits=1)` train/validation split, not k-fold. The pool is large and i.i.d.
+  (50,000 rows, a smooth low-noise physics function), so a single split picks essentially the
+  same hyperparameters 5-fold CV would, at roughly a 5x speed-up (each candidate is fit once
+  instead of five times). `linear_regression.py`'s old `cross_val_score` diagnostic — a CV-RMSE
+  print that never influenced the fitted model — was removed for the same reason.
+- **Gorillas pools** (`effort`, `velocity`): still `splitting.cv_for()`, group-aware 5-fold CV
+  (`GroupKFold`/`StratifiedGroupKFold`). Here CV isn't just a variance estimate — a board's 32
+  throws share wind/skyline, so group-aware folds are what stop rows from the same board landing
+  on both sides of a split. **Do not** swap these to `single_split_cv()`.
+- **`experiment_cv_baseline`** (`models/regression/standard/experiment_cv_baseline/`) is a
+  verbatim copy of `experiment_raw` that deliberately keeps `cv_for()`'s original 5-fold search,
+  as a runnable "before" comparison for the CV speed/robustness trade-off above — same data,
+  same models, same param grids, only the validation strategy differs.
 
 **Raw or engineered features?** `experiment_raw/` vs `experiment_eng/` (regression only —
 classification always uses the engineered feature set). Same data, same models; the only
