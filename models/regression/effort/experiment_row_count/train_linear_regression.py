@@ -57,7 +57,7 @@ def _clean_stale_tiers():
 
 def main():
     X_full, y_full, groups_full = loader.load_data(DATA, clean="no_outlier")
-    search = params.search_params("regression", KEY)
+    n_iter = params.load_experiment_params(__file__)["n_iter"][KEY]
     cv = params.load_experiment_params(__file__)["cv"]
     test_size = params.load_params()["test_size"]
 
@@ -72,7 +72,7 @@ def main():
         cv_folds = splitting.cv_for(cv, X_train, y_train, groups_train)
 
         feature_step = ("features", EngineeredFeatures(output_columns=loader.FEATURES))
-        model = algo.fit(X_train, y_train, feature_step, {"n_iter": search["n_iter"], "cv": cv_folds})
+        model = algo.fit(X_train, y_train, feature_step, {"n_iter": n_iter, "cv": cv_folds})
         y_pred = model.predict(X_test)
         mae  = mean_absolute_error(y_test, y_pred)
         mse  = float(np.mean((y_test - y_pred) ** 2))

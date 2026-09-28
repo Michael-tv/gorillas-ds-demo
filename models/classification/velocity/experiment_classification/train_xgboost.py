@@ -30,12 +30,12 @@ def main():
     X_train, X_test, y_train, y_test, groups_train = splitting.split(
         X, y, groups, test_size=params.load_params()["test_size"], random_state=42, stratify=True)
 
-    search = params.search_params("classification", KEY)
+    n_iter = params.load_experiment_params(__file__)["n_iter"][KEY]
     cv = params.load_experiment_params(__file__)["cv"]
     cv_folds = splitting.cv_for(cv, X_train, y_train, groups_train, stratify=True)
 
     print(f"{algo.NAME} -- experiment_classification\n")
-    model = algo.fit(X_train, y_train, {"n_iter": search["n_iter"], "cv": cv_folds})
+    model = algo.fit(X_train, y_train, {"n_iter": n_iter, "cv": cv_folds})
 
     y_pred = model.predict(X_test)
     y_prob = model.predict_proba(X_test)[:, 1]

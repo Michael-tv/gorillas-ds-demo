@@ -21,10 +21,10 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.linear_regression.n_iter
       - ../../../../models/regression/effort/experiment_row_count/params.yaml:
           - tiers
           - cv
+          - n_iter.linear_regression
     outs:
       - ../../../../experiments_results/regression/effort/experiment_row_count/tiers/linear_regression/
     metrics:
@@ -43,10 +43,10 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.decision_tree.n_iter
       - ../../../../models/regression/effort/experiment_row_count/params.yaml:
           - tiers
           - cv
+          - n_iter.decision_tree
     outs:
       - ../../../../experiments_results/regression/effort/experiment_row_count/tiers/decision_tree/
     metrics:

@@ -22,10 +22,10 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.classification.logistic_regression.n_iter
       - ../../../../models/classification/velocity/experiment_row_count/params.yaml:
           - tiers
           - cv
+          - n_iter.logistic_regression
     outs:
       - ../../../../experiments_results/classification/velocity/experiment_row_count/tiers/logistic_regression/
     metrics:
@@ -44,10 +44,10 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.classification.decision_tree.n_iter
       - ../../../../models/classification/velocity/experiment_row_count/params.yaml:
           - tiers
           - cv
+          - n_iter.decision_tree
     outs:
       - ../../../../experiments_results/classification/velocity/experiment_row_count/tiers/decision_tree/
     metrics:
@@ -66,10 +66,10 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.classification.knn.n_iter
       - ../../../../models/classification/velocity/experiment_row_count/params.yaml:
           - tiers
           - cv
+          - n_iter.knn
     outs:
       - ../../../../experiments_results/classification/velocity/experiment_row_count/tiers/knn/
     metrics:
@@ -88,10 +88,10 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.classification.random_forest.n_iter
       - ../../../../models/classification/velocity/experiment_row_count/params.yaml:
           - tiers
           - cv
+          - n_iter.random_forest
     outs:
       - ../../../../experiments_results/classification/velocity/experiment_row_count/tiers/random_forest/
     metrics:
@@ -110,10 +110,10 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.classification.mlp.n_iter
       - ../../../../models/classification/velocity/experiment_row_count/params.yaml:
           - tiers
           - cv
+          - n_iter.mlp
     outs:
       - ../../../../experiments_results/classification/velocity/experiment_row_count/tiers/mlp/
     metrics:
@@ -132,10 +132,10 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.classification.xgboost.n_iter
       - ../../../../models/classification/velocity/experiment_row_count/params.yaml:
           - tiers
           - cv
+          - n_iter.xgboost
     outs:
       - ../../../../experiments_results/classification/velocity/experiment_row_count/tiers/xgboost/
     metrics:

@@ -8,3 +8,20 @@
 # shared root params.yaml since it's specific to this one comparison, not a
 # global setting.
 cv: 5
+
+# RandomizedSearchCV/*CV search budget (n_iter), one value for every model --
+# moved out of the shared root params.yaml since the search block otherwise
+# forced every experiment to share one search-budget schedule with no way to
+# size it per pool/experiment. `null` means that algorithm doesn't search at
+# all (LinearRegression/Ridge/Lasso/Polynomial's *CV meta-estimators pick
+# their own hyperparameter internally, or there simply isn't one).
+n_iter:
+  linear_regression: null
+  ridge:              null
+  lasso:              null
+  polynomial:         null
+  decision_tree:      30
+  knn:                20
+  random_forest:      20
+  mlp:                15
+  xgboost:            20

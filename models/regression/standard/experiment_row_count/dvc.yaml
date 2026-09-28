@@ -22,9 +22,9 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.linear_regression.n_iter
       - ../../../../models/regression/standard/experiment_row_count/params.yaml:
           - tiers
+          - n_iter.linear_regression
     outs:
       - ../../../../experiments_results/regression/standard/experiment_row_count/tiers/linear_regression/
     metrics:
@@ -43,9 +43,9 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.decision_tree.n_iter
       - ../../../../models/regression/standard/experiment_row_count/params.yaml:
           - tiers
+          - n_iter.decision_tree
     outs:
       - ../../../../experiments_results/regression/standard/experiment_row_count/tiers/decision_tree/
     metrics:
@@ -64,9 +64,9 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.knn.n_iter
       - ../../../../models/regression/standard/experiment_row_count/params.yaml:
           - tiers
+          - n_iter.knn
     outs:
       - ../../../../experiments_results/regression/standard/experiment_row_count/tiers/knn/
     metrics:
@@ -85,9 +85,9 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.polynomial.n_iter
       - ../../../../models/regression/standard/experiment_row_count/params.yaml:
           - tiers
+          - n_iter.polynomial
     outs:
       - ../../../../experiments_results/regression/standard/experiment_row_count/tiers/polynomial/
     metrics:
@@ -106,9 +106,9 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.random_forest.n_iter
       - ../../../../models/regression/standard/experiment_row_count/params.yaml:
           - tiers
+          - n_iter.random_forest
     outs:
       - ../../../../experiments_results/regression/standard/experiment_row_count/tiers/random_forest/
     metrics:
@@ -127,9 +127,9 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.mlp.n_iter
       - ../../../../models/regression/standard/experiment_row_count/params.yaml:
           - tiers
+          - n_iter.mlp
     outs:
       - ../../../../experiments_results/regression/standard/experiment_row_count/tiers/mlp/
     metrics:
@@ -148,9 +148,9 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.xgboost.n_iter
       - ../../../../models/regression/standard/experiment_row_count/params.yaml:
           - tiers
+          - n_iter.xgboost
     outs:
       - ../../../../experiments_results/regression/standard/experiment_row_count/tiers/xgboost/
     metrics:
@@ -169,9 +169,9 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.ridge.n_iter
       - ../../../../models/regression/standard/experiment_row_count/params.yaml:
           - tiers
+          - n_iter.ridge
     outs:
       - ../../../../experiments_results/regression/standard/experiment_row_count/tiers/ridge/
     metrics:
@@ -190,9 +190,9 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.lasso.n_iter
       - ../../../../models/regression/standard/experiment_row_count/params.yaml:
           - tiers
+          - n_iter.lasso
     outs:
       - ../../../../experiments_results/regression/standard/experiment_row_count/tiers/lasso/
     metrics:

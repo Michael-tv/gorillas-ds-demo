@@ -23,9 +23,9 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.linear_regression.n_iter
       - ../../../../models/regression/effort/experiment_raw/params.yaml:
           - cv
+          - n_iter.linear_regression
     outs:
       - ../../../../experiments_results/regression/effort/experiment_raw/models/model_linear_regression.joblib
     metrics:
@@ -44,9 +44,9 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.decision_tree.n_iter
       - ../../../../models/regression/effort/experiment_raw/params.yaml:
           - cv
+          - n_iter.decision_tree
     outs:
       - ../../../../experiments_results/regression/effort/experiment_raw/models/model_decision_tree.joblib
     metrics:
@@ -65,9 +65,9 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.knn.n_iter
       - ../../../../models/regression/effort/experiment_raw/params.yaml:
           - cv
+          - n_iter.knn
     outs:
       - ../../../../experiments_results/regression/effort/experiment_raw/models/model_knn.joblib
     metrics:
@@ -86,9 +86,9 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.polynomial.n_iter
       - ../../../../models/regression/effort/experiment_raw/params.yaml:
           - cv
+          - n_iter.polynomial
     outs:
       - ../../../../experiments_results/regression/effort/experiment_raw/models/model_polynomial.joblib
     metrics:
@@ -107,9 +107,9 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.random_forest.n_iter
       - ../../../../models/regression/effort/experiment_raw/params.yaml:
           - cv
+          - n_iter.random_forest
     outs:
       - ../../../../experiments_results/regression/effort/experiment_raw/models/model_random_forest.joblib
     metrics:
@@ -148,9 +148,9 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.xgboost.n_iter
       - ../../../../models/regression/effort/experiment_raw/params.yaml:
           - cv
+          - n_iter.xgboost
     outs:
       - ../../../../experiments_results/regression/effort/experiment_raw/models/model_xgboost.joblib
     metrics:
@@ -169,9 +169,9 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.ridge.n_iter
       - ../../../../models/regression/effort/experiment_raw/params.yaml:
           - cv
+          - n_iter.ridge
     outs:
       - ../../../../experiments_results/regression/effort/experiment_raw/models/model_ridge.joblib
     metrics:
@@ -190,9 +190,9 @@ stages:
     params:
       - ../../../../params.yaml:
           - test_size
-          - search.regression.lasso.n_iter
       - ../../../../models/regression/effort/experiment_raw/params.yaml:
           - cv
+          - n_iter.lasso
     outs:
       - ../../../../experiments_results/regression/effort/experiment_raw/models/model_lasso.joblib
     metrics:

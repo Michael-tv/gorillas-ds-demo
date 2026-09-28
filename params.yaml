@@ -1,27 +1,23 @@
 # DVC params -- see dvc.yaml `params:` sections and params.py.
 #
-# Changing a value here (or via `dvc exp run --set-param search.regression.
-# random_forest.n_iter=60`) marks the matching training stage(s) as stale, so
-# `dvc exp run`/`dvc repro` will retrain them and `dvc exp show`/`dvc exp
-# diff` will compare the resulting metrics side by side.
+# Changing a value here (or via `dvc exp run --set-param training_data=...`)
+# marks the matching training stage(s) as stale, so `dvc exp run`/`dvc repro`
+# will retrain them and `dvc exp show`/`dvc exp diff` will compare the
+# resulting metrics side by side.
 #
-# `n_iter` is the RandomizedSearchCV (or GridSearchCV/*CV) search budget each
-# training script was hardcoding before; `null` means that algorithm doesn't
-# search at all (LinearRegression/LogisticRegression have no hyperparameters
-# to tune, decision_tree_overfit intentionally skips cross-validation to
-# demonstrate worst-case overfitting).
-#
-# There is no `cv` (fold count) here anymore -- it moved to each experiment's
-# own local params.yaml (models/<domain>/<mode>/<experiment>/params.yaml),
-# since the right CV strategy is a pool/experiment concern, not a global one:
-# the standard pool's search now uses a single validation split
-# (splitting.single_split_cv(), which reads no fold-count knob at all) while
-# the Gorillas pools' grouped CV -- which prevents leakage across a board's
-# correlated throws, not just estimates variance -- and experiment_cv_
-# baseline's deliberate "before" 5-fold comparison both still need a real,
-# sweepable fold count. Keeping one shared `cv` here would either be ignored
-# by 6 of the 9 non-demo experiments or force every experiment to the same
-# fold count regardless of whether it means anything for that pool.
+# There is no `search:` block here anymore -- both the RandomizedSearchCV/
+# *CV search budget (`n_iter`) and the CV fold count (`cv`) moved to each
+# experiment's own local params.yaml (models/<domain>/<mode>/<experiment>/
+# params.yaml), since both are pool/experiment concerns, not global ones:
+# the right search budget and CV strategy (single validation split on the
+# standard pool via splitting.single_split_cv(), which reads no fold-count
+# knob at all, vs. the Gorillas pools'/experiment_cv_baseline's real
+# grouped/k-fold CV via splitting.cv_for()) can differ per experiment, and a
+# single shared block here either meant nothing to most experiments or
+# forced them all onto the same schedule regardless of whether it fit that
+# pool. A local file's `n_iter`/`cv` is read via
+# `params.load_experiment_params(__file__)`, the same mechanism
+# `experiment_row_count` already uses for its own `tiers`.
 
 # Which generated pool every training/evaluation script reads, by name --
 # matches a key in dvc_datasets.yaml (Python-generated) or a Gorillas dataset
@@ -56,23 +52,3 @@ n_samples: 40000
 # = 10,624 rows, 30-50 = 19,520, 50-85 = 19,786.
 skew:
   max_angle_deg: 30
-
-search:
-  regression:
-    linear_regression:      {n_iter: null}
-    ridge:                   {n_iter: null}
-    lasso:                   {n_iter: null}
-    polynomial:              {n_iter: null}
-    decision_tree:           {n_iter: 30}
-    decision_tree_overfit:   {n_iter: null}
-    knn:                     {n_iter: 20}
-    random_forest:           {n_iter: 20}
-    mlp:                     {n_iter: 15}
-    xgboost:                 {n_iter: 20}
-  classification:
-    logistic_regression:    {n_iter: null}
-    decision_tree:           {n_iter: 30}
-    knn:                     {n_iter: 12}
-    random_forest:           {n_iter: 20}
-    mlp:                     {n_iter: 15}
-    xgboost:                 {n_iter: 20}

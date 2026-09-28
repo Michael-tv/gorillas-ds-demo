@@ -113,8 +113,8 @@ stages:
     - path: 
         ../../../../models/regression/effort/experiment_raw/train_decision_tree.py
       hash: md5
-      md5: 5627af6e9e384c484b47fe30e41e321f
-      size: 2033
+      md5: 3e9040ce78e5bd0c966b9b06d9c8a61d
+      size: 2038
     - path: ../../../../splitting.py
       hash: md5
       md5: a935c061b7a622bd255679ac47a4defe
@@ -122,8 +122,8 @@ stages:
     params:
       params.yaml:
         cv: 5
+        n_iter.decision_tree: 30
       ../../../../params.yaml:
-        search.regression.decision_tree.n_iter: 30
         test_size: 0.2
     outs:
     - path: 

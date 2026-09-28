@@ -4,3 +4,17 @@
 # DVC params: dependency (see this pool's dvc.yaml), so changing this list
 # marks every train_row_count_classification_standard_* stage stale.
 tiers: [1000, 2000, 5000, 10000, 20000, 50000]
+
+# RandomizedSearchCV search budget (n_iter), one value for every model --
+# moved out of the shared root params.yaml for the same reason as the
+# regression side (see e.g.
+# models/regression/effort/experiment_raw/params.yaml). `null` means that
+# algorithm doesn't search (LogisticRegression has no hyperparameters to
+# tune here).
+n_iter:
+  logistic_regression: null
+  decision_tree:        30
+  knn:                  12
+  random_forest:        20
+  mlp:                  15
+  xgboost:              20

@@ -185,14 +185,15 @@ stages:
     - path: 
         ../../../../models/regression/standard/experiment_row_count/train_linear_regression.py
       hash: md5
-      md5: f90a10d1244c4c431f2a7f1e682feeae
-      size: 3995
+      md5: 28dc3064f4eff6553b8f1deca1c744a2
+      size: 4000
     - path: ../../../../splitting.py
       hash: md5
       md5: a935c061b7a622bd255679ac47a4defe
       size: 6288
     params:
       params.yaml:
+        n_iter.linear_regression:
         tiers:
         - 1000
         - 2000
@@ -201,7 +202,6 @@ stages:
         - 20000
         - 50000
       ../../../../params.yaml:
-        search.regression.linear_regression.n_iter:
         test_size: 0.2
     outs:
     - path: 
@@ -238,14 +238,15 @@ stages:
     - path: 
         ../../../../models/regression/standard/experiment_row_count/train_decision_tree.py
       hash: md5
-      md5: f12fdbd99bbc9fdafea6072e350609ed
-      size: 3963
+      md5: 0b595489f23c1b129726e8645c1822cc
+      size: 3988
     - path: ../../../../splitting.py
       hash: md5
       md5: a935c061b7a622bd255679ac47a4defe
       size: 6288
     params:
-      ../../../../models/regression/standard/experiment_row_count/params.yaml:
+      params.yaml:
+        n_iter.decision_tree: 30
         tiers:
         - 1000
         - 2000
@@ -254,20 +255,18 @@ stages:
         - 20000
         - 50000
       ../../../../params.yaml:
-        search.regression.decision_tree.cv: 5
-        search.regression.decision_tree.n_iter: 30
         test_size: 0.2
     outs:
     - path: 
         ../../../../experiments_results/regression/standard/experiment_row_count/models/metrics_decision_tree.csv
       hash: md5
-      md5: d989c0fcb2a00b24821b25bc018eecf6
-      size: 388
+      md5: 36cf5e22371e2183b74807cde1236fdd
+      size: 393
     - path: 
         ../../../../experiments_results/regression/standard/experiment_row_count/tiers/decision_tree/
       hash: md5
-      md5: 0d2114608df4e70b4f1036e49e0d17f8.dir
-      size: 933324
+      md5: 76763eab534b31da3946db6059fe39b9.dir
+      size: 682764
       nfiles: 6
   train_row_count_standard_knn:
     cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 

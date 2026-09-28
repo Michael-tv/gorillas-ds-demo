@@ -25,12 +25,12 @@ def main():
     X_train, X_test, y_train, y_test, groups_train = splitting.split(
         X, y, groups, test_size=params.load_params()["test_size"], random_state=42)
 
-    search = params.search_params("regression", KEY)
+    n_iter = params.load_experiment_params(__file__)["n_iter"][KEY]
     cv_folds = splitting.single_split_cv()
 
     feature_step = ("features", EngineeredFeatures(output_columns=ENG_FEATURES))
     print(f"{algo.NAME} -- experiment_skew\n")
-    model = algo.fit(X_train, y_train, feature_step, {"n_iter": search["n_iter"], "cv": cv_folds})
+    model = algo.fit(X_train, y_train, feature_step, {"n_iter": n_iter, "cv": cv_folds})
 
     print(f"{algo.NAME} -- test set")
     loader.print_metrics(MODELS_DIR, KEY, y_test, model.predict(X_test))

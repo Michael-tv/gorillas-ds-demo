@@ -6,3 +6,17 @@
 # against leaking a board's correlated throws across folds). Capped at the
 # number of groups available -- see splitting.cv_for().
 cv: 5
+
+# RandomizedSearchCV search budget (n_iter), one value for every model --
+# moved out of the shared root params.yaml for the same reason as the
+# regression side (see e.g.
+# models/regression/effort/experiment_raw/params.yaml). `null` means that
+# algorithm doesn't search (LogisticRegression has no hyperparameters to
+# tune here).
+n_iter:
+  logistic_regression: null
+  decision_tree:        30
+  knn:                  12
+  random_forest:        20
+  mlp:                  15
+  xgboost:              20

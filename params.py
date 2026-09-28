@@ -16,22 +16,17 @@ def load_params():
         return yaml.safe_load(f)
 
 
-def search_params(domain, model):
-    """Return the {n_iter} RandomizedSearchCV (or *CV/GridSearchCV) search
-    budget for one model. May be None if that algorithm doesn't search.
-
-    The CV fold count used to live alongside n_iter here too, but it's a
-    pool/experiment property (single-split on the standard pool, grouped
-    k-fold on the Gorillas pools, per README's "Cross-validation" section) --
-    a caller that needs it reads its own experiment's local params.yaml
-    (load_experiment_params(__file__)["cv"]) instead."""
-    return load_params()["search"][domain][model]
-
-
 def load_experiment_params(script_file):
     """Load the params.yaml colocated with a training script's own directory
-    -- experiment-specific config (e.g. row-count sweep tiers) that varies by
-    pool/experiment rather than being shared globally like params.yaml."""
+    -- experiment-specific config (row-count sweep tiers, the RandomizedSearchCV/
+    *CV search budget `n_iter`, and -- where the experiment's CV strategy
+    actually uses one, see README's "Cross-validation" section -- the fold
+    count `cv`) that varies by pool/experiment rather than being shared
+    globally like params.yaml. `n_iter`/`cv` used to live in a global
+    `search:` block here; both are pool/experiment properties (single-split
+    on the standard pool, grouped k-fold on the Gorillas pools), so they
+    moved out to whichever experiment folder actually reads them -- a caller
+    does e.g. `load_experiment_params(__file__)["n_iter"][KEY]`."""
     path = os.path.join(os.path.dirname(os.path.abspath(script_file)), "params.yaml")
     with open(path) as f:
         return yaml.safe_load(f)

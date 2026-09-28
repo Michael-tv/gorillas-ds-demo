@@ -305,7 +305,8 @@ testing rather than assumed:
   params:
     - ../../../../params.yaml:
         - test_size
-        - search.regression.random_forest.n_iter
+    - ../../../../models/regression/standard/experiment_raw/params.yaml:
+        - n_iter.random_forest
   ```
 
   Leaving this implicit fails loudly and immediately (`dvc repro` errors with "Parameters
@@ -422,9 +423,14 @@ ones, both built in `splitting.py`:
   as a runnable "before" comparison for the CV speed/robustness trade-off above — same data,
   same models, same param grids, only the validation strategy differs.
 
-**Where the fold count lives.** The `cv:` fold count is **not** in the root `params.yaml`
-(only `n_iter`, the search budget, still is). It lives in a local `params.yaml` next to the
-`dvc.yaml` of every experiment that actually calls
+**Where the fold count and search budget live.** Neither `cv` (the fold count) nor `n_iter`
+(the RandomizedSearchCV/GridSearchCV search budget) is in the root `params.yaml` anymore —
+both moved to a local `params.yaml` next to the `dvc.yaml` of the experiment that reads them,
+since both are pool/experiment properties, not global ones. `n_iter` is in every experiment
+folder that trains a model (a `{model: budget}` mapping, one entry per algorithm in that
+folder, e.g. `n_iter: {random_forest: 20, linear_regression: null, ...}`) since every experiment
+does *some* search, even if `null` for algorithms with nothing to tune. `cv` is scoped
+narrower, only in the experiment folders that actually call
 `cv_for()` — `experiment_raw`/`experiment_eng`/`experiment_row_count` under `effort`/`velocity`,
 `experiment_classification`/`experiment_row_count` under `classification/effort`/
 `classification/velocity`, and `experiment_cv_baseline` — one `cv: 5` value shared by every
@@ -508,8 +514,9 @@ same seven minus `polynomial`, for which there is no classifier script.
 Both files no longer drive a `foreach` stage the way they used to — `experiment_raw/`,
 `experiment_eng/` and `experiment_classification/` each have one standalone script per model
 instead. What the matrix files still do: name the valid model keys and each one's cleaning
-variant (`clean:`), which `params.yaml`'s `search.<domain>.<model>` block every script reads its
-search budget from. **Adding a model to the matrix file alone does nothing anymore** — you also
+variant (`clean:`) -- the search budget itself now lives in each experiment folder's own
+`params.yaml` (see "Where the fold count and search budget live" above), not here.
+**Adding a model to the matrix file alone does nothing anymore** — you also
 need the actual `train_<model>.py` script in every experiment folder you want it to appear in
 (see "Adding experiments and data" below).
 
@@ -584,10 +591,10 @@ doesn't either.
 
 Register it in `models/regression/algorithms/__init__.py`'s `ALGORITHMS` dict, add an entry to
 `dvc_models_regression.yaml`/`dvc_models_classification.yaml` (for the search-budget key and
-cleaning variant), and add its search budget to `params.yaml`'s `search:` block
-(`{n_iter: null}` if it doesn't search). If the experiment folder you're adding it to has a
-local `cv:` value (see "Cross-validation" above), no per-algorithm entry is needed there — one
-`cv:` value already covers every model in that folder.
+cleaning variant), and add it to every experiment folder's own local `params.yaml` `n_iter:`
+mapping (`null` if it doesn't search — see "Where the fold count and search budget live"
+above). If the folder also has a local `cv:` value, no per-algorithm entry is needed there —
+one `cv:` value already covers every model in that folder.
 
 **Then write the actual script(s)** — unlike the old `train.py`/`runs.py` system, registering a
 model in the matrix file no longer makes it appear anywhere by itself. Copy an existing
@@ -595,7 +602,8 @@ model in the matrix file no longer makes it appear anywhere by itself. Copy an e
 `models/regression/standard/experiment_raw/train_random_forest.py`) and swap the algorithm
 import/`KEY`/`NAME` references. Then add its DVC stage to that pipeline's `dvc.yaml`, copied
 from a sibling stage block with the model name swapped throughout (`cmd:`, every `deps:`/
-`outs:`/`metrics:` path, and the `search.<domain>.<name>` params keys).
+`outs:`/`metrics:` path, and the local params.yaml's `n_iter.<name>` — and `cv`, if that
+folder has one — params keys).
 
 **Switching a model off** is simpler than adding one: delete (or comment out) its stage block
 in the relevant `models/<domain>/<mode>/<experiment>/dvc.yaml`. Confirm with:

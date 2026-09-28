@@ -25,7 +25,8 @@ stages:
       - ../../../../params.yaml:
           - n_samples
           - test_size
-          - search.classification.logistic_regression.n_iter
+      - ../../../../models/classification/standard/experiment_classification/params.yaml:
+          - n_iter.logistic_regression
     outs:
       - ../../../../experiments_results/classification/standard/experiment_classification/models/model_logistic_regression.joblib
     metrics:
@@ -45,7 +46,8 @@ stages:
       - ../../../../params.yaml:
           - n_samples
           - test_size
-          - search.classification.decision_tree.n_iter
+      - ../../../../models/classification/standard/experiment_classification/params.yaml:
+          - n_iter.decision_tree
     outs:
       - ../../../../experiments_results/classification/standard/experiment_classification/models/model_decision_tree.joblib
     metrics:
@@ -65,7 +67,8 @@ stages:
       - ../../../../params.yaml:
           - n_samples
           - test_size
-          - search.classification.knn.n_iter
+      - ../../../../models/classification/standard/experiment_classification/params.yaml:
+          - n_iter.knn
     outs:
       - ../../../../experiments_results/classification/standard/experiment_classification/models/model_knn.joblib
     metrics:
@@ -85,7 +88,8 @@ stages:
       - ../../../../params.yaml:
           - n_samples
           - test_size
-          - search.classification.random_forest.n_iter
+      - ../../../../models/classification/standard/experiment_classification/params.yaml:
+          - n_iter.random_forest
     outs:
       - ../../../../experiments_results/classification/standard/experiment_classification/models/model_random_forest.joblib
     metrics:
@@ -105,7 +109,8 @@ stages:
       - ../../../../params.yaml:
           - n_samples
           - test_size
-          - search.classification.mlp.n_iter
+      - ../../../../models/classification/standard/experiment_classification/params.yaml:
+          - n_iter.mlp
     outs:
       - ../../../../experiments_results/classification/standard/experiment_classification/models/model_mlp.joblib
     metrics:
@@ -125,7 +130,8 @@ stages:
       - ../../../../params.yaml:
           - n_samples
           - test_size
-          - search.classification.xgboost.n_iter
+      - ../../../../models/classification/standard/experiment_classification/params.yaml:
+          - n_iter.xgboost
     outs:
       - ../../../../experiments_results/classification/standard/experiment_classification/models/model_xgboost.joblib
     metrics:

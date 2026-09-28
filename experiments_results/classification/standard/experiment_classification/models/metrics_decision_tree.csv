@@ -1,0 +1,2 @@
+model,precision,recall,f1,pr_auc,roc_auc,accuracy,baseline_accuracy,positive_rate
+decision_tree,0.753664,0.877541,0.810899,0.814010,0.859469,0.796125,0.501875,0.498125
