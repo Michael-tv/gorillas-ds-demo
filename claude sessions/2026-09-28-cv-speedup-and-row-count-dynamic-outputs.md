@@ -76,6 +76,46 @@ fixes as each one surfaced the next problem.
    Then ran the full `standard` pool (all 15 stages) end to end via `dvc repro`, not just the
    representative case, to confirm the rollout at scale.
 
+8. **README + this file's first version written and pushed** (commit `d4e26f0`) — documenting
+   steps 1-7. Then the user, working from the results, asked two follow-up questions that led to
+   step 9: how to see `experiment_row_count`'s results (answered: `metrics_<key>.csv` per
+   algorithm, `dvc metrics show` works since it's declared as `metrics:`; flagged that nothing
+   currently *plots* it — `compare_models.py` in both `evaluation/` trees never references
+   `experiment_row_count`), then whether outliers are excluded there.
+
+9. **Outlier cleaning added to `experiment_row_count`, not yet committed.** Investigation first:
+   `loader.load_data()` already supported a `clean` parameter (`"iqr"`/`"range"`/`"no_outlier"`)
+   for regression, but **nothing in the whole `models/` tree actually passed it** — confirmed by
+   grepping for `clean=` repo-wide. So no experiment currently cleans, not just `row_count`, and
+   the README's "Does cleaning help?" section describing a `dvc_models_regression.yaml`-driven
+   demo is stale, left over from the pre-`train_utils.py`-cleanup system. User chose
+   `"no_outlier"` (the dataset's own ground-truth `is_outlier` label) over `"range"`/`"iqr"` when
+   asked directly. Classification's loader had **no** `clean` mechanism at all (regression-only) —
+   added a matching `_clean_no_outlier`/`clean=""` parameter to
+   `models/classification/common/loader.py` before wiring it in, so both domains' 45
+   `experiment_row_count/train_*.py` scripts now call `loader.load_data(DATA,
+   clean="no_outlier")`. Verified live: standard pool loses 1,500/50,000 rows (3%) in both
+   domains; effort loses 600/20,000 (same 3%, against its currently-WIP-inflated pool size).
+   **Real issue found, not glossed over**: standard's top row_count tier (`n_samples=50000`)
+   silently trains on only 48,500 rows once cleaning removes 1,500 — confirmed by a live run
+   completing with no error. This is exactly the silent-substitution pattern
+   `params.take_samples()`'s own docstring says this codebase already fixed once (for Gorillas
+   pools vs `n_samples: 40000`) — pointed out explicitly rather than left implicit. Clarified for
+   the user that cleaning already happens *before* the tier `.iloc[:n]` slice (inside
+   `load_data()`), so reordering wouldn't help — the constraint is the *total* clean-row count,
+   not sequencing. **User's chosen fix: increase the number of raw samples generated**, so the
+   post-cleaning pool still reaches 50,000+ rows — their own follow-up, not done this session.
+   **As of this save, the `clean="no_outlier"` code change is uncommitted** (see Open items) — it
+   works correctly as written, but committing it now would bake in the known top-tier-shortfall
+   caveat rather than wait for the user's data-regeneration fix.
+
+10. **Answered where dataset selection lives**, prompted by the user opening `dvc_datasets.yaml`
+    directly: that file only defines what datasets *exist* and their generation params, not which
+    one an experiment *reads*. The standard pool is switchable via `params.yaml`'s
+    `training_data:` key (`params.data_path()`); `effort`/`velocity` are **not** switchable at
+    all — each hardcodes its own `DATA = .../data/gorillas_effort.parquet` (or `_velocity`)
+    constant per script, by design (permanent pipelines).
+
 ## Bugs found and fixed
 
 - **`effort`'s row_count `TIERS`/`dvc.yaml` `outs:` mismatch** (see step 3) — the trigger for
@@ -86,6 +126,11 @@ fixes as each one surfaced the next problem.
   tree ("why is there models under models as well as under tiers") and asked; confirmed via
   mtimes (stale files predated the relevant script edits by hours) before deleting.
 - **A regex-heredoc escaping quirk, not a repo bug but worth remembering** (see gotchas below).
+- **No experiment anywhere actually applied outlier cleaning**, despite `loader.py` supporting
+  three methods (`iqr`/`range`/`no_outlier`) and the README describing a cleaning demo — every
+  `load_data()` call repo-wide omitted `clean=`, defaulting to no-op. Not fixed repo-wide this
+  session (out of the asked scope), only for `experiment_row_count`; the README's stale
+  "Does cleaning help?" section describing the old demo was flagged but not corrected.
 
 ## Open items, explicitly not done
 
@@ -111,6 +156,17 @@ fixes as each one surfaced the next problem.
   radius is contained to those two things.
 - **AUDIT.md not updated this session** — only `README.md` and this file, per what was actually
   asked.
+- **`experiment_row_count`'s `clean="no_outlier"` change (step 9) is uncommitted as of this
+  save.** Code is written and verified correct across 46 files (45 `train_*.py` +
+  `models/classification/common/loader.py`), but standard's top tier (`50000`) silently shrinks
+  to ~48,500 rows once cleaning is on — the user is going to fix this at the source (increase
+  generated sample count) before this should be committed as final. Don't commit as-is without
+  checking whether that data-regeneration happened first, or the tiers list still needs a
+  companion fix (lower the top tier to fit, discussed but not chosen).
+- **The README's "Does cleaning help?" section is stale** (see bugs above) — describes a
+  `dvc_models_regression.yaml`-driven demo (`random_forest_no_outlier`) that doesn't match how
+  `clean` is actually wired today (an explicit `load_data(..., clean=...)` argument per script,
+  used by nothing before this session). Worth a README pass if anyone builds on step 9.
 
 ## Repo-specific gotchas worth remembering (new this session)
 
@@ -140,3 +196,17 @@ fixes as each one surfaced the next problem.
   itself resolves to via `python -m dvc`). `py -3` resolves to a *different*, bare `C:\Python314`
   with `sklearn` but not `yaml`. Use the venv path explicitly for anything that needs to actually
   run a training script or `dvc repro`.
+- **A specific `experiments_results/.../metrics_linear_regression.csv` file under `effort/`
+  hit a persistent (not transient) `PermissionError` on write, repeatedly, across separate
+  process invocations** — something external (editor, sync client, AV) had it locked for an
+  extended period. Confirmed it wasn't a code bug: the script's own logic completed correctly up
+  to that point every time (right MAE values printed for every tier), only the final file write
+  failed. Don't assume a retry will clear a Windows file lock the way it often does for other
+  transient issues — check whether something in the IDE/editor is specifically watching that file.
+- **Dataset selection is split across two different mechanisms depending on pool type** — easy to
+  point someone at the wrong one. `params.yaml`'s `training_data:` key only affects the
+  *switchable* `standard` pipelines; `effort`/`velocity` are permanently wired to one Gorillas
+  dataset each via a hardcoded `DATA = .../data/gorillas_<mode>.parquet` constant in every script,
+  by design, and `--set-param training_data=...` does nothing for them. `dvc_datasets.yaml` is a
+  third, unrelated thing again — it defines what datasets exist/how they're generated, not which
+  one any given experiment reads.
