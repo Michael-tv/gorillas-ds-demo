@@ -14,7 +14,7 @@
 # whole point is a different control flow with no train/test split, so it
 # cannot share this foreach's single `cmd:` template. It gets its own explicit
 # stage in every regression pipeline instead (see e.g.
-# pipelines/standard_regression/dvc.yaml).
+# pipelines/standard/dvc.yaml).
 #
 # THE MATRIX RULE, stated so it is not guesswork (AUDIT.md task 3, §2.7):
 #

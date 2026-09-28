@@ -7,9 +7,9 @@ Every generated file carries both the regression target
 (landing_distance_m) and the classification target
 (target_distance_m/hit_target) -- one dataset, both tasks.
 
-regression/run_leakage and run_bias_variance don't need their own entries --
-they draw a random 10k/20k sample straight out of standard_training_data via
-their own train_utils.py (`df.sample(n=N_SAMPLES, random_state=seed)`).
+models/regression/standard/experiment_leakage and experiment_bias_variance
+don't need their own entries here -- they take a prefix slice of
+data/standard_velocity.parquet directly (params.take_samples()).
 """
 import time
 
@@ -33,6 +33,7 @@ def main():
                 spec["n"], spec["seed"],
                 elevation_dist=(spec["elevation_mean"], spec["elevation_std"]),
                 hit_tolerance=spec["hit_tolerance"],
+                input_mode=spec["input_mode"],
             )
             io.write_parquet(df, io.DATA_ROOT / f"{name}.parquet")
             status = "OK"

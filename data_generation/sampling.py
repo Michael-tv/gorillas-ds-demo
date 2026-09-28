@@ -37,6 +37,19 @@ CD_RANGE     = (0.05, 1.0)
 GRAVITY_LOW  = (1.0,  4.0)   # m/s^2 - Moon (1.6) to Mars (3.7)
 GRAVITY_HIGH = (15.0, 25.0)  # m/s^2 - super-Earth to Jupiter (24.8)
 
+# EFFORT input mode: launch speed comes from a capped force model instead of
+# being drawn directly, mirroring qbasic_gorillas/dosbox-datagen/gorilla.bas's
+# own EFFORT mode (see its ThrowStrokeM#/MaxGorillaForce# comments). A gorilla
+# (or here, the launcher) applies a force over a fixed stroke length, so
+# v = sqrt(2 * force * stroke / mass) (work-energy over that stroke); the
+# thrower controls effort as a 0-100% fraction of MAX_FORCE_N, which is
+# calibrated -- same approach as gorilla.bas's MaxGorillaForce# -- so 100%
+# effort at the mean sampled mass (MASS_DIST[0]) reaches SPEED_RANGE's own
+# ceiling, keeping EFFORT and VELOCITY mode comparable at their extremes.
+THROW_STROKE_M = 4.0    # m, arm + stroke length the force acts over
+EFFORT_RANGE   = (20.0, 100.0)  # % of MAX_FORCE_N
+MAX_FORCE_N    = SPEED_RANGE[1] ** 2 * MASS_DIST[0] / (2 * THROW_STROKE_M)  # N
+
 OUTLIER_FRAC     = 0.02  # ~2% of N - unmodeled gravity variation
 DATA_ERROR_FRAC  = 0.01  # ~1% of N - measurement / entry errors
 
@@ -128,14 +141,33 @@ class Shot:
     landing_x: float
 
 
-def sample_shot(rng, elevation_dist, gravity=9.81):
-    """Draw one random physical sample and simulate its trajectory."""
-    v  = rng.uniform(*SPEED_RANGE)
+def sample_shot(rng, elevation_dist, gravity=9.81, input_mode="VELOCITY"):
+    """Draw one random physical sample and simulate its trajectory.
+
+    input_mode="VELOCITY" draws launch speed directly (today's original
+    behavior, draw order unchanged). input_mode="EFFORT" draws mass first
+    (the force model needs it) and derives launch speed from a capped force
+    model instead -- see EFFORT_RANGE/MAX_FORCE_N above.
+    """
+    if input_mode == "EFFORT":
+        # mass drawn first -- the force model needs it. v is a DERIVED
+        # quantity (force/mass, not an independent draw), so unlike every
+        # other column here it is not rejection-sampled against a target
+        # range: for a light draw it can naturally run above SPEED_RANGE's
+        # ceiling, same as gorilla.bas's EFFORT mode has its own ceiling
+        # (MaxThrowVelocity#) rather than matching VELOCITY mode's.
+        mass = _bounded(rng, lambda: rng.gauss(*MASS_DIST), *MASS_RANGE, "mass_kg")
+        effort_pct = rng.uniform(*EFFORT_RANGE)
+        v = math.sqrt(2 * (effort_pct / 100.0 * MAX_FORCE_N) * THROW_STROKE_M / mass)
+    else:
+        v = rng.uniform(*SPEED_RANGE)
+        mass = None
     el = _bounded(rng, lambda: rng.gauss(*elevation_dist), *ELEVATION_RANGE, "launch_angle_deg")
     ws = _bounded(rng, lambda: rng.weibullvariate(*WIND_WEIBULL),
                   WIND_SPEED_RANGE[0], WIND_SPEED_RANGE[1], "wind_speed_ms")
     wind_dir_norm = rng.choice(WIND_DIR_CHOICES)
-    mass   = _bounded(rng, lambda: rng.gauss(*MASS_DIST), *MASS_RANGE, "mass_kg")
+    if mass is None:
+        mass = _bounded(rng, lambda: rng.gauss(*MASS_DIST), *MASS_RANGE, "mass_kg")
     radius = _bounded(rng, lambda: rng.gauss(*RADIUS_DIST), *RADIUS_RANGE, "radius_m")
     Cd     = _bounded(rng, lambda: rng.gauss(*CD_DIST), *CD_RANGE, "drag_coeff")
     launch_h  = rng.uniform(*LAUNCH_HEIGHT_RANGE)
@@ -174,7 +206,7 @@ def sample_gravity(rng):
     return rng.uniform(*GRAVITY_LOW) if rng.random() < 0.5 else rng.uniform(*GRAVITY_HIGH)
 
 
-def generate_rows(rng, n, elevation_dist, build_row, no_zero_indices=frozenset()):
+def generate_rows(rng, n, elevation_dist, build_row, no_zero_indices=frozenset(), input_mode="VELOCITY"):
     """Shared dataset-generation driver: samples n shots, injects gravity
     outliers and data-error corruption in the standard proportions, and
     returns the raw output rows. One shot per row -- no resampling/retrying.
@@ -201,7 +233,7 @@ def generate_rows(rng, n, elevation_dist, build_row, no_zero_indices=frozenset()
     row_id = 0
 
     for i in range(n_normal):
-        shot = sample_shot(rng, elevation_dist)
+        shot = sample_shot(rng, elevation_dist, input_mode=input_mode)
         values, labels = build_row(rng, shot, i)
         rows.append(values + labels + ["none", str(row_id)])
         row_id += 1
@@ -210,14 +242,14 @@ def generate_rows(rng, n, elevation_dist, build_row, no_zero_indices=frozenset()
 
     print(f"\nGenerating {n_outliers} outliers (gravity variation)...")
     for i in range(n_outliers):
-        shot = sample_shot(rng, elevation_dist, gravity=sample_gravity(rng))
+        shot = sample_shot(rng, elevation_dist, gravity=sample_gravity(rng), input_mode=input_mode)
         values, labels = build_row(rng, shot, i)
         rows.append(values + labels + ["gravity", str(row_id)])
         row_id += 1
 
     print(f"\nGenerating {n_data_errors} data errors...")
     for i in range(n_data_errors):
-        shot = sample_shot(rng, elevation_dist)
+        shot = sample_shot(rng, elevation_dist, input_mode=input_mode)
         values, labels = build_row(rng, shot, i)
         values = corrupt_row(rng, values, no_zero_indices=no_zero_indices)
         rows.append(values + labels + ["data_error", str(row_id)])

@@ -21,7 +21,7 @@
 # Switching this to a name nothing has generated yet just makes every
 # downstream stage fail on a missing dep -- run the matching generate/
 # generate_gorillas stage (or `dvc repro`) first.
-training_data: standard_training_data
+training_data: standard_velocity
 
 test_size: 0.2
 
@@ -29,7 +29,7 @@ test_size: 0.2
 # classification's run all read this instead of a fixed per-directory
 # constant) -- sweep it with e.g. `dvc exp run --set-param n_samples=20000`
 # and compare tiers with `dvc exp show`. Nested prefixes of the same seeded
-# pool (data/standard_training_data.parquet, 40000 rows), so growing
+# pool (data/standard_velocity.parquet, 50000 rows), so growing
 # n_samples is the only thing that changes between runs.
 n_samples: 40000
 

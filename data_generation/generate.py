@@ -44,15 +44,20 @@ def _make_build_row(hit_tolerance):
     return build_row
 
 
-def generate(n, seed, elevation_dist=DEFAULT_ELEVATION_DIST, hit_tolerance=HIT_TOLERANCE):
+def generate(n, seed, elevation_dist=DEFAULT_ELEVATION_DIST, hit_tolerance=HIT_TOLERANCE, input_mode="VELOCITY"):
     """Generate `n` rows deterministically from `seed`.
 
     Seeds its own random.Random rather than relying on the caller having
     seeded the global `random` module first -- two calls with the same
     arguments always produce the same DataFrame (AUDIT.md task 2).
+
+    input_mode="VELOCITY" (default) draws launch speed directly, unchanged
+    from this generator's original behavior. input_mode="EFFORT" derives it
+    from a capped force model instead -- see data_generation/sampling.py.
     """
     rng = random.Random(seed)
-    rows = generate_rows(rng, n, elevation_dist, _make_build_row(hit_tolerance), no_zero_indices={MASS_COLUMN_INDEX})
+    rows = generate_rows(rng, n, elevation_dist, _make_build_row(hit_tolerance),
+                          no_zero_indices={MASS_COLUMN_INDEX}, input_mode=input_mode)
     # generate_rows returns rows grouped by section (normal, then gravity
     # outliers, then data errors) -- shuffle so a prefix slice (see
     # models/regression/common/loader.py's `n_samples` slicing, used to nest
@@ -80,6 +85,10 @@ if __name__ == "__main__":
     parser.add_argument("--elevation-std", type=float, default=DEFAULT_ELEVATION_DIST[1])
     parser.add_argument("--hit-tolerance", type=float, default=HIT_TOLERANCE)
     parser.add_argument("--seed", type=int, default=42, help="seeds this run's own random.Random for reproducible datasets")
+    parser.add_argument("--input-mode", choices=["EFFORT", "VELOCITY"], default="VELOCITY",
+                         help="VELOCITY samples launch speed directly (this generator's original behavior); "
+                              "EFFORT derives it from a capped force model (see data_generation/sampling.py)")
     args = parser.parse_args()
-    df = generate(args.n, args.seed, elevation_dist=(args.elevation_mean, args.elevation_std), hit_tolerance=args.hit_tolerance)
+    df = generate(args.n, args.seed, elevation_dist=(args.elevation_mean, args.elevation_std),
+                   hit_tolerance=args.hit_tolerance, input_mode=args.input_mode)
     write_parquet(df, resolve_output(args.out))

@@ -6,10 +6,13 @@ from feature_engineering import add_engineered_columns
 from feature_evaluation import evaluate, plot_features, plot_outliers
 import params
 from models.classification.common import loader
-from models.classification.runs import RUNS
 
-_CFG = RUNS["run"]
-DATA, N_SAMPLES = _CFG.data, _CFG.n_samples
+# Inlined rather than imported from models.classification.runs.RUNS -- that
+# registry (and train.py's --run dispatch) is gone, replaced by
+# models/classification/standard/experiment_classification/, one standalone
+# script per model. Same DATA/N_SAMPLES that folder's scripts use.
+DATA      = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "data", "standard_velocity.parquet")
+N_SAMPLES = params.load_params()["n_samples"]
 FEATURES, TARGET = loader.FEATURES, loader.TARGET
 
 df = add_engineered_columns(params.take_samples(pd.read_parquet(DATA), N_SAMPLES))  # take_samples raises instead of silently truncating (AUDIT.md task 35)

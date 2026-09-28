@@ -336,6 +336,298 @@ a deleted `train_utils.py` — it is the pre-existing orphan task 4 already cove
 `dvc_models_regression.yaml`, unreachable by any stage), not touched here to keep this change
 scoped to what is actually wired into the DAG.
 
+**Task 40 — real EFFORT mode for the standard generator, source-joined effort/velocity pools,
+`pipelines/` cut from six files to three, `experiments/` renamed, and a new
+`experiment_<name>/train_<model>.py` pattern replacing `train.py`/`runs.py` dispatch for several
+experiments (2026-09-28, main).** Driven entirely by the repo owner working live through
+`dvc_datasets.yaml`, reconsidering direction twice mid-session ("on 2nd thought, it may make
+sense to join the standard dataset and the gorillas dataset") rather than from a pre-written task
+list. See the "Design decisions" section above for the two reversed decisions this task
+supersedes (effort/velocity's generated-file shape, and the six-file `pipelines/` split) — this
+entry covers what changed mechanically and what broke along the way.
+
+**Real EFFORT mode, not a rename.** `data_generation/sampling.py`'s `sample_shot` gained an
+`input_mode` branch: `VELOCITY` is the original direct-speed draw, byte-identical to before
+(confirmed by construction — the draw order and every call inside that branch is untouched);
+`EFFORT` draws `mass` first (the force model needs it), then computes
+`v = sqrt(2 * (effort_pct/100 * MAX_FORCE_N) * THROW_STROKE_M / mass)`, mirroring
+`qbasic_gorillas/dosbox-datagen/gorilla.bas`'s own `ThrowStrokeM#`/`MaxGorillaForce#` comments
+(work-energy over a fixed stroke length, force capped as a % of a calibrated maximum). First
+attempt rejection-sampled `effort_pct` until `v` landed inside the existing `SPEED_RANGE` — wrong,
+and it showed up immediately as an `UnreachableRangeError` at n=50,000: for a light enough mass
+draw (`MASS_RANGE` reaches down to 0.01 kg), no `effort_pct` in `EFFORT_RANGE` produces a velocity
+inside `SPEED_RANGE`, so the rejection loop exhausted its cap deterministically. Fixed by not
+bounding EFFORT-mode velocity to `SPEED_RANGE` at all — it is a derived quantity, not an
+independent draw, so it has its own natural ceiling per mass, same as `gorilla.bas`'s EFFORT mode
+has a different ceiling (`MaxThrowVelocity#`) than its VELOCITY mode. Verified: 500-row EFFORT vs
+VELOCITY draws at the same seed show visibly different distributions (EFFORT mean 63.5 m/s, long
+right tail to 163 m/s from light-mass draws; VELOCITY mean 45.1 m/s, uniform-shaped, capped at 80).
+
+**A second, unrelated bug surfaced generating the full-size EFFORT pool at the chosen seed (43):**
+`NonTerminatingShotError` during the gravity-outlier section — `speed=58.82` (ordinary),
+`angle=61.75`, `gravity=1.25` (a legitimate low-gravity draw from `sample_gravity`'s Moon/Mars-like
+range) exceeds `physics.simulate_landing`'s `max_time`. Confirmed this is a pre-existing simulator
+edge case unrelated to EFFORT mode (the speed involved is ordinary, well inside `SPEED_RANGE`) —
+just unlucky for seed 43's particular draw sequence, since VELOCITY mode's seed 42 has run at this
+`n` for a long time without hitting it. Not fixed at the simulator level (`max_time` tuning is out
+of scope); `standard_effort`'s seed moved to 47, which runs cleanly at n=50,000.
+
+**`dvc_datasets.yaml`: 5 datasets → 4.** `datasets:` now holds `standard_effort`/
+`standard_velocity` (was one, `standard_training_data`); `gorillas_datasets:` holds
+`gorillas_effort`/`gorillas_velocity` (was four, `gorillas_{effort,velocity}_{regression,
+classification}`). New root `dvc.yaml` stages `join_effort`/`join_velocity` produce
+`data/effort.parquet`/`data/velocity.parquet` from `data_generation/join.py` — see the Design
+decisions entry above for the `group_id`-collision bug this surfaced and how it was fixed.
+
+**`data_generation/generate_all.py` was silently about to generate wrong data.** It calls
+`generate.generate(spec["n"], spec["seed"], elevation_dist=..., hit_tolerance=...)` for every
+entry in `dvc_datasets.yaml`'s `datasets:` — found and fixed before it was ever run: it did not
+pass `input_mode=spec["input_mode"]` through, so both `standard_effort` and `standard_velocity`
+would have silently generated in `VELOCITY` mode (the `generate()` default) regardless of what
+each entry's `input_mode` said.
+
+**`pipelines/`: six files → three** (`standard`, `effort`, `velocity`), one per mode rather than
+one per {source}×{domain} — see the Design decisions entry above. `experiments/` renamed to
+`experiments_results/` everywhere (every `pipelines/*/dvc.yaml`, both `runs.py`'s `_exp_dir()`,
+`.gitignore`'s `model_*.joblib` scoping rule) — fixes C10.
+
+**New pattern: `models/<domain>/<mode>/experiment_<name>/train_<model>.py`,** one standalone
+script per model, no `--run`/`--algorithm` dispatch through `train.py`/`runs.py`. Explicitly
+requested after the repo owner reviewed the `train.py`+`runs.py`+`algorithms/<name>.py`+`dvc.yaml`
+four-file indirection needed to answer "what does training random forest on the skewed pool
+actually do" and judged it not clearer than one file per model, despite C1's prior finding against
+the opposite extreme (one file per {model}×{scheme} via `PYTHONPATH` injection). The difference
+this time: `algorithms/<name>.py` stays shared (already one clean file per model, no injection,
+nothing to duplicate), and only the *scheme* dispatch (which pool, which output dir) becomes
+explicit per file instead of table-driven. Applied to:
+
+- `experiment_skew`, `experiment_leakage`, `experiment_bias_variance` (regression only, under
+  `models/regression/standard/`) — migrated from the `train.py --run skewed` matrix and the three
+  `run_skewed`/`run_leakage`/`run_bias_variance` folders' bespoke `train_utils.py`-based scripts.
+  `run_skewed/train_utils.py` read `RUNS["skewed"]`, which this task deleted from `runs.py` — had
+  to convert `train_skewed_concept.py`/`train_balanced_concept.py` in the same change or they would
+  have broken. `run_skewed/`, `run_leakage/`, `run_bias_variance/` deleted.
+- `experiment_row_count` (new, both domains) — the sample-size convergence experiment as a first-
+  class experiment rather than a single `n_samples` param swept manually via `dvc exp run
+  --set-param`: one script per model sweeps `[1000, 2000, 5000, 10000, 20000, 50000]` internally,
+  writing one metrics row per tier and one model per tier, on `standard_velocity`/`effort`/
+  `velocity` (regression) and the same three pools (classification, request: "continue to
+  classification"). `experiments_results/.../experiment_row_count/` shows a real learning curve
+  (regression decision tree MAE 21.9→18.8 m/s from 20k→50k rows; classification decision tree
+  0.80 accuracy vs 0.50 baseline at 50k, confirming the pipeline genuinely learns).
+
+**Stage-name collision found wiring classification's `experiment_row_count`:** regression and
+classification share five algorithm names (`decision_tree`, `knn`, `random_forest`, `mlp`,
+`xgboost`); the first pass named both domains' row-count stages `train_row_count_<domain>_<model>`
+in the same `dvc.yaml` files, which DVC rejected as duplicate keys. Classification's stages
+renamed `train_row_count_classification_<domain>_<model>`.
+
+**`evaluation/regression/run_{skewed,leakage,bias_variance}/evaluate_features.py` broke** when
+their matching `models/regression/run_*/train_utils.py` was deleted (`from train_utils import
+DATA, FEATURES, TARGET, ...`) — same shape of breakage task 5/6/7 already found and fixed for
+`evaluation/regression/run_raw/` etc. Fixed the same way: the handful of constants inlined
+directly rather than imported. The three `predict.py` files' hardcoded `experiments/...`
+`MODELS_DIR` also updated to the new `experiments_results/regression/standard/experiment_<name>/`
+paths.
+
+**What was NOT migrated to the new per-model-script pattern:** `pipelines/standard`'s
+`train_raw`/`train_eng`/`train_classification` (the switchable-pool 9/9/6-model sweeps) and
+`pipelines/effort`/`pipelines/velocity`'s `train_raw_effort`/`train_eng_effort`/
+`train_classification_effort` (and `_velocity`) — these still go through `train.py`/`runs.py`,
+unchanged, deliberately scoped out (explicit choice: "Set up the pattern with one worked example"
+rather than migrate everything at once). Inconsistent with the migrated experiments today; whether
+to eventually migrate these too is an open question, not a decision made.
+
+**Verification gap, stated rather than hidden:** `data/gorillas_effort.parquet`/
+`gorillas_velocity.parquet` (and therefore `data/effort.parquet`/`velocity.parquet` and everything
+downstream of them — `pipelines/effort`, `pipelines/velocity`, both domains' `experiment_row_count`)
+could not be generated or run in this session's sandbox — no DOSBox available. Verified instead:
+every new/changed `.py` file compiles; `dvc dag --full` parses; `dvc repro ... --dry` on samples
+from every new stage group shows correct dependency ordering; `join.py` tested directly at real
+scale (100,000-row join, standard_effort + standard_velocity as stand-ins, confirming the
+`group_id` fix holds under load) with a synthetic small-file test confirming the collision it
+fixes. The Gorillas-dependent path needs a real `dvc repro -P` on a machine with DOSBox before it
+can be called done.
+
+**Task 41 — every remaining matrix-driven stage converted to the per-model pattern; `train.py`/
+`runs.py` deleted for both domains (2026-09-28, main, same day, later still).** Task 40 left
+`train_raw`/`train_eng`/`train_classification` (and their Gorillas-domain `_effort`/`_velocity`
+counterparts) on the old `train.py --run --algorithm --key`/`runs.py` dispatch, deliberately
+scoped out at the time ("Set up the pattern with one worked example"). Explicitly requested next:
+"all the matrix driven should be converted to the one script per model kind." Mechanical but
+large — 78 new files:
+
+- `models/regression/{standard,effort,velocity}/experiment_{raw,eng}/train_<model>.py` — 9
+  matrix models + `train_decision_tree_overfit.py` (converted from the standalone
+  `models/regression/train_decision_tree_overfit.py --run --key`, same "no split, fit on
+  everything, report training error" logic) × 2 schemes × 3 domains = 60 files.
+- `models/classification/{standard,effort,velocity}/experiment_classification/train_<model>.py`
+  — 6 models × 3 domains = 18 files.
+
+`standard`'s scripts kept `n_samples` (params.yaml, switchable) — the only params.yaml knob
+carried over from the old system, since it is still useful for shrinking a demo run and is
+orthogonal to which model script runs. `effort`/`velocity` scripts are fixed-size, matching what
+`raw_effort`/`eng_effort`/etc. already were before this task (unchanged behavior, just no longer
+matrix-driven).
+
+**One real bug from the generation script**, caught before it reached `dvc.yaml`: the first-pass
+Python templating script that generated the effort/velocity variants deleted the `n_samples`
+paragraph out of each docstring with a naive multi-line sed range delete, which cut into the
+*next* paragraph instead and left a dangling half-sentence, and separately left every docstring's
+opening line saying "the standard pool's" regardless of which domain the file was actually for.
+Caught by reading the first generated file rather than trusting the substitution — redone with a
+precise Python multi-line-string replacement instead of line-range deletion, then spot-checked.
+
+**A second, separate bug in the DVC stage generator** (not the Python file generator): the
+`train_*_decision_tree_overfit` stage template appended its conditional `params:` block as a
+string directly after the last `deps:` entry, with no line break establishing it as a new
+top-level key — so it parsed as a 6th item in the `deps:` list instead of a sibling `params:` key.
+Caught immediately by `dvc dag --full` (`expected str, in stages -> train_raw_decision_tree_overfit
+-> deps -> 4`) before anything was run. Fixed and re-spliced into all three pipeline files.
+
+**`train.py`/`runs.py` deleted** for both domains, plus the standalone
+`models/regression/train_decision_tree_overfit.py` — every consumer had migrated. Three
+`evaluation/` scripts (`run_raw/evaluate_features.py`, `run_eng/evaluate_features.py`,
+`classification/run/evaluate_features.py`) still imported `RUNS` from the deleted `runs.py` —
+same shape of breakage task 5/6/7 and task 40 already found and fixed elsewhere in `evaluation/`;
+fixed the same way, constants inlined. Three more `predict.py` files and both `compare_models.py`
+scripts hardcoded old `experiments/regression/run_raw/...`-style paths (not through `runs.py`, so
+not caught by the import grep) — found by a second, broader sweep specifically for the string
+`"experiments"` across `evaluation/`, not just for `RUNS` imports. `compare_models.py`'s
+`MODELS_TO_COMPARE` config shape changed from `(run_dir, model)` to `(domain, experiment, model)`
+for regression and `(domain, model)` for classification, to name a domain explicitly now that
+`experiments_results/regression/<domain>/<experiment>/` has one more path segment than
+`experiments/regression/<run_dir>/` did.
+
+**Stale pre-restructuring data files found and removed**, flagged by the repo owner noticing a
+plotting script's output titled `gorillas_effort_regression.parquet` — a file from before task 40
+that should no longer exist. `data/gorillas_effort_regression.parquet` (+ its `_throws` sibling)
+and `data/standard_training_data.parquet` were still sitting on disk (data/ is gitignored, so nothing
+had touched them) alongside the correctly-named files task 40 introduced. Removed all three;
+`data/` now holds exactly what `dvc_datasets.yaml` names. Also removed three stale `__pycache__`
+directories (`models/regression/run_{skewed,leakage,bias_variance}/__pycache__`) left behind after
+task 40 deleted those folders' `.py` files but not the gitignored bytecode cache.
+
+**Verified:** every new/changed file compiles; `dvc dag --full` parses; `dvc repro ... --dry`
+across a sample from every domain and stage type (regression raw/eng, classification, both
+overfit variants) shows correct ordering; **one full non-dry `dvc repro` of a real converted
+stage** (`train_eng_ridge`, standard domain) ran to completion and produced `dvc.lock` entries —
+the first real (non-dry, non-DOSBox-blocked) end-to-end proof this session that the new pattern
+works, not just parses. Same Gorillas-dependent verification gap as task 40: effort/velocity's 60
+new regression + 18 new classification scripts are wired and dry-run-clean but unexecuted, since
+`data/gorillas_{effort,velocity}.parquet` still don't exist in this sandbox.
+
+**Task 42 — `pipelines/` split again, from 3 files (one per mode) to 15 (one per {mode}×
+{experiment}) (2026-09-28, main, same day, later still).** Prompted by the same disable-a-model
+conversation task 41 left open (per-model stages have no shared switch anymore) — the user asked
+whether disabling could be simpler, was walked through why a shared-list-inside-scripts approach
+doesn't cleanly integrate with DVC's `outs:` tracking (a skipped script still needs to either
+produce its declared outputs or have `dvc repro` report it failed), landed on: commenting out a
+stage block already works today with no new code, and asked whether splitting `pipelines/<mode>/
+dvc.yaml` further, to one file per experiment, would make that more manageable. Confirmed
+`dvc repro -P`/`dvc dag` already discover every `dvc.yaml` in the tree regardless of nesting depth
+(no new DVC concept needed), then built it: 15 files (`pipelines/<mode>/experiment_<name>/
+dvc.yaml`) replacing the 3 (`pipelines/<mode>/dvc.yaml`).
+
+Mechanical, done by parsing each of the 3 files into stage blocks (by name-prefix pattern —
+`train_raw_*` → `experiment_raw`, `train_skewed_*`/`filter_skewed`/`train_{skewed,balanced}
+_concept` → `experiment_skew`, etc.) and regrouping. **Two real bugs in the extraction script
+itself, both caught before the result was trusted:**
+
+- **Path-depth substitution missed the bare PYTHONPATH argument.** Every stage's `cmd:` has the
+  shape `python ../../scripts/run_with_pythonpath.py ../.. -m models...` — two occurrences of a
+  2-level relative reference, but only the first (`../../scripts`, followed by a `/`) matched a
+  naive string-replace of `"../../"` (with a trailing slash). The second (`../..`, followed by a
+  space, the actual PYTHONPATH argument) was left untouched, which would have silently pointed
+  every `-m` invocation at `pipelines/` instead of the repo root the moment this file moved one
+  directory deeper. Caught by reading the first generated file rather than trusting the
+  substitution (same lesson task 41 already recorded once this session). Fixed with a regex
+  (`\.\./\.\.`, no trailing-slash requirement) that correctly extends any 2-level reference to
+  3-level regardless of what follows it.
+- **The extraction had to be checked against hand-edits already on disk, not just the original
+  file content.** The user had, in the course of the disable-model conversation, manually
+  commented out two stages directly in `pipelines/effort/dvc.yaml`
+  (`train_raw_effort_mlp`, `train_raw_effort_decision_tree_overfit`) as a live test of "just
+  comment out the stage." The block-splitting regex had to match commented-out stage headers
+  (`  # stage_name:`) as well as active ones (`  stage_name:`) to avoid silently dropping them —
+  verified by grepping for both before and after the split that exactly 2 commented-out stages
+  survived, in the same commented-out state, in the new `experiment_raw/dvc.yaml`.
+
+`vars:` (the now-unused `dvc_models_regression.yaml`/`dvc_models_classification.yaml` entries,
+dead since task 41 removed every `foreach`) dropped from all 15 new files; kept only where
+`${training_data}` is actually still interpolated (`standard`'s `experiment_{raw,eng,
+classification,skew,leakage,bias_variance}` — `experiment_row_count` and every `effort`/
+`velocity` file use fixed paths with no `${...}` at all).
+
+**Verified:** `dvc dag --full` parses; stage count preserved exactly (143 named blocks before and
+after, confirmed by summing per-file `grep` counts against the pre-split total); one representative
+stage from each of the 15 new files dry-run with `--keep-going`, all 8 standard-domain targets
+resolved cleanly, both effort/velocity targets correctly stopped at the known DOSBox-dependent
+`join_effort`/`join_velocity` wall (not a new failure); **one real (non-`--dry`) `dvc repro`**
+(`experiment_skew/dvc.yaml:train_skewed_lasso`) ran to completion post-split and wrote a
+`dvc.lock` — second such proof this session, first one to specifically exercise the new 3-levels-
+deep path prefix.
+
+**Task 43 — the effort/velocity cross-source join (task 40) reversed; `pipelines/effort`/
+`pipelines/velocity` back to Gorillas-only (2026-09-28, main, same day, later still).** After
+being walked through exactly what `join_effort` does, the repo owner reversed it directly: "please
+remove it, I dont want to join them, they are ment for two different experiments." Undoes the
+task-40 decision to concatenate `standard_<mode>.parquet` + `gorillas_<mode>.parquet` into one
+`data/<mode>.parquet` — `standard_effort`/`standard_velocity` and `gorillas_effort`/
+`gorillas_velocity` go back to being trained on separately, never merged.
+
+- Root `dvc.yaml`'s `join_effort`/`join_velocity` stages deleted; `data_generation/join.py`
+  deleted (no other consumer).
+- Every `models/{regression,classification}/{effort,velocity}/experiment_*/train_<model>.py`
+  script's `DATA` reverted from `data/{effort,velocity}.parquet` to
+  `data/gorillas_{effort,velocity}.parquet` — i.e. `effort`/`velocity` pipelines are, once again,
+  purely the Gorillas-domain pipelines they were before task 40 ever introduced the join.
+  `standard_effort`/`standard_velocity` remain valid, generated pools, reachable through
+  `pipelines/standard`'s pre-existing switchable `${training_data}` mechanism like any other pool
+  — no new dedicated pipeline needed for them; that mechanism already covers "train on
+  standard_effort specifically" without requiring a merge.
+- Every `pipelines/{effort,velocity}/experiment_*/dvc.yaml`'s `deps:` updated to point at
+  `data/gorillas_{effort,velocity}.parquet` directly.
+
+**A real, previously-latent bug surfaced by this revert**: `experiment_row_count`'s `TIERS =
+[1000, 2000, 5000, 10000, 20000, 50000]` was sized for the ~55,000-row *joined* pool. The Gorillas
+pool alone is 5,000 rows — `pandas.iloc[:n]` silently returns however many rows exist rather than
+raising when `n` exceeds the length, so the three largest tiers would have silently trained on the
+*same* 5,000-row slice three times over, each reported as a different `n_samples` in the metrics
+CSV — a fabricated convergence curve, not a real one. Caught by actually running a real (non-
+`--dry`) stage post-revert rather than trusting the file edits, which is also how the *second* bug
+was caught: **the DVC stage's own `outs:` list still named the old tier suffixes** (`_n1000`,
+`_n10000`, ...) after the script's `TIERS` was fixed to `[500, 1000, 2000, 3000, 4000, 5000]`, so
+`dvc repro` failed with "output ... does not exist" even though the script itself ran correctly —
+the `.py` fix and the `.yaml` fix are two separate places that both encode the tier list, and
+only one was updated in the first pass. Fixed with a precise old→new suffix mapping (matched by
+exact numeric value, longest-first, so `"1000"` didn't accidentally match inside `"10000"`)
+applied to both `pipelines/effort/experiment_row_count/dvc.yaml` and its velocity counterpart.
+
+**Also found while investigating: `gorillas_effort.parquet` actually exists in this session's
+environment** (unlike earlier assumed) — DOSBox output from a prior point in this repo's history,
+still on disk. This let two stages run for real, for the first time all session, against actual
+Gorillas game data rather than physics-only data: `train_raw_effort_ridge`
+(`experiment_raw`) and `train_row_count_effort_decision_tree` (confirming the `TIERS`/`outs:` fix
+above works end to end, with genuine group-aware splitting: "250 groups -> 200 train / 50 test").
+`gorillas_velocity.parquet` was not present, so the velocity side of this task is fixed identically
+but still unverified for real.
+
+**Also cleaned up while here**: a stale `data/effort.parquet` (the now-orphaned joined file) and
+a stale `pipelines/effort/experiment_row_count/dvc.lock` (referencing the pre-fix tier outputs)
+removed. Root `dvc.lock` still carries several stale/orphaned entries from earlier points in this
+repo's history (including some pre-dating this entire session) — left alone; `dvc status` handles
+orphaned lock entries gracefully (confirmed) and a hand-edit risked doing the wrong thing to a
+generated file.
+
+**Respected rather than overwritten**: two stages the repo owner had manually commented out
+earlier in the session, directly in the IDE, as their own live test of "just comment out the
+stage" (`train_raw_effort_mlp`, `train_raw_effort_decision_tree_overfit` — carried through task 42's
+file split already) — and, discovered only while investigating this task, essentially the entire
+`pipelines/effort/experiment_row_count/dvc.yaml` (13 of 15 stages commented out, leaving only
+`linear_regression` and `decision_tree` active). Neither touched; verification for this task used
+only the stages the repo owner had left enabled.
+
 ### Behaviour that changed — read this before the next run on an existing checkout
 
 Three of these tasks deliberately turn a silent substitution into a hard failure. Each is correct
@@ -519,36 +811,63 @@ without DOSBox Staging. Their determinism is also timing-dependent (§5.2). If t
 is lost, `data/gorillas_*.parquet` is gone — there is no command that recreates it. Push at
 least these four outputs somewhere (task 34).
 
-### Effort/velocity are permanent pipelines, each with its own generated file per domain
+### Effort/velocity share one generated file per mode, joined across both sources — **reversed (task 40), the join itself re-reversed (task 43)**
 
-Two decisions the repo owner made directly, superseding this audit's own recommendations:
+The two decisions recorded in this section from the previous session — permanent
+non-switchable pipelines, and four separate generated Gorillas files
+(`gorillas_{effort,velocity}_{regression,classification}`) so regression and classification
+never shared a stage node — were **both explicitly reversed by the repo owner** (2026-09-28,
+same day, later in the day). The permanence of effort/velocity as their own pipelines stayed;
+everything else about the shape did not:
 
-- **Permanent, not switchable.** `train_raw_effort`/`train_raw_velocity` (and their `_eng`/
-  classification counterparts) are fixed pipelines that always exist on disk side by side,
-  rather than one shared group reached through `training_data`. Chosen explicitly over the
-  cheaper switchable-pool alternative, knowingly reintroducing some of the duplication task 3/4b
-  removed — the trade-off was named before the decision was made.
-- **Regression and classification each get their own generated Gorillas file per mode** — four
-  datasets (`gorillas_{effort,velocity}_{regression,classification}`) instead of two, at
-  different seeds, running DOSBox twice as often. The game has no actual "regression mode" vs
-  "classification mode" (one throw carries both `initial_velocity_ms` and `hit_target`, same as
-  the Python pool) — this is purely so the two domains are fully independent DVC pipeline
-  branches sharing no stage node, at the cost stated above.
+- **One Gorillas file per mode, not per {mode}×{domain}.** `gorillas_effort`/`gorillas_velocity`
+  replace the four `gorillas_{effort,velocity}_{regression,classification}` datasets. The game
+  never distinguished "regression data" from "classification data" — one throw always carried
+  both `initial_velocity_ms` and `hit_target` — so the split was pure duplication, at the DOSBox-
+  time cost this section originally named. Regression and classification now both read the one
+  file for their mode.
+- **Standard (physics) gets the same two-mode split Gorillas already had.** `data_generation/
+  generate.py` gained a real `EFFORT` input mode (force-capped launch, work-energy over a fixed
+  stroke length — mirrors `gorilla.bas`'s own `MaxGorillaForce#` calibration, see
+  `data_generation/sampling.py`'s `EFFORT_RANGE`/`MAX_FORCE_N`) alongside its original `VELOCITY`
+  mode (direct speed draw, unchanged, renamed `standard_velocity`). This was new generation
+  logic, not a config change — the physics generator had no such distinction before.
+- ~~**The two sources are joined per mode**, not just parallel...~~ **Reversed again, same day
+  (task 43): "I dont want to join them, they are ment for two different experiments."**
+  `data_generation/join.py` and the `join_effort`/`join_velocity` stages it drove are deleted.
+  `pipelines/effort`/`pipelines/velocity` train on `data/gorillas_{effort,velocity}.parquet`
+  directly, exactly as they did before this join was ever introduced — `standard_effort`/
+  `standard_velocity` are reached through `pipelines/standard`'s switchable `${training_data}`
+  instead, never merged with the Gorillas pools. The real bug the join surfaced — cross-file
+  `group_id` collisions on naive concatenation — is now moot for this repo (nothing concatenates
+  pools anymore) but is recorded here as a fact about `splitting.py`'s `GroupKFold`/
+  `GroupShuffleSplit` worth remembering if anything ever does merge multiple pools again: both
+  producers number `group_id` from zero independently, so a naive concatenation collides unrelated
+  rows onto the same group unless each input's `group_id` is prefixed by file first (confirmed by
+  testing at the time: 50+30 rows joined without the prefix produced only 50 distinct groups, 80
+  with it).
+- **`pipelines/standard` keeps its pre-existing switchable-pool mechanism** (`training_data`/
+  `n_samples`, defaulting to `standard_velocity` now) for the sample-size convergence experiment
+  and the skew/leakage/bias-variance demos — none of that needed to change, since it is
+  orthogonal to the effort/velocity join.
 
-### Seven `dvc.yaml` files, not one — `pipelines/` holds every standalone group
+### Three `dvc.yaml` files under `pipelines/`, not six — one per {mode}, not {source}×{domain}
+
+The previous session's `pipelines/` split (one file per {source}×{domain}: `standard_regression`,
+`standard_classification`, `effort_regression`, `effort_classification`, `velocity_regression`,
+`velocity_classification`) is **also reversed (task 40)**. Regression and classification no
+longer need separate files or separate generated pools to stay independent DVC branches — see
+above — so they now share one file per mode: `pipelines/standard`, `pipelines/effort`,
+`pipelines/velocity`. `pipelines/effort` and `pipelines/velocity` stay genuinely separate FROM
+EACH OTHER (the repo owner's stated reason: "I probably only want to run the velocity models or
+the effort models... rarely both"), each a standalone `dvc.yaml` with a `deps:` entry naming a
+file the root `dvc.yaml`'s `join_effort`/`join_velocity` stages produce — cross-pipeline
+dependency resolution by file path, unchanged from the previous session's design (see the two DVC
+subtleties recorded below, both still load-bearing).
 
 DVC supports multiple `dvc.yaml` files in one project; cross-pipeline dependencies resolve by
 file path, the same way two stages in one file depend on each other, no special syntax needed.
-The root `dvc.yaml` now holds only the two shared data producers (`generate`/`generate_gorillas`,
-5 stages); every training stage lives in its own file under `pipelines/<name>/dvc.yaml`, one per
-{source} × {domain} — `standard_regression`, `standard_classification`, `effort_regression`,
-`effort_classification`, `velocity_regression`, `velocity_classification`. Chosen over two
-cheaper alternatives an explicit design question weighed: an explicit target-list script (no new
-DVC concepts, but no structural separation), and staying in one `dvc.yaml` (simplest, but
-provides no way to `cd` into "just effort" and run it). Genuine structural separation was worth
-the cost of every path in a pipeline file needing a `../../` prefix.
-
-Two DVC subtleties this surfaced, both confirmed by testing rather than assumed, both now load-
+Two DVC subtleties this surfaced, both confirmed by testing rather than assumed, both still load-
 bearing across every `pipelines/*/dvc.yaml` file:
 
 - A stage's `params:` staleness-tracking list is unrelated to the `vars:` block used for `${...}`
@@ -560,9 +879,12 @@ bearing across every `pipelines/*/dvc.yaml` file:
   `scripts/run_with_pythonpath.py` wrapper a script-path invocation does, just pointed at the
   repo root instead of a run folder. See C1 for where this bit for real.
 
-Stage count is conserved by construction and was checked by construction, not just once at the
-end: `dvc stage list --all` before touching a `dvc.yaml`, after the `pipelines/` split, and again
-after task 5's consolidation all report 93.
+Stage count is no longer a fixed number checked against a prior run (93, recorded in the
+previous session) — today's session added and removed stages repeatedly as the shape changed
+(one script per model instead of a `foreach` matrix for several experiments; see task 40 below),
+so "stage count conserved by construction" is no longer the invariant being watched. What's
+checked now, every time: `dvc dag --full` parses without error, and `dvc repro ... --dry` shows
+the expected stage names in the expected order.
 
 ---
 
@@ -906,10 +1228,11 @@ delete it on that ground alone, not this one.
 stages. `params.yaml` also uses `null` to mean "this algorithm has no such knob", a convention
 the reader must infer.
 
-### C10 — `experiments/` collides with `dvc exp`
+### C10 — `experiments/` collides with `dvc exp` — **fixed (task 40)**
 
 The directory holds model outputs, not DVC experiments — confusing in a repo whose purpose
-includes teaching `dvc exp run`.
+includes teaching `dvc exp run`. Renamed to `experiments_results/` throughout (every
+`pipelines/*/dvc.yaml` `outs:`/`metrics:`, both `runs.py` registries, `.gitignore`).
 
 ---
 

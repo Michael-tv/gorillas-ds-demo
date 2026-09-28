@@ -15,10 +15,12 @@ The two data producers are the point of the repo:
 | Speed | ~875 rows/s, 50,000 rows in ~1 min | ~15–200 rows/s depending on `--workers` |
 | Platform | anywhere | Windows (needs DOSBox Staging) |
 
-Both emit the **same 14-column contract**, so either can fill the training slot. The
-simulator gives a well-behaved dataset; the game gives a realistically awkward one, where
-the thing you want to predict genuinely is not a function of the columns you logged. Swapping
-between them is one line in `params.yaml`.
+Both emit the **same 14-column contract**, so either can fill the training slot — and both
+now support the same two **input modes**: `VELOCITY` (launch speed drawn/entered directly)
+and `EFFORT` (a capped force model derives the speed instead — see "The 14-column contract"
+below). The simulator gives a well-behaved dataset; the game gives a realistically awkward
+one, where the thing you want to predict genuinely is not a function of the columns you
+logged.
 
 ---
 
@@ -28,15 +30,20 @@ between them is one line in `params.yaml`.
 pipenv install                      # Python 3.13; see Pipfile
 pipenv shell
 
-dvc repro generate                          # build the simulated pool (~1 min)
-cd pipelines/standard_regression && dvc repro train_raw@random_forest && cd ../..   # train one model on it
-dvc repro -P                                 # the whole repo: 7 pipelines, 93 stages
+dvc repro generate                          # build both simulated pools (~2 min)
+dvc repro pipelines/standard/experiment_raw/dvc.yaml:train_raw_random_forest   # train one model
+dvc repro -P                                 # the whole repo (dvc stage list --all for the current count)
 ```
 
-The pipeline is split into seven `dvc.yaml` files — one root file with the two shared data
-producers, and six standalone pipelines under `pipelines/`, one per {source} × {domain}
-combination. `dvc repro` from the repo root only touches the root file's 5 stages; `-P` /
-`--all-pipelines` is what runs everything. See "Running one pipeline at a time" below.
+The pipeline is split into 16 `dvc.yaml` files — one root file with the shared data producers
+(physics + game generation; standard and Gorillas pools are generated and trained on
+separately, never merged), and one file per {**mode**, **experiment**} under
+`pipelines/<mode>/<experiment>/dvc.yaml` (`standard`, `effort`, `velocity` × whichever
+experiments apply to that mode). `dvc repro` from the repo root only touches the root file's
+stages; `-P` / `--all-pipelines` is what runs everything, and `-R <dir>` runs every stage found
+anywhere under one directory (e.g. `dvc repro -R pipelines/standard` for every experiment in
+that mode). See "Running one pipeline at a time"
+below.
 
 If `pipenv` picks up the wrong virtualenv, prefix with `PIPENV_IGNORE_VIRTUALENVS=1`.
 
@@ -50,55 +57,76 @@ regeneration — not a stored copy — is the recovery path. A fresh clone there
 
 ```
 params.yaml                    ← the knobs you actually turn
-dvc_datasets.yaml              ← which datasets exist, and their generation parameters
-dvc_models_regression.yaml     ← which regression models each training stage expands into
-dvc_models_classification.yaml ← which classification models each training stage expands into
-dvc.yaml                       ← ROOT pipeline: the two shared data producers, 5 stages
+dvc_datasets.yaml               which datasets exist, and their generation parameters
+dvc_models_regression.yaml     ← which regression models exist (algorithm + cleaning)
+dvc_models_classification.yaml ← which classification models exist
+dvc.yaml                       ← ROOT pipeline: the two shared data producers
 
-pipelines/                     ← six standalone pipelines, one per {source} x {domain}
-  standard_regression/dvc.yaml   train_raw, train_eng, filter_skewed, train_skewed,
-                                  leakage and bias/variance demos — 34 stages
-  standard_classification/dvc.yaml  train_classification — 6 stages
-  effort_regression/dvc.yaml     train_raw_effort, train_eng_effort — 18 stages
-  effort_classification/dvc.yaml train_classification_effort — 6 stages
-  velocity_regression/dvc.yaml   train_raw_velocity, train_eng_velocity — 18 stages
-  velocity_classification/dvc.yaml  train_classification_velocity — 6 stages
+pipelines/                     ← one dvc.yaml per {MODE, EXPERIMENT}, not per {source}x{domain}
+  standard/                      raw/eng/classification sweeps + skew/leakage/bias-variance
+                                  demos + the row-count experiment, switchable to any generated
+                                  pool (standard_effort, standard_velocity, or a Gorillas one)
+    experiment_raw/dvc.yaml
+    experiment_eng/dvc.yaml
+    experiment_classification/dvc.yaml
+    experiment_skew/dvc.yaml
+    experiment_leakage/dvc.yaml
+    experiment_bias_variance/dvc.yaml
+    experiment_row_count/dvc.yaml
+  effort/                        same 4 non-demo experiments, permanently on
+                                  data/gorillas_effort.parquet (real game data only -- not
+                                  merged with the standard pool; see "Two producers" below)
+    experiment_raw/dvc.yaml, experiment_eng/dvc.yaml, experiment_classification/dvc.yaml,
+    experiment_row_count/dvc.yaml
+  velocity/                      same shape as effort/, permanently on data/gorillas_velocity.parquet
 
 physics.py             RK4 projectile integrator with drag and wind
-data_generation/       the two producers, plus the shared contract
+data_generation/        the two producers, plus the shared contract
+  generate.py            physics/RK4 producer -- VELOCITY (direct draw) or EFFORT (capped
+                          force model, see sampling.py's EFFORT_RANGE/MAX_FORCE_N) mode
+  gorillas.py             the real game, driven through DOSBox -- same two input modes
 feature_engineering.py the 3 derived features, as a function and a Pipeline step
-splitting.py           group-aware train/test splits and cross-validation
-params.py              reads params.yaml; also holds take_samples()
+splitting.py            group-aware train/test splits and cross-validation
+params.py               reads params.yaml; also holds take_samples()
 
 models/regression/
-  runs.py                 the 7 run configs -- which pool, which features, where models land
-  algorithms/             one small module per algorithm: the estimator, its search space
-  train.py                the one entrypoint: `--run --algorithm --key --clean`, everything
-                           common to every algorithm (load, split, CV, save)
-  train_decision_tree_overfit.py   standalone -- different control flow (no split), not
-                           part of the generic driver; own `--run --key --clean`
-  run_skewed/train_utils.py  skewed-demo-only helpers (the OOD holdout, row-count matching)
-                           for the two standalone concept scripts in this folder
-  run_leakage/, run_bias_variance/  folder-local train_utils.py + two scripts each,
-                           untouched by the runs.py/train.py consolidation (see below)
-models/classification/  the same shape: runs.py (3 configs), algorithms/, train.py
+  algorithms/              one small module per algorithm: the estimator, its search space
+                           (shared across every experiment below -- the one thing that's DRY)
+  common/loader.py         shared load/clean/metrics helpers
+  standard/                each folder here is one experiment: a standalone
+    experiment_raw/          train_<model>.py per model, no --run/--algorithm dispatch
+    experiment_eng/
+    experiment_skew/         + train_skewed_concept.py / train_balanced_concept.py
+    experiment_leakage/       train_clean.py / train_leaky.py
+    experiment_bias_variance/ train_underfitting.py / train_overfitting.py
+    experiment_row_count/    sweeps 6 sample-size tiers per model internally
+  effort/                  experiment_raw/, experiment_eng/, experiment_row_count/
+                           (no skew/leakage/bias-variance here -- standard-pool-only demos)
+  velocity/                same shape as effort/
+models/classification/  the same shape, minus the raw/eng split (one scheme: engineered
+                         features only) -- standard|effort|velocity/experiment_classification/,
+                         plus experiment_row_count/ in all three
 evaluation/              prediction, feature and plotting scripts (run by hand)
-experiments/             trained models (DVC-cached) and metrics (Git-versioned)
+experiments_results/    trained models (DVC-cached) and metrics (Git-versioned)
 qbasic_gorillas/         the DOSBox game builds, including the datagen fork
 ```
 
-**Switchable pool vs. permanent pipelines.** `train_raw`/`train_eng`/`train_classification`
-(in `pipelines/standard_*/`) read whichever pool `params.yaml: training_data` names — one
-`--set-param` retargets them at any pool, including a Gorillas one, without touching another
-file (see "Which dataset?" below). The Gorillas effort/velocity split is the exception: those
-are **four fixed pipelines** (`effort_regression`, `effort_classification`,
-`velocity_regression`, `velocity_classification`) that always exist on disk side by side, each
-reading its own separately-generated file, at the cost of running DOSBox four times (once per
-mode × domain) instead of twice. Compare them with `dvc exp show` without re-running anything.
-See "Running one pipeline at a time" and "Adding a new standalone pipeline" below for how this
-is built, and the design note at the top of `dvc.yaml` (the root one) for why regression and
-classification each get their own generated Gorillas file even though one throw carries both
-targets.
+**No more `train.py`/`runs.py` dispatch.** Every model, in every experiment, is its own
+standalone `train_<model>.py` — reading its own pool, building its own split, calling the
+shared `algorithms/<model>.py` for the estimator, and saving to its own
+`experiments_results/.../<experiment>/models/` directory. There's nothing to trace through a
+`--run`/`--algorithm` CLI flag anymore: open the one file for the model and experiment you
+care about and read it top to bottom. `algorithms/<model>.py` stays shared on purpose — it's
+already one clean file per model with nothing to duplicate.
+
+**Switching a model off**, now that there's no matrix for most experiments: comment out (or
+delete) that model's stage block directly in the relevant
+`pipelines/<mode>/<experiment>/dvc.yaml` — each is independently named
+(`train_raw_random_forest`, `train_skewed_ridge`, ...), so removing one touches nothing else,
+not even other stages in the same file. The exception: `dvc_models_regression.yaml`/
+`dvc_models_classification.yaml` still exist and still matter — they're the source of truth
+for the search-budget key each `train_<model>.py` reads from `params.yaml`, and for which
+model names are valid. See "The model matrix" below.
 
 ### The 14-column contract
 
@@ -118,8 +146,16 @@ Every generated pool has exactly these columns, asserted by
 | `group_id` | rows sharing a value were drawn under correlated conditions and must not be split apart |
 
 The three engineered features — `wind_x_ms`, `drag_param`, `height_diff_m` — are **never
-stored**. They are derived at training time, inside the model's sklearn `Pipeline`, so the
-saved `.joblib` carries its own preprocessing and can be fed raw physical inputs.
+stored**. They are derived at training time, inside the model's sklearn `Pipeline` (or, for
+classification and the standalone concept demos, at load time via
+`feature_engineering.add_engineered_columns`), so the saved `.joblib` carries its own
+preprocessing and can be fed raw physical inputs.
+
+**`VELOCITY` vs `EFFORT` input mode** (both producers): `VELOCITY` draws/enters launch speed
+directly. `EFFORT` derives it from a capped force model instead — a work-energy calculation
+over a fixed stroke length, force capped as a percentage of a calibrated maximum (mirrors the
+real game's own `gorilla.bas` force model). Same 14 columns either way; only how
+`initial_velocity_ms` came to be differs.
 
 `group_id` is what makes honest evaluation possible. The game throws 32 bananas at each
 board, and a board's wind and skyline are shared by all of them, so a random split puts the
@@ -127,7 +163,7 @@ same board on both sides and scores the model against rows it has effectively al
 Measured on a 60-board pool: a random split reports MAE 12.944 where the group-aware split
 reports 16.157 — **20% optimistic**. `splitting.py` handles this, and because the simulated
 pool gives every row its own `group_id`, the same code degrades to an ordinary random split
-there. One path, both producers, no branching in any training script.
+there.
 
 ---
 
@@ -136,8 +172,8 @@ there. One path, both producers, no branching in any training script.
 ### 1. Generate data
 
 ```bash
-dvc repro generate                                  # all entries in dvc_datasets.yaml
-dvc repro generate@standard_training_data           # just one
+dvc repro generate                                  # both standard_effort and standard_velocity
+dvc repro generate@standard_velocity                # just one
 ```
 
 For the game producer (Windows, DOSBox Staging installed):
@@ -148,14 +184,21 @@ dvc repro generate_gorillas
 ```
 
 DOSBox is located via `--dosbox` → `$GORILLAS_DOSBOX` → `dosbox` on `PATH` → known install
-locations. `generate_gorillas` expands into four independently-cached variants —
-`gorillas_effort_regression`, `gorillas_effort_classification`, `gorillas_velocity_regression`,
-`gorillas_velocity_classification` — one DOSBox run each, at a different seed, so regression
-and classification are fully separate pipeline branches sharing no stage node with each other
-(the repo owner's choice; the game itself doesn't distinguish "regression data" from
-"classification data" — one throw carries both `initial_velocity_ms` and `hit_target`). Each
-variant writes both a parquet and a raw throw log (`data/<name>_throws.parquet`), which keeps
-the `board` and `outcome` columns the 14-column contract deliberately omits.
+locations. `generate_gorillas` expands into two independently-cached variants —
+`gorillas_effort`, `gorillas_velocity` — one DOSBox run each. Regression and classification
+both train from whichever one file matches their mode; the game has never distinguished
+"regression data" from "classification data" (one throw carries both `initial_velocity_ms`
+and `hit_target`). Each variant writes both a parquet and a raw throw log
+(`data/<name>_throws.parquet`), which keeps the `board` and `outcome` columns the 14-column
+contract deliberately omits.
+
+The standard (physics) pool and the Gorillas pool are **not merged** — `pipelines/effort`/
+`pipelines/velocity` train on `data/gorillas_{effort,velocity}.parquet` directly, and
+`data/standard_{effort,velocity}.parquet` are reached separately, through
+`pipelines/standard`'s switchable pool (see "The experiments" below). Two different sources,
+two different experiments, deliberately kept apart — an earlier version of this repo joined
+them into one combined pool per mode; reversed, since the point of having two producers is to
+compare them, not blend them.
 
 `--workers` only controls how many DOSBox instances run at once and **cannot** change the
 resulting data — every chunk seed is drawn single-threaded before the thread pool starts.
@@ -167,51 +210,37 @@ You can also run the game interactively from `qbasic_gorillas/dosbox-datagen/`:
 
 ### 2. Train
 
-Training stages live in `pipelines/<name>/dvc.yaml`, not the root one — the root file holds
-only the two data producers from step 1. Three ways to run them, cheapest first:
+Training stages live in `pipelines/<mode>/<experiment>/dvc.yaml`, not the root one — the root
+file holds only data generation. Four ways to run them, cheapest first:
 
 ```bash
-dvc repro -P                                          # every pipeline in the repo, in order
-dvc repro pipelines/standard_regression/dvc.yaml:train_raw@random_forest   # one stage, from the repo root
-cd pipelines/standard_regression && dvc repro && cd ../..                  # one whole pipeline
+dvc repro -P                                                                     # every pipeline in the repo, in order
+dvc repro -R pipelines/standard                                                  # every experiment in one mode
+dvc repro pipelines/standard/experiment_raw/dvc.yaml:train_raw_random_forest     # one stage, from the repo root
+cd pipelines/standard/experiment_raw && dvc repro && cd ../../..                 # one whole experiment
 ```
 
-`-P` (`--all-pipelines`) discovers and reproduces all seven `dvc.yaml` files, resolving
-cross-pipeline dependencies by file path — a `pipelines/*/dvc.yaml` stage that reads
-`../../data/gorillas_effort_regression.parquet` is recognized as depending on the root
-`generate_gorillas@gorillas_effort_regression` stage automatically, the same way two stages in
-one file depend on each other. See "Running one pipeline at a time" below for the full pattern
-and the two things that are NOT obvious about it (relative paths, and where `params:` looks for
-`params.yaml`).
+`-P` (`--all-pipelines`) discovers and reproduces all 16 `dvc.yaml` files, resolving
+cross-pipeline dependencies by file path — `pipelines/effort/experiment_raw/dvc.yaml`'s
+stages, which read `../../../data/gorillas_effort.parquet`, are recognized as depending on the
+root `generate_gorillas@gorillas_effort` stage automatically, the same way two stages in one
+file depend on each other. `-R <dir>` (`--recursive`) does the same discovery scoped to one
+directory, which is what makes "run everything for this mode" or "run everything for this
+experiment" both single commands despite there being one file per experiment rather than one
+per mode. See "Running one pipeline at a time" below for the full pattern and the things that
+are NOT obvious about it (relative paths, and where `params:` looks for `params.yaml`).
 
-**All four Gorillas variants, generation through training** — the four fixed pipelines,
-without the two switchable ones:
+Root pipeline plus 3 modes, 7/4/4 experiments each:
 
-```bash
-dvc repro generate_gorillas   # all 4 variants, from the root
-for p in effort_regression effort_classification velocity_regression velocity_classification; do
-  (cd "pipelines/$p" && dvc repro)
-done
-```
+| Pipeline | What it shows |
+|---|---|
+| `dvc.yaml` (root) | the two producers: `generate` (standard_effort/standard_velocity) and `generate_gorillas` (gorillas_effort/gorillas_velocity) — not merged with each other |
+| `pipelines/standard/*` (7 experiments) | the raw/eng/classification sweeps, sample-size row-count experiment, and every skew/leakage/bias-variance demo — all on `data/standard_velocity.parquet` (switchable to any generated pool via `params.yaml: training_data`, including `standard_effort` or a Gorillas pool) |
+| `pipelines/effort/*` (4 experiments) | the same raw/eng/classification sweeps + row-count experiment, permanently on `data/gorillas_effort.parquet` (real game data only) |
+| `pipelines/velocity/*` (4 experiments) | same, permanently on `data/gorillas_velocity.parquet` |
 
-This runs 4 DOSBox sessions and 48 training stages (4 regression pipelines × 9 models = 36, 2
-classification pipelines × 6 models = 12).
-
-Seven pipelines:
-
-| Pipeline | Stages | What it shows |
-|---|---|---|
-| `dvc.yaml` (root) | `generate`, `generate_gorillas` | the two producers |
-| `pipelines/standard_regression` | `train_raw`, `train_eng`, `filter_skewed`, `train_skewed`, `train_{skewed,balanced}_concept`, `train_leakage_{clean,leaky}`, `train_bias_variance_{under,over}fitting` | the 9-model sweep (raw and engineered features), skew/leakage/bias-variance demos — all on the switchable `training_data` pool |
-| `pipelines/standard_classification` | `train_classification` | 6 models on `hit_target`, switchable pool |
-| `pipelines/effort_regression` | `train_raw_effort`, `train_eng_effort` | the 9-model sweep, permanently on the Gorillas effort pool |
-| `pipelines/effort_classification` | `train_classification_effort` | 6 models, permanently on the Gorillas effort pool |
-| `pipelines/velocity_regression` | `train_raw_velocity`, `train_eng_velocity` | the 9-model sweep, permanently on the Gorillas velocity pool |
-| `pipelines/velocity_classification` | `train_classification_velocity` | 6 models, permanently on the Gorillas velocity pool |
-
-Models land in `experiments/…/models/model_<key>.joblib` (DVC-cached) and metrics in
-`metrics_<key>.csv` (Git-versioned, so `dvc metrics diff` works across commits) — the same
-`experiments/` layout regardless of which pipeline produced them.
+Models land in `experiments_results/…/models/model_<key>.joblib` (DVC-cached) and metrics in
+`metrics_<key>.csv` (Git-versioned, so `dvc metrics diff` works across commits).
 
 ### 3. Compare
 
@@ -226,11 +255,10 @@ pass a stage name (optionally `path/to/dvc.yaml:stage`) to see just its subgraph
 
 ### 4. Evaluate and plot
 
-The `evaluation/` scripts are run by hand — they are **not** in the DAG yet. All of them are
-self-contained now; the six `evaluate_features.py` scripts used to need the same PYTHONPATH
-wrapper the training stages used, back when they imported a run folder's `train_utils.py` --
-they now import `models.<domain>.runs.RUNS` directly, the same registry `train.py` uses, so they
-run like any other script:
+The `evaluation/` scripts are run by hand — they are **not** in the DAG. Every script that
+used to import a `RUNS` registry or a folder-local `train_utils.py` now has its handful of
+constants (`DATA`, `FEATURES`, `N_SAMPLES`, ...) inlined directly — no PYTHONPATH wrapper
+needed, every evaluation script is self-contained:
 
 ```bash
 python evaluation/regression/run_raw/predict.py
@@ -240,119 +268,130 @@ python evaluation/regression/run_raw/evaluate_features.py
 ```
 
 `predict.py` takes its inputs from a config block at the bottom of the file, including
-`model_name` — which must be a key trained in that run (`ridge` and `lasso` exist only under
-`run_skewed`).
+`model_name` — which must be a key trained in that experiment (`ridge` and `lasso` exist only
+under `experiment_skew`). `compare_models.py`'s `MODELS_TO_COMPARE` list now names
+`(domain, experiment, model)` triples (regression) or `(domain, model)` pairs
+(classification), since `experiments_results/regression/<domain>/<experiment>/` has one more
+path segment than the old `experiments/regression/<run_dir>/` did.
 
 ### 5. Running one pipeline at a time
 
-The repo owner's choice, so "run everything for effort" (or velocity, or the standard-pool
-regression sweep) is one command instead of naming stages individually. Three equivalent ways
-to run a whole pipeline:
+So "run everything for effort" (or velocity, or one experiment inside the standard-pool sweep)
+is one command instead of naming stages individually. Ways to run a whole pipeline, from the
+narrowest to the widest scope:
 
 ```bash
-cd pipelines/effort_regression && dvc repro && cd ../..     # from inside its directory
-dvc repro pipelines/effort_regression/dvc.yaml               # from the repo root, by path
-dvc repro -P                                                  # every pipeline, including this one
+cd pipelines/effort/experiment_raw && dvc repro && cd ../../..   # one experiment, from inside its directory
+dvc repro pipelines/effort/experiment_raw/dvc.yaml                 # same, from the repo root, by path
+dvc repro -R pipelines/effort                                      # every experiment under one mode
+dvc repro -P                                                        # every pipeline in the repo, including this one
 ```
 
-Two things about this pattern that are not obvious from the stage files themselves, both found
-by testing rather than assumed:
+Things about this pattern that are not obvious from the stage files themselves, all found by
+testing rather than assumed:
 
-- **Every path inside `pipelines/<name>/dvc.yaml` is `../../`-prefixed.** DVC resolves a
-  stage's `deps`/`outs`/`cmd` relative to the `dvc.yaml` that declares it, not to the repo root
-  or wherever `dvc repro` was invoked from — so `models/regression/train_knn.py` at the repo
-  root becomes `../../models/regression/train_knn.py` inside a two-levels-deep pipeline file.
-  Cross-pipeline dependencies (a stage here reading a file the root `generate_gorillas`
-  produces) need no special syntax; DVC matches them by the resolved absolute path, the same as
-  any two stages in one file.
-- **A stage's `params:` list needs the file spelled out.** The `vars:` block at the top of each
-  pipeline file (`- ../../params.yaml`) only controls `${...}` template interpolation at parse
-  time. A stage's own `params:` — the list DVC uses for staleness tracking and `dvc exp show` —
-  is a separate mechanism that otherwise defaults to a `params.yaml` **next to that dvc.yaml**,
-  which doesn't exist here. Every `params:` block in `pipelines/*/dvc.yaml` therefore names the
-  file explicitly:
+- **Every path inside `pipelines/<mode>/<experiment>/dvc.yaml` is `../../../`-prefixed.** DVC
+  resolves a stage's `deps`/`outs`/`cmd` relative to the `dvc.yaml` that declares it, not to the
+  repo root or wherever `dvc repro` was invoked from — so `models/regression/standard/
+  experiment_raw/train_knn.py` at the repo root becomes `../../../models/regression/standard/
+  experiment_raw/train_knn.py` inside a three-levels-deep pipeline file (`pipelines/<mode>/
+  <experiment>/dvc.yaml` — one directory deeper than the old one-file-per-mode layout).
+  Cross-pipeline dependencies (a stage here reading a file the root `generate_gorillas` produces)
+  need no special syntax; DVC matches them by the resolved absolute path, the same as any two
+  stages in one file.
+- **A stage's `params:` list needs the file spelled out.** The `vars:` block some pipeline
+  files carry (`- ../../../params.yaml`, only where `${training_data}` is actually
+  interpolated — see "The experiments" below) only controls `${...}` template interpolation at
+  parse time. A stage's own `params:` — the list DVC uses for staleness tracking and `dvc exp
+  show` — is a separate mechanism that otherwise defaults to a `params.yaml` **next to that
+  dvc.yaml**, which doesn't exist here. Every `params:` block in `pipelines/*/*/dvc.yaml`
+  therefore names the file explicitly:
 
   ```yaml
   params:
-    - ../../params.yaml:
+    - ../../../params.yaml:
         - test_size
-        - search.regression.${item.algorithm}.n_iter
+        - search.regression.random_forest.n_iter
   ```
 
   Leaving this implicit fails loudly and immediately (`dvc repro` errors with "Parameters
   'test_size, ...' are missing from 'params.yaml'"), rather than silently tracking nothing — so
   if you add a `params:` entry and see that error, this is why.
 
-- **`python -m package.module` needs `scripts/run_with_pythonpath.py` too, for a different
-  reason than the script-path stages do.** `-m` resolves its dotted module path against the
-  *current working directory*, and DVC always runs `cmd:` with the working directory set to
-  wherever the calling `dvc.yaml` lives — `pipelines/effort_regression/`, not the repo root — so
-  a bare `python -m models.regression.train ...` there fails immediately with
-  `ModuleNotFoundError: No module named 'models'`. Every `-m` invocation in `pipelines/*/dvc.yaml`
-  therefore also goes through the wrapper, with `../..` (the repo root) as its PYTHONPATH
-  argument: `python ../../scripts/run_with_pythonpath.py ../.. -m models.regression.train ...`.
-  Confirmed by testing: this is exactly how the mistake surfaced.
+- **`python -m package.module` needs `scripts/run_with_pythonpath.py`, for a different
+  reason than a script-path invocation would.** `-m` resolves its dotted module path against
+  the *current working directory*, and DVC always runs `cmd:` with the working directory set to
+  wherever the calling `dvc.yaml` lives — `pipelines/effort/experiment_raw/`, not the repo root
+  — so a bare `python -m models.regression.effort.experiment_raw.train_random_forest` there
+  fails immediately with `ModuleNotFoundError: No module named 'models'`. Every `cmd:` in
+  `pipelines/*/*/dvc.yaml` therefore goes through the wrapper, with `../../..` (the repo root,
+  three levels up) as its PYTHONPATH argument: `python ../../../scripts/run_with_pythonpath.py
+  ../../.. -m models.regression.effort.experiment_raw.train_random_forest`. Note the two
+  different relative depths in the same line — the wrapper script itself is a `deps`/`cmd`-style
+  path (`../../../`), the PYTHONPATH argument after it is a plain relative directory reference
+  (`../../..`) — both point three levels up, they're just spelled by two different conventions.
+  This is the **only** invocation shape in the repo — every experiment script, everywhere, uses it.
 
 - **Not every script resolves its own `--out`-style arguments the same way.** Most `deps`/`outs`
-  paths in `pipelines/*/dvc.yaml` are `../../`-prefixed because DVC resolves them relative to the
-  dvc.yaml itself (the first bullet above). `data_generation/filter_skewed.py`'s `--out` and
-  `--holdout-out` arguments are different: `data_generation/io.py`'s `resolve_output()` anchors a
-  relative path to its own hardcoded repo root (`Path(__file__).resolve().parent.parent`), not to
-  CWD — so passing it a `../../`-prefixed path double-resolves and writes two directories *above*
-  the repo root. `filter_skewed`'s `cmd:` in `pipelines/standard_regression/dvc.yaml` passes bare
-  `data/...` paths for exactly this reason. Confirmed by testing: the `../../`-prefixed form ran
-  without error and silently wrote outside the repo entirely.
+  paths in `pipelines/*/*/dvc.yaml` are `../../../`-prefixed because DVC resolves them relative
+  to the dvc.yaml itself (the first bullet above). `data_generation/filter_skewed.py`'s `--out`
+  and `--holdout-out` arguments are different: `data_generation/io.py`'s `resolve_output()`
+  anchors a relative path to its own hardcoded repo root (`Path(__file__).resolve().parent.
+  parent`), not to CWD — so passing it a `../../../`-prefixed path double-resolves and writes
+  outside the repo. `filter_skewed`'s `cmd:` in `pipelines/standard/experiment_skew/dvc.yaml`
+  passes bare `data/...` paths for exactly this reason. Confirmed by testing: the prefixed form
+  ran without error and silently wrote outside the repo entirely.
 
 `dvc dag` (no `-P` needed — see "3. Compare") and `dvc stage list` both work the same way run
 from any pipeline's own directory, scoped to just that file, or from the repo root against
-`pipelines/<name>/dvc.yaml:<stage>`.
+`pipelines/<mode>/<experiment>/dvc.yaml:<stage>`. `dvc stage list --all -R pipelines/<mode>`
+scopes to one mode's experiments without listing every other mode too.
 
 ---
 
 ## The experiments — what to change to show what
 
-Everything below is one edit in `params.yaml`, or one `--set-param`, and nothing else. Every
-`dvc exp run`/`dvc repro` in this section targets a stage that now lives under `pipelines/`
-(see "5. Running one pipeline at a time" above) — run it from inside that pipeline's directory,
-or prefix the target with its path from the repo root
-(`pipelines/standard_regression/dvc.yaml:train_raw`). Most examples below are
-`pipelines/standard_regression` or `pipelines/standard_classification`; noted where it differs.
-
 **Which dataset?** Two different mechanisms, depending on which comparison you want:
 
-- **Switchable pool** (`pipelines/standard_regression` or `pipelines/standard_classification`)
-  — `training_data: standard_training_data` → `gorillas_effort_regression` (or
-  `gorillas_velocity_regression`) retargets `train_raw`/`train_eng`/`train_classification` at a
-  different pool without touching any other file. This is the headline comparison: the same
-  models on clean simulated data versus data from a real game with an unobserved confounder.
+- **Switchable pool** (`pipelines/standard` only) — `training_data: standard_velocity` →
+  any other generated pool name retargets `train_raw_<model>`/`train_eng_<model>`/
+  `train_classification_<model>` at it without touching any other file. This is the headline
+  comparison: the same models on clean simulated data versus data from a real game with an
+  unobserved confounder.
 
   ```bash
-  cd pipelines/standard_regression
-  dvc exp run --set-param training_data=gorillas_effort_regression --set-param n_samples=5000
+  dvc exp run -R pipelines/standard --set-param training_data=gorillas_effort --set-param n_samples=5000
   ```
 
+  `training_data`/`n_samples` are read across six separate files now
+  (`experiment_raw`, `experiment_eng`, `experiment_classification`, `experiment_skew`,
+  `experiment_leakage`, `experiment_bias_variance`) rather than one shared `dvc.yaml`, so `-R
+  pipelines/standard` (discover every stage under that directory) replaces `cd`-ing into a
+  single file's directory — `--set-param` still only needs saying once; it updates
+  `params.yaml` and every stage that reads the changed keys goes stale together, regardless of
+  which of the six files it's in.
+
   `n_samples` must be set too — a Gorillas pool holds 5,000 rows, and a sample size the pool
-  cannot honour is an error rather than a silent truncation, because silently training on 5,000
-  would make the run incomparable with every other size tier. Note `training_data` doesn't
-  distinguish regression from classification purpose — a classification stage reading
-  `gorillas_effort_regression` still trains on `hit_target` fine, since both targets live in
-  every pool. The `_regression`/`_classification` split only matters for the four **permanent**
-  Gorillas pools below.
+  cannot honour is an error rather than a silent truncation.
 
-- **Permanent pipelines** (`pipelines/effort_regression`, `pipelines/velocity_regression`, and
-  their classification counterparts) — always exist on disk; no `--set-param` needed to compare
-  them, just `dvc exp show` or read both `experiments/.../run_raw_effort/` and
-  `.../run_raw_velocity/` directly.
+- **Permanent pipelines** (`pipelines/effort`, `pipelines/velocity`) — always exist on disk;
+  no `--set-param` needed to compare them, just `dvc exp show` or read both
+  `experiments_results/.../standard/experiment_raw/` and `.../effort/experiment_raw/` directly.
 
-**Does more data help?** `n_samples: 40000`. Tiers are nested prefixes of one pre-shuffled
-pool, so growing it is the only thing that changes. (`pipelines/standard_regression`.)
+**Does more data help?** `experiment_row_count/` (all three modes, both `models/regression/`
+and `models/classification/`) — one script per model sweeps 6 sample-size tiers internally and
+writes one metrics row per tier, so the whole learning curve is in one file, no `--set-param`
+sweep needed. Tiers differ by mode, matched to each pool's actual size: `standard`'s tiers are
+`[1000, 2000, 5000, 10000, 20000, 50000]` (the 50,000-row physics pool); `effort`'s/
+`velocity`'s are `[500, 1000, 2000, 3000, 4000, 5000]` (the Gorillas pool is only 5,000 rows —
+`pandas.iloc[:n]` silently returns fewer rows than asked rather than raising, so a tier list
+sized for the bigger pool would silently duplicate its largest tiers instead of erroring).
+(`params.yaml: n_samples` still exists too, for shrinking `experiment_raw`/`experiment_eng`/
+`experiment_classification`'s single-size runs — a `dvc exp run --set-param n_samples=...`
+sweep across those is a second, coarser way to see the same trend.)
 
-```bash
-cd pipelines/standard_regression
-dvc exp run --set-param n_samples=10000 && dvc exp run --set-param n_samples=20000
-```
-
-**Raw or engineered features?** `train_raw` vs `train_eng`. Same data, same models; the only
+**Raw or engineered features?** `experiment_raw/` vs `experiment_eng/` (regression only —
+classification always uses the engineered feature set). Same data, same models; the only
 difference is the first step of the Pipeline.
 
 **Does cleaning help?** `clean` in `dvc_models_regression.yaml` — `""`, `"range"` or `"no_outlier"`.
@@ -362,14 +401,16 @@ difference is the first step of the Pipeline.
 > discards genuine headwind landings — 727 of the 964 rows it drops. As it stands, the range
 > demo mostly removes *real* data. See task 13b in `AUDIT.md`.
 
-**Leakage:** `train_leakage_clean` vs `train_leakage_leaky`.
+**Leakage:** `models/regression/standard/experiment_leakage/train_clean.py` vs `train_leaky.py`.
 
-**Overfitting:** `train_bias_variance_underfitting` vs `…_overfitting`, or the
-`decision_tree_overfit` model — the same algorithm with no depth limit.
+**Overfitting:** `experiment_bias_variance/train_underfitting.py` vs `train_overfitting.py`, or
+the `decision_tree_overfit` model in `experiment_raw`/`experiment_eng` — the same algorithm
+with no depth limit and no split at all.
 
-**Distribution shift:** `train_skewed` trains on a low-angle slice only (`skew.max_angle_deg`),
-and `filter_skewed` keeps the excluded rows as `data/skewed_holdout.parquet` — so the claim is
-measured on angles the model never saw, not on a test set that shares its blind spot:
+**Distribution shift:** `experiment_skew/` trains 9 models on a low-angle slice only
+(`skew.max_angle_deg`), and `filter_skewed` keeps the excluded rows as
+`data/skewed_holdout.parquet` — so the claim is measured on angles the model never saw, not on
+a test set that shares its blind spot:
 
 | | in-distribution MAE | holdout MAE | |
 |---|---|---|---|
@@ -377,21 +418,21 @@ measured on angles the model never saw, not on a test set that shares its blind 
 | balanced | 7.530 | 6.234 | 0.8× — no penalty |
 
 Note the inversion: the narrow model looks *better* in-distribution precisely because its test set
-has the same hole. `train_balanced_concept` is the control — same architecture, same split, and
+has the same hole. `train_balanced_concept.py` is the control — same architecture, same split, and
 sized by reading the skewed run's row count. Beyond the training range a linear model keeps
 extrapolating while a forest flatlines at its boundary leaf mean, which is why `ridge` and `lasso`
-appear in `skewed_models` and nowhere else.
+appear in `experiment_skew/` and nowhere else.
 
 ```bash
-cd pipelines/standard_regression
+cd pipelines/standard/experiment_skew
 dvc exp run --set-param skew.max_angle_deg=40    # move the cap; both runs follow
 ```
 
 **Class imbalance:** run any classification stage against a Gorillas pool — either
-`pipelines/standard_classification` with `--set-param training_data=gorillas_effort_classification`,
-or one of the two permanent Gorillas classification pipelines directly. The hit rate is ~7%, so
-predicting "miss" every time scores ~93%. The metrics report leads with precision/recall/PR-AUC
-and prints the always-miss baseline beside accuracy:
+`pipelines/standard` with `--set-param training_data=gorillas_effort`, or `pipelines/effort`/
+`pipelines/velocity` directly. The hit rate is ~7% on a real game pool, so predicting "miss"
+every time scores ~93%. The metrics report leads with precision/recall/PR-AUC and prints the
+always-miss baseline beside accuracy:
 
 ```
   Precision : 0.3043
@@ -412,21 +453,22 @@ otherwise.
 `dvc_models_regression.yaml` states its rule at the top, so a gap reads as a decision rather
 than an oversight. The sweep is seven regression algorithms — `linear_regression`,
 `decision_tree`, `knn`, `polynomial`, `random_forest`, `mlp`, `xgboost` — each appearing **once
-per run** with the default cleaning. There are exactly three deviations, each carrying its
+per experiment** with the default cleaning. There are exactly three deviations, each carrying its
 reason in the file: `decision_tree_overfit`, `random_forest_no_outlier`, and `ridge`/`lasso` in
-`skewed_models` only. `dvc_models_classification.yaml` holds the classification sweep — the
+`experiment_skew` only. `dvc_models_classification.yaml` holds the classification sweep — the
 same seven minus `polynomial`, for which there is no classifier script.
 
-Both files drive every run of their domain — `regression_models` feeds `train_raw`, `train_eng`
-**and** the four permanent Gorillas regression groups; `classification_models` feeds
-`train_classification` and its two permanent Gorillas groups. Add a model once, it appears
-everywhere that domain trains.
+Both files no longer drive a `foreach` stage the way they used to — `experiment_raw/`,
+`experiment_eng/` and `experiment_classification/` each have one standalone script per model
+instead. What the matrix files still do: name the valid model keys and each one's cleaning
+variant (`clean:`), which `params.yaml`'s `search.<domain>.<model>` block every script reads its
+search budget from. **Adding a model to the matrix file alone does nothing anymore** — you also
+need the actual `train_<model>.py` script in every experiment folder you want it to appear in
+(see "Adding experiments and data" below).
 
 ---
 
 ## Adding experiments and data to the pipeline
-
-Four things you might want to add, roughly cheapest to most involved.
 
 ### 1. A new dataset variant, same generation logic
 
@@ -437,6 +479,7 @@ datasets:
   my_new_pool:
     n: 50000
     seed: 7
+    input_mode: VELOCITY      # or EFFORT
     elevation_mean: 45.0
     elevation_std: 20.0
     hit_tolerance: 5.0
@@ -457,18 +500,15 @@ gorillas_datasets:
 
 The root `dvc.yaml`'s `generate` / `generate_gorillas` `foreach` stages pick up the new key
 automatically — no `dvc.yaml` edit needed. It becomes `generate@my_new_pool` /
-`generate_gorillas@my_gorillas_pool`, independently cached. Train on it either by pointing the
-switchable pool at it (`--set-param training_data=my_new_pool`, from
-`pipelines/standard_regression` or `standard_classification`) or, if it needs its own permanent
-pipeline, see §4.
+`generate_gorillas@my_gorillas_pool`, independently cached. Train on it by pointing the
+switchable pool at it (`--set-param training_data=my_new_pool`, from `pipelines/standard`
+only) — a new permanent mode pipeline (like `effort`/`velocity`) is more work; see §4.
 
-### 2. A new algorithm in an existing sweep
+### 2. A new algorithm in an existing experiment
 
 Write `models/regression/algorithms/<name>.py` (or `models/classification/algorithms/<name>.py`)
-exposing `NAME` and a `fit()` function — everything common to every algorithm (loading, the
-group-aware split, computing CV folds, printing/saving metrics, saving the model) lives once in
-`models/<domain>/train.py`; a module here owns only what actually differs: the estimator, its
-Pipeline shape, its search space, and how it searches.
+exposing `NAME` and a `fit()` function — this part is unchanged and still the one shared,
+DRY piece:
 
 ```python
 # models/regression/algorithms/my_algorithm.py
@@ -490,112 +530,90 @@ def fit(X_train, y_train, feature_step, search_cfg):
 ```
 
 (Classification's `fit(X_train, y_train, search_cfg)` has no `feature_step` — every
-classification run uses the same engineered features.) Not every algorithm searches:
+classification experiment uses the same engineered features.) Not every algorithm searches:
 `ridge.py`/`lasso.py` use a `*CV` meta-estimator with no external wrapper, and
-`linear_regression.py` doesn't search at all — see those three for the pattern if yours doesn't
-either.
+`linear_regression.py` doesn't search at all — see those three for the pattern if yours
+doesn't either.
 
-Register it in `models/regression/algorithms/__init__.py`'s `ALGORITHMS` dict, and add an entry
-to `dvc_models_regression.yaml` or `dvc_models_classification.yaml`:
+Register it in `models/regression/algorithms/__init__.py`'s `ALGORITHMS` dict, add an entry to
+`dvc_models_regression.yaml`/`dvc_models_classification.yaml` (for the search-budget key and
+cleaning variant), and add its search budget to `params.yaml`'s `search:` block
+(`{n_iter: null, cv: null}` if it doesn't search).
 
-```yaml
-regression_models:
-  my_algorithm: {algorithm: my_algorithm, clean: ""}
-```
+**Then write the actual script(s)** — unlike the old `train.py`/`runs.py` system, registering a
+model in the matrix file no longer makes it appear anywhere by itself. Copy an existing
+`train_<model>.py` in the experiment folder you want it in (e.g.
+`models/regression/standard/experiment_raw/train_random_forest.py`) and swap the algorithm
+import/`KEY`/`NAME` references. Then add its DVC stage to that pipeline's `dvc.yaml`, copied
+from a sibling stage block with the model name swapped throughout (`cmd:`, every `deps:`/
+`outs:`/`metrics:` path, and the `search.<domain>.<name>` params keys).
 
-Add its search budget to `params.yaml`'s `search:` block (`{n_iter: null, cv: null}` if it
-doesn't search). It now appears in **every stage, in every pipeline,** that expands
-`${regression_models}` — `train_raw`/`train_eng` in `pipelines/standard_regression`, and the
-four permanent Gorillas regression pipelines — with no further edits. That fan-out is the point
-of keeping one matrix file per domain, loaded by every pipeline of that domain's `vars:` block
-(§ "The model matrix").
-
-**Switching a model off** is the same file, the other direction: comment out (or delete) its
-entry in `dvc_models_regression.yaml` / `dvc_models_classification.yaml`.
-
-```yaml
-regression_models:
-  linear_regression:  {algorithm: linear_regression, clean: ""}
-  # decision_tree:     {algorithm: decision_tree,     clean: ""}
-  knn:                {algorithm: knn,               clean: ""}
-```
-
-No other file changes — there's no separate `enabled: false` flag, presence in the matrix *is*
-the switch. This drops the model from every pipeline of that domain at once (the same fan-out
-that added it), so a commented-out `decision_tree` disappears from `train_raw`, `train_eng` and
-all four Gorillas regression pipelines together, not one at a time. Confirm with:
+**Switching a model off** is simpler than adding one: delete (or comment out) its stage block
+in the relevant `pipelines/<mode>/<experiment>/dvc.yaml`. Confirm with:
 
 ```bash
-dvc stage list --all | grep decision_tree      # --all for every pipeline; should print nothing once it's off
+dvc stage list --all | grep my_algorithm      # --all for every pipeline; should print nothing once it's off
 ```
+
+This only removes it from *that* experiment/pipeline — a model can exist in `experiment_raw`
+but not `experiment_eng`, or in `pipelines/standard` but not `pipelines/effort`, with no extra
+mechanism needed (there's no shared matrix stage to keep in sync anymore, unlike before). There
+is no single switch that turns a model off everywhere at once — that's the deliberate tradeoff
+for "no dispatch to trace, one file per model."
 
 Two things this does **not** do:
 
-- **It doesn't delete anything already produced.** `experiments/.../model_decision_tree.joblib`
+- **It doesn't delete anything already produced.** `experiments_results/.../model_<name>.joblib`
   and its metrics stay on disk — DVC only manages stages it currently knows about, not history.
   Remove them by hand, or `dvc gc` once you're sure you don't want to switch it back on.
-- **It doesn't disable one model in one group only.** To keep an algorithm in `train_raw` but
-  drop it from `train_eng` (or vice versa), that's no longer "the same model, different run" —
-  give it a second matrix entry with a different key (`decision_tree_engonly`, say) and only
-  reference that key from the stage you want, the same way `random_forest_no_outlier` exists
-  alongside plain `random_forest` today.
 
 ### 3. A new evaluation/plotting script
 
 Not yet part of the DAG (`evaluation/` is run by hand — see "Known state"). Follow an existing
-script's pattern for the run you're targeting; if it needs a run's config (which pool, which
-features), import `models.<domain>.runs.RUNS` the same way `evaluate_features.py` does rather
-than reading a `train_utils.py` -- no PYTHONPATH wrapper needed, every evaluation script is
-self-contained:
+script's pattern for the experiment you're targeting; every evaluation script is self-contained
+now (its own `DATA`/`FEATURES`/`N_SAMPLES` constants, no shared registry to import):
 
 ```bash
 python evaluation/regression/run_raw/my_script.py
 ```
 
-### 4. A new standalone pipeline
+### 4. A new experiment folder (e.g. a new demo, mirroring `experiment_skew`)
 
-For when a dataset should always have its own dedicated, always-on-disk model group, reached by
-`cd`-ing into its own directory or `dvc repro -P`, rather than through the switchable
-`training_data` pool. This is more work than §1–3, but every piece already has a template to
-copy — it's exactly how `pipelines/effort_regression` was built. Using it as the worked
-example:
+For a new standalone experiment — its own dataset slice or view, its own set of standalone
+per-model scripts, its own `experiments_results/.../` output directory. This is more work than
+§1–3, but `models/regression/standard/experiment_skew/` and
+`models/regression/*/experiment_row_count/` are full worked examples to copy from.
 
-1. **Dataset** — an entry in `dvc_datasets.yaml` (§1). Give it its own name; don't reuse a name
-   another pipeline already owns, since these files are meant to be permanent, not overwritten.
-2. **Run config** — an entry in `models/<domain>/runs.py`'s `RUNS` dict, not a new file: `data`
-   (the new pool's path), `models_dir`, `features` (for regression: `RAW_FEATURES` or
-   `ENG_FEATURES`), and `n_samples` — `None` trains on the whole pool, a number prefix-slices it
-   (and must not exceed the pool's row count, or `params.take_samples` raises rather than
-   silently truncating). One entry per feature set the new pipeline needs (`raw`/`eng` if it's a
-   regression pipeline with both).
-3. **Pipeline file** — `pipelines/<new_name>/dvc.yaml`, copied from
-   `pipelines/effort_regression/dvc.yaml`. Four things to get right, all found by testing this
-   pattern rather than assumed (see "5. Running one pipeline at a time" for the reasoning):
-   - `vars:` loads `../../dvc_models_regression.yaml` (or `_classification.yaml`) and
-     `../../params.yaml` — two levels up, since the new file lives two directories under the
-     repo root.
-   - Every `deps`/`outs`/`cmd` path gets the same `../../` prefix.
-   - Every `params:` block names `../../params.yaml` explicitly (`- ../../params.yaml:` then
-     the key list) — the bare-key form silently looks for a `params.yaml` next to the new
-     `dvc.yaml`, which doesn't exist, and fails with "Parameters '...' are missing from
-     'params.yaml'".
-   - `cmd:` routes `python -m models.<domain>.train ...` through
-     `../../scripts/run_with_pythonpath.py ../..` -- `-m` resolves against the working
-     directory, which DVC sets to the pipeline's own folder, not the repo root, so a bare `-m`
-     invocation fails with `ModuleNotFoundError: No module named 'models'`.
-   - `decision_tree_overfit` needs its own explicit stage (see
-     `pipelines/effort_regression/dvc.yaml`'s `train_raw_effort_decision_tree_overfit`) if the
-     new pipeline is a regression one -- it isn't part of `${regression_models}` (different
-     script, different control flow), so it doesn't come along with the foreach block.
-4. **Run it**: `cd pipelines/<new_name> && dvc repro`, or `dvc repro pipelines/<new_name>/dvc.yaml`
-   from the repo root.
+1. **A folder**: `models/<domain>/<mode>/experiment_<name>/`, with an `__init__.py` and one
+   `train_<model>.py` per model you want in it. Each script is self-contained: explicit `DATA`
+   path, explicit `MODELS_DIR` (under `experiments_results/<domain>/<mode>/experiment_<name>/
+   models/`), a `main()` that loads data (`models/<domain>/common/loader.py`), splits
+   (`splitting.py`, `stratify=True` for classification), calls the shared
+   `algorithms/<model>.py`'s `fit()`, and saves the model + metrics.
+2. **A pipeline file**: `pipelines/<mode>/experiment_<name>/dvc.yaml` — one file per
+   {mode, experiment}, mirroring the `models/` folder from step 1. No `foreach`, since each
+   model is already its own script; one explicit stage per model. Copy `pipelines/standard/
+   experiment_skew/dvc.yaml` for the exact stage shape (`cmd:` routes through
+   `../../../scripts/run_with_pythonpath.py ../../.. -m models.<domain>.<mode>.
+   experiment_<name>.train_<model>` — note both relative depths are 3 levels, since this file
+   lives three directories under the repo root; `deps:` needs the script itself,
+   `algorithms/<model>.py`, `common/loader.py`, `feature_engineering.py`, `splitting.py`, and
+   the data file; `outs:`/`metrics:` point at `experiments_results/<domain>/<mode>/
+   experiment_<name>/models/`). If the new experiment needs BOTH a regression and a
+   classification version bundled in one file (as `experiment_row_count` does), give the two
+   domains' stage names a distinguishing prefix — regression and classification share several
+   algorithm names (`decision_tree`, `knn`, `random_forest`, `mlp`, `xgboost`), and DVC rejects
+   duplicate stage names in one file with no other warning (see
+   `train_row_count_classification_<domain>_<model>` vs. `train_row_count_<domain>_<model>` for
+   the precedent).
+3. **Run it**: `dvc repro pipelines/<mode>/experiment_<name>/dvc.yaml:train_<name>_<model>` for
+   one script, `cd pipelines/<mode>/experiment_<name> && dvc repro` for everything in that one
+   experiment, or `dvc repro -R pipelines/<mode>` for every experiment in that mode.
 
-That's the whole pattern — six pipeline files this way (four regression, two classification) is
-what took the DAG from 43 to 93 stages for the effort/velocity split. Worth checking
-`dvc stage list` from inside the new directory after adding one, and a real (non-`--dry`) run of
-a single cheap stage before trusting the rest — `--dry` cannot distinguish "this cross-pipeline
-dependency doesn't exist yet" from "this path is wrong," since it never executes the upstream
-stage that would create the file.
+Worth checking `dvc dag --full` after adding stages (a parse error names the exact stage and
+line), and a real (non-`--dry`) run of one cheap stage before trusting the rest — `--dry`
+cannot distinguish "this cross-pipeline dependency doesn't exist yet" from "this path is
+wrong," since it never executes the upstream stage that would create the file.
 
 ---
 
@@ -611,20 +629,29 @@ version produced results that looked fine and were not.
 | `GameRunFailed: N worker(s) hit the timeout` | A half-written CSV would make the dataset depend on machine speed rather than `--seed` | Raise `--timeout`, lower `--boards-per-chunk`, or pass `--allow-partial` to accept a non-reproducible run |
 | `DosboxNotFound` | DOSBox is not installed or not where it's looked for | Install DOSBox Staging, or set `GORILLAS_DOSBOX` |
 | `UnreachableRangeError` | A sampling distribution in `dvc_datasets.yaml` mostly or never lands in its valid range | Fix the distribution. A *rarely*-reachable range warns instead, saying the accepted values are a truncated tail rather than what you configured |
+| `NonTerminatingShotError` | A rare combination (very low gravity-outlier draw + high launch angle) exceeds `physics.simulate_landing`'s `max_time` — a real, known-rare simulator edge case, not specific to either input mode | Try a different seed for that dataset entry in `dvc_datasets.yaml` (e.g. `standard_effort` uses seed 47, not 43, for exactly this reason) |
 
 ---
 
 ## Known state
 
 `AUDIT.md` is a full audit of this repo with a numbered plan; it is the authoritative record
-of what is and isn't done, and it carries an implementation log. Currently open and worth
+of what is and isn't done, and it carries an implementation log — read tasks 40/41/42/43 there
+for the full story behind today's restructuring (real EFFORT mode, `pipelines/` cut from six
+files to three then reshaped one-per-mode then split again to one `dvc.yaml` per {mode,
+experiment}, every matrix-driven stage converted to one script per model, and a same-day
+reversal of a cross-source join that briefly existed between task 40 and task 43 — standard and
+Gorillas pools are trained on separately, by design, not merged). Currently open and worth
 knowing about:
 
-- **The pipeline has never been fully reproduced, and now has seven separate lock files** — one
-  per `dvc.yaml` (root + six under `pipelines/`), each tracking only its own stages. Currently:
-  `pipelines/effort_regression/dvc.lock` covers 1 of 93 stages (`train_raw_effort@linear_regression`,
-  verified while building the `pipelines/` split); the root `dvc.lock` and the other five are
-  absent. Task 12.
+- **`data/gorillas_velocity.parquet` has not been generated in every environment this repo has
+  been touched from** — DOSBox isn't available everywhere. `data/gorillas_effort.parquet` does
+  exist in at least one environment this session used, and confirmed two `pipelines/effort/*`
+  stages run for real against it; the velocity side is wired and `--dry`-verified only. A real
+  `dvc repro -P` on a machine with DOSBox for both modes is still needed to call this fully
+  proven end to end.
+- **The pipeline has never been fully reproduced on one machine**, and now has 16 separate
+  lock files — one per `dvc.yaml`, each tracking only its own stages. Task 12.
 - **Pre-split cleaning leaks** in the regression loader — IQR quantiles over the whole pool,
   and row filtering on the target. Task 14.
 - **`clean: "range"` discards valid data**, as above. Task 13b.

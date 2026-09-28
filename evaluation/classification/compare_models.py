@@ -9,12 +9,17 @@ REPO_ROOT = os.path.join(HERE, "..", "..")
 
 # ── Config ────────────────────────────────────────────────────────────────────
 MODELS_TO_COMPARE = [
-    # (run_dir, model_name)  -- vary n_samples via `dvc exp run --set-param
-    # n_samples=...` for the convergence comparison instead of separate
-    # per-size directories.
-    ("run",  "decision_tree"),
-    # ("run",  "random_forest"),
-    # ("run",  "mlp"),
+    # (domain, model_name) -- domain is "standard"/"effort"/"velocity"; each
+    # reads models/classification/<domain>/experiment_classification/. Vary
+    # n_samples via `dvc exp run --set-param n_samples=...` for the standard
+    # domain's convergence comparison instead of separate per-size
+    # directories (or see experiment_row_count/, which sweeps that
+    # internally and writes one metrics row per tier).
+    ("standard", "decision_tree"),
+    # ("standard", "random_forest"),
+    # ("standard", "mlp"),
+    # ("effort",   "random_forest"),
+    # ("velocity", "random_forest"),
 ]
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -26,19 +31,20 @@ _COLORS = [
 
 def load_metrics():
     records = []
-    for run, model in MODELS_TO_COMPARE:
-        path = os.path.join(REPO_ROOT, "experiments", "classification", run, "models", f"metrics_{model}.csv")
+    for domain, model in MODELS_TO_COMPARE:
+        path = os.path.join(REPO_ROOT, "experiments_results", "classification", domain, "experiment_classification", "models", f"metrics_{model}.csv")
+        label = f"{domain}/{model}"
         if not os.path.isfile(path):
-            print(f"  [skip] {run}/{model}: metrics file not found (train first)")
+            print(f"  [skip] {label}: metrics file not found (train first)")
             continue
         try:
             row = pd.read_csv(path).iloc[0].to_dict()
         except Exception as e:
             print(f"  [warn] Could not read {path}: {e}")
             continue
-        row["label"] = f"{run}/{model}"
-        row["run"]   = run
-        row["model"] = model
+        row["label"]  = label
+        row["domain"] = domain
+        row["model"]  = model
         records.append(row)
     return pd.DataFrame(records)
 

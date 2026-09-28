@@ -2,18 +2,19 @@
 columns from the pool it's pointed at and cleans/splits them -- it never
 derives wind_x_ms/drag_param/height_diff_m itself.
 
-The raw-vs-engineered contrast (raw/eng runs) lives entirely in the model's
-sklearn Pipeline: models/regression/runs.py's RunConfig.features picks the 9
-raw columns or the 5 engineered ones, and models/regression/train.py builds
-`("features", EngineeredFeatures(output_columns=cfg.features))` from whichever
-list -- same raw input, different first Pipeline step, one place that knows
-how to build it.
+The raw-vs-engineered contrast (raw/eng scripts) lives entirely in the
+model's sklearn Pipeline: each `experiment_raw`/`experiment_eng` script
+builds `("features", EngineeredFeatures(output_columns=RAW_FEATURES_or_
+ENG_FEATURES))` -- same raw input, different first Pipeline step, built
+explicitly in the one script that trains that model on that scheme (see
+models/regression/standard/experiment_raw/train_linear_regression.py).
 
 `clean` and `model_name` are explicit parameters, not environment variables
 (TRAIN_CLEAN / TRAIN_MODEL_NAME) -- the previous design read them out of
 os.environ because the injected-PYTHONPATH call chain had no other way to
-pass per-run values into a shared script. train.py calls this module directly
-and can just pass them (AUDIT.md C1 / the run_*/train_utils.py cleanup).
+pass per-run values into a shared script (AUDIT.md C1 / the run_*/
+train_utils.py cleanup). Every `models/<domain>/<mode>/experiment_<name>/
+train_<model>.py` script calls this module directly and just passes them.
 """
 import csv as _csv
 import os

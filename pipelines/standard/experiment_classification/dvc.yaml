@@ -1,0 +1,146 @@
+# experiment_classification: the 6-model classification sweep, on the
+# switchable ${training_data} pool.
+#
+# All paths below are ../../../-prefixed -- this file lives three levels
+# under the repo root (pipelines/<mode>/<experiment>/dvc.yaml). See the
+# top-level README's "Running one pipeline at a time" section for the full
+# explanation of this repo's cross-pipeline-dependency / relative-path /
+# explicit-params.yaml conventions -- unchanged from the previous
+# one-file-per-mode layout, just one directory deeper.
+
+vars:
+  - ../../../params.yaml
+
+stages:
+
+  train_classification_logistic_regression:
+    cmd: python ../../../scripts/run_with_pythonpath.py ../../.. -m models.classification.standard.experiment_classification.train_logistic_regression
+    deps:
+      - ../../../data/standard_velocity.parquet
+      - ../../../models/classification/standard/experiment_classification/train_logistic_regression.py
+      - ../../../models/classification/algorithms/logistic_regression.py
+      - ../../../models/classification/common/loader.py
+      - ../../../feature_engineering.py
+      - ../../../splitting.py
+    params:
+      - ../../../params.yaml:
+          - n_samples
+          - test_size
+          - search.classification.logistic_regression.n_iter
+          - search.classification.logistic_regression.cv
+    outs:
+      - ../../../experiments_results/classification/standard/experiment_classification/models/model_logistic_regression.joblib
+    metrics:
+      - ../../../experiments_results/classification/standard/experiment_classification/models/metrics_logistic_regression.csv:
+          cache: false
+
+  train_classification_decision_tree:
+    cmd: python ../../../scripts/run_with_pythonpath.py ../../.. -m models.classification.standard.experiment_classification.train_decision_tree
+    deps:
+      - ../../../data/standard_velocity.parquet
+      - ../../../models/classification/standard/experiment_classification/train_decision_tree.py
+      - ../../../models/classification/algorithms/decision_tree.py
+      - ../../../models/classification/common/loader.py
+      - ../../../feature_engineering.py
+      - ../../../splitting.py
+    params:
+      - ../../../params.yaml:
+          - n_samples
+          - test_size
+          - search.classification.decision_tree.n_iter
+          - search.classification.decision_tree.cv
+    outs:
+      - ../../../experiments_results/classification/standard/experiment_classification/models/model_decision_tree.joblib
+    metrics:
+      - ../../../experiments_results/classification/standard/experiment_classification/models/metrics_decision_tree.csv:
+          cache: false
+
+  train_classification_knn:
+    cmd: python ../../../scripts/run_with_pythonpath.py ../../.. -m models.classification.standard.experiment_classification.train_knn
+    deps:
+      - ../../../data/standard_velocity.parquet
+      - ../../../models/classification/standard/experiment_classification/train_knn.py
+      - ../../../models/classification/algorithms/knn.py
+      - ../../../models/classification/common/loader.py
+      - ../../../feature_engineering.py
+      - ../../../splitting.py
+    params:
+      - ../../../params.yaml:
+          - n_samples
+          - test_size
+          - search.classification.knn.n_iter
+          - search.classification.knn.cv
+    outs:
+      - ../../../experiments_results/classification/standard/experiment_classification/models/model_knn.joblib
+    metrics:
+      - ../../../experiments_results/classification/standard/experiment_classification/models/metrics_knn.csv:
+          cache: false
+
+  train_classification_random_forest:
+    cmd: python ../../../scripts/run_with_pythonpath.py ../../.. -m models.classification.standard.experiment_classification.train_random_forest
+    deps:
+      - ../../../data/standard_velocity.parquet
+      - ../../../models/classification/standard/experiment_classification/train_random_forest.py
+      - ../../../models/classification/algorithms/random_forest.py
+      - ../../../models/classification/common/loader.py
+      - ../../../feature_engineering.py
+      - ../../../splitting.py
+    params:
+      - ../../../params.yaml:
+          - n_samples
+          - test_size
+          - search.classification.random_forest.n_iter
+          - search.classification.random_forest.cv
+    outs:
+      - ../../../experiments_results/classification/standard/experiment_classification/models/model_random_forest.joblib
+    metrics:
+      - ../../../experiments_results/classification/standard/experiment_classification/models/metrics_random_forest.csv:
+          cache: false
+
+  train_classification_mlp:
+    cmd: python ../../../scripts/run_with_pythonpath.py ../../.. -m models.classification.standard.experiment_classification.train_mlp
+    deps:
+      - ../../../data/standard_velocity.parquet
+      - ../../../models/classification/standard/experiment_classification/train_mlp.py
+      - ../../../models/classification/algorithms/mlp.py
+      - ../../../models/classification/common/loader.py
+      - ../../../feature_engineering.py
+      - ../../../splitting.py
+    params:
+      - ../../../params.yaml:
+          - n_samples
+          - test_size
+          - search.classification.mlp.n_iter
+          - search.classification.mlp.cv
+    outs:
+      - ../../../experiments_results/classification/standard/experiment_classification/models/model_mlp.joblib
+    metrics:
+      - ../../../experiments_results/classification/standard/experiment_classification/models/metrics_mlp.csv:
+          cache: false
+
+  train_classification_xgboost:
+    cmd: python ../../../scripts/run_with_pythonpath.py ../../.. -m models.classification.standard.experiment_classification.train_xgboost
+    deps:
+      - ../../../data/standard_velocity.parquet
+      - ../../../models/classification/standard/experiment_classification/train_xgboost.py
+      - ../../../models/classification/algorithms/xgboost.py
+      - ../../../models/classification/common/loader.py
+      - ../../../feature_engineering.py
+      - ../../../splitting.py
+    params:
+      - ../../../params.yaml:
+          - n_samples
+          - test_size
+          - search.classification.xgboost.n_iter
+          - search.classification.xgboost.cv
+    outs:
+      - ../../../experiments_results/classification/standard/experiment_classification/models/model_xgboost.joblib
+    metrics:
+      - ../../../experiments_results/classification/standard/experiment_classification/models/metrics_xgboost.csv:
+          cache: false
+
+
+  # ── The skewed slice: one filter stage, two outputs ──────────────────────
+  # Both outputs matter: the kept rows train the skewed models, the excluded
+  # rows are the out-of-distribution test set (AUDIT.md tasks 8-10).
+

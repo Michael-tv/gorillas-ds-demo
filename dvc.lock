@@ -61,3 +61,119 @@ stages:
       hash: md5
       md5: 062d7de80222caf49180547c00641ace
       size: 5280498
+  generate@standard_velocity:
+    cmd: python -m data_generation.generate --n 50000 --seed 42 --input-mode 
+      VELOCITY --elevation-mean 45.0 --elevation-std 20.0 --hit-tolerance 5.0 
+      --out data/standard_velocity.parquet
+    deps:
+    - path: data_generation/generate.py
+      hash: md5
+      md5: ba309bcb0b754edc8a17340130c41c74
+      size: 4983
+    - path: data_generation/io.py
+      hash: md5
+      md5: ff2db4c73a7e6a7e079822fef8a2f7ec
+      size: 664
+    - path: data_generation/outliers.py
+      hash: md5
+      md5: f5b5b5be11da6d9c0894acd6cf688f79
+      size: 1259
+    - path: data_generation/sampling.py
+      hash: md5
+      md5: 4bee2b290483f4196817c4f517cecf4b
+      size: 12447
+    - path: physics.py
+      hash: md5
+      md5: 2a48151accab6ef2c7b1e2c1b0da9555
+      size: 3477
+    outs:
+    - path: data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+  generate_gorillas@gorillas_effort:
+    cmd: python -m data_generation.gorillas --n 10000 --seed 42 --input-mode 
+      EFFORT --throws 32 --boards-per-chunk 25 --hit-tolerance 5.0 --overwrite 
+      --out data/gorillas_effort.parquet --raw-out 
+      data/gorillas_effort_throws.parquet
+    deps:
+    - path: data_generation/gorillas.py
+      hash: md5
+      md5: 31a54bb47afa702604fc44ea01d24f85
+      size: 34639
+    - path: data_generation/io.py
+      hash: md5
+      md5: ff2db4c73a7e6a7e079822fef8a2f7ec
+      size: 664
+    - path: data_generation/outliers.py
+      hash: md5
+      md5: f5b5b5be11da6d9c0894acd6cf688f79
+      size: 1259
+    - path: qbasic_gorillas/dosbox-datagen/gorilla.bas
+      hash: md5
+      md5: 32f6f5847ba498186b356a3ebe265a30
+      size: 71039
+    outs:
+    - path: data/gorillas_effort.parquet
+      hash: md5
+      md5: 4d5b7ef618dd4eead2114b2586ae458d
+      size: 486193
+    - path: data/gorillas_effort_throws.parquet
+      hash: md5
+      md5: 48597b41e30cd4d52b2df696439321c9
+      size: 1499325
+  generate@standard_effort:
+    cmd: python -m data_generation.generate --n 50000 --seed 47 --input-mode 
+      EFFORT --elevation-mean 45.0 --elevation-std 20.0 --hit-tolerance 5.0 
+      --out data/standard_effort.parquet
+    deps:
+    - path: data_generation/generate.py
+      hash: md5
+      md5: ba309bcb0b754edc8a17340130c41c74
+      size: 4983
+    - path: data_generation/io.py
+      hash: md5
+      md5: ff2db4c73a7e6a7e079822fef8a2f7ec
+      size: 664
+    - path: data_generation/outliers.py
+      hash: md5
+      md5: f5b5b5be11da6d9c0894acd6cf688f79
+      size: 1259
+    - path: data_generation/sampling.py
+      hash: md5
+      md5: 4bee2b290483f4196817c4f517cecf4b
+      size: 12447
+    - path: physics.py
+      hash: md5
+      md5: 2a48151accab6ef2c7b1e2c1b0da9555
+      size: 3477
+    outs:
+    - path: data/standard_effort.parquet
+      hash: md5
+      md5: 38a0d3fdcf4020093a1299e3aeaea61a
+      size: 5278077
+  join_effort:
+    cmd: python -m data_generation.join --in data/standard_effort.parquet 
+      data/gorillas_effort.parquet --out data/effort.parquet --seed 42
+    deps:
+    - path: data/gorillas_effort.parquet
+      hash: md5
+      md5: 1d162c017c19289f016344d78093bff9
+      size: 254776
+    - path: data/standard_effort.parquet
+      hash: md5
+      md5: 38a0d3fdcf4020093a1299e3aeaea61a
+      size: 5278077
+    - path: data_generation/contract.py
+      hash: md5
+      md5: bf73d84a711c3f12a3e6f57a205a1dd8
+      size: 7240
+    - path: data_generation/join.py
+      hash: md5
+      md5: ce8200c6a0c67e8b80a0f5be102c5a6e
+      size: 2272
+    outs:
+    - path: data/effort.parquet
+      hash: md5
+      md5: 484e5149c53d0b9a52f050e53a147e8e
+      size: 5600930

@@ -59,7 +59,7 @@ def data_path():
     """Absolute path to the configured training pool (params.yaml
     `training_data`, a name matching a dvc_datasets.yaml or Gorillas dataset
     key). Every consumer that used to hardcode
-    data/standard_training_data.parquet should call this instead, so the
+    data/standard_velocity.parquet should call this instead, so the
     active dataset is a single setting rather than something edited file by
     file -- see the comment on `training_data` in params.yaml."""
     return os.path.join(_REPO_ROOT, "data", f"{load_params()['training_data']}.parquet")

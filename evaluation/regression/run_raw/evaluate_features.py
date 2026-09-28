@@ -4,11 +4,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import pandas as pd
 from feature_evaluation import evaluate, plot_features, plot_outliers
 import params
-from models.regression.runs import RUNS
+from models.regression.common import loader
 
-_CFG = RUNS["raw"]
-DATA, FEATURES, N_SAMPLES = _CFG.data, _CFG.features, _CFG.n_samples
-TARGET = "initial_velocity_ms"
+# Inlined rather than imported from models.regression.runs.RUNS -- that
+# registry (and train.py's --run dispatch) is gone, replaced by
+# models/regression/standard/experiment_raw/, one standalone script per
+# model. This is the same DATA/FEATURES/N_SAMPLES that folder's scripts use.
+DATA      = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "data", "standard_velocity.parquet")
+FEATURES  = loader.FEATURES  # the 9 raw columns, as-is
+N_SAMPLES = params.load_params()["n_samples"]
+TARGET    = "initial_velocity_ms"
 
 df = params.take_samples(pd.read_parquet(DATA), N_SAMPLES)  # take_samples raises instead of silently truncating (AUDIT.md task 35)
 

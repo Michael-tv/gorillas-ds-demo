@@ -1,26 +1,27 @@
 """Cross-platform helper for DVC training stages.
 
 Runs `python <args...>` with PYTHONPATH set to a given directory, so a
-`-m package.module` invocation (or a script that does absolute imports like
-`from models.regression.runs import RUNS`) resolves regardless of where
-`dvc repro` was invoked from or which directory the calling dvc.yaml lives
-in -- DVC always runs `cmd:` with the working directory set to wherever that
-dvc.yaml file is, not the repo root. DVC stages also run `cmd:` through the
-OS shell, where `set X=Y && cmd` (Windows) and `X=Y cmd` (POSIX) aren't
-portable -- this keeps every stage's `cmd:` identical on any OS.
+`-m package.module` invocation resolves regardless of where `dvc repro` was
+invoked from or which directory the calling dvc.yaml lives in -- DVC always
+runs `cmd:` with the working directory set to wherever that dvc.yaml file
+is, not the repo root. DVC stages also run `cmd:` through the OS shell,
+where `set X=Y && cmd` (Windows) and `X=Y cmd` (POSIX) aren't portable --
+this keeps every stage's `cmd:` identical on any OS.
 
 Usage:
     python scripts/run_with_pythonpath.py <pythonpath_dir> <python arg>...
 
-Two shapes in use across this repo's dvc.yaml files:
-    ... <pythonpath_dir> -m models.regression.train --run raw --key ...   (most stages)
-    ... <pythonpath_dir> path/to/a/standalone_script.py                   (the concept/demo scripts)
+Every stage in this repo now uses the same shape:
+    ... ../.. -m models.<domain>.<mode>.experiment_<name>.train_<model>
 
-`-m` needs <pythonpath_dir> to be the repo root, since it resolves a DOTTED
-module path against it (`models.regression.train` -> models/regression/
-train.py); a standalone script needs it to be the script's own run folder, so
-its local `from train_utils import ...` resolves -- see the calling dvc.yaml
-for which one a given stage passes.
+<pythonpath_dir> is always the repo root (`../..` from a pipelines/<name>/
+dvc.yaml stage), since `-m` resolves its dotted module path against it
+(`models.regression.standard.experiment_raw.train_linear_regression` ->
+models/regression/standard/experiment_raw/train_linear_regression.py).
+Every `experiment_<name>/train_<model>.py` script is self-contained -- no
+folder-local `train_utils.py` to resolve via a different PYTHONPATH, so
+there is no second shape to document here anymore (there used to be one,
+back when concept/demo scripts imported a sibling `train_utils.py`).
 """
 import os
 import subprocess

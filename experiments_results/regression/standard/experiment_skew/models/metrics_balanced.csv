@@ -1,0 +1,2 @@
+model,mae,mae_holdout,holdout_mae_ratio,n_samples
+balanced,5.236617,4.531758,0.865398,10657.000000
