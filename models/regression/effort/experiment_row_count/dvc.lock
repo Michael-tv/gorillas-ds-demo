@@ -23,14 +23,16 @@ stages:
     - path: 
         ../../../../models/regression/effort/experiment_row_count/train_decision_tree.py
       hash: md5
-      md5: 97cdd43475a2f942b6dad1a64caa8983
-      size: 4035
+      md5: 2674392eba08a62b6843ba9243deddd5
+      size: 4086
     - path: ../../../../splitting.py
       hash: md5
       md5: a935c061b7a622bd255679ac47a4defe
       size: 6288
     params:
       params.yaml:
+        cv: 5
+        n_iter.decision_tree: 30
         tiers:
         - 500
         - 1000
@@ -39,8 +41,6 @@ stages:
         - 4000
         - 5000
       ../../../../params.yaml:
-        search.regression.decision_tree.cv: 5
-        search.regression.decision_tree.n_iter: 30
         test_size: 0.2
     outs:
     - path: 
@@ -77,8 +77,8 @@ stages:
     - path: 
         ../../../../models/regression/effort/experiment_row_count/train_linear_regression.py
       hash: md5
-      md5: 531f046d60d2f4b274290598bd42f748
-      size: 4433
+      md5: 7424ec5ac31bc73a5bb496ddb2ed580e
+      size: 4438
     - path: ../../../../splitting.py
       hash: md5
       md5: a935c061b7a622bd255679ac47a4defe
@@ -86,6 +86,7 @@ stages:
     params:
       params.yaml:
         cv: 5
+        n_iter.linear_regression:
         tiers:
         - 500
         - 1000
@@ -94,7 +95,6 @@ stages:
         - 4000
         - 5000
       ../../../../params.yaml:
-        search.regression.linear_regression.n_iter:
         test_size: 0.2
     outs:
     - path: 
