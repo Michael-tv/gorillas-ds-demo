@@ -52,7 +52,7 @@ def _clean_stale_tiers():
 
 
 def main():
-    X_full, y_full, groups_full = loader.load_data(DATA)
+    X_full, y_full, groups_full = loader.load_data(DATA, clean="no_outlier")
     search = params.search_params("regression", KEY)
     test_size = params.load_params()["test_size"]
 

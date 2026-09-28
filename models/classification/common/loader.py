@@ -39,7 +39,11 @@ TARGET = "hit_target"
 GROUP_COLUMN = "group_id"   # generate.COLUMNS' 14th column -- see splitting.py
 
 
-def load_data(data_path, n_samples=None):
+def _clean_no_outlier(df):
+    return df[df["is_outlier"] == "none"]
+
+
+def load_data(data_path, n_samples=None, clean=""):
     """Read, slice, and engineer the pool -- returns (X, y) for the caller to
     split (with `stratify=y`). Splitting is a training decision, not a
     loading one, so it lives in each training script instead of here."""
@@ -64,6 +68,10 @@ def load_data(data_path, n_samples=None):
     # which a Gorillas pool (5,000 rows vs n_samples: 40000) does (AUDIT.md
     # task 35 / §5.5).
     df = params.take_samples(df, n_samples, pool_name=os.path.basename(data_path))
+    if clean == "no_outlier":
+        n_orig = len(df)
+        df = _clean_no_outlier(df)
+        print(f"  No-outlier cleaning: {n_orig} -> {len(df)} rows ({n_orig - len(df)} removed)")
     df = add_engineered_columns(df)
     X = df[FEATURES].values
     y = df[TARGET].values

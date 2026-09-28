@@ -70,7 +70,7 @@ gorillas_datasets:
   # tuning knobs) -- both change the resulting rows, not just how fast they
   # arrive, so a value change here correctly reruns generate_gorillas@<key>.
   gorillas_effort:
-    n: 10000
+    n: 60000
     seed: 42
     input_mode: EFFORT
     throws: 32

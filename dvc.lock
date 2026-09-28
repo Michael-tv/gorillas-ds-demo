@@ -92,7 +92,7 @@ stages:
       md5: 062d7de80222caf49180547c00641ace
       size: 5280498
   generate_gorillas@gorillas_effort:
-    cmd: python -m data_generation.gorillas --n 10000 --seed 42 --input-mode 
+    cmd: python -m data_generation.gorillas --n 20000 --seed 42 --input-mode 
       EFFORT --throws 32 --boards-per-chunk 25 --hit-tolerance 5.0 --overwrite 
       --out data/gorillas_effort.parquet --raw-out 
       data/gorillas_effort_throws.parquet
@@ -116,12 +116,12 @@ stages:
     outs:
     - path: data/gorillas_effort.parquet
       hash: md5
-      md5: 4d5b7ef618dd4eead2114b2586ae458d
-      size: 486193
+      md5: 56917d7397959500378952e7f7057371
+      size: 970183
     - path: data/gorillas_effort_throws.parquet
       hash: md5
-      md5: 48597b41e30cd4d52b2df696439321c9
-      size: 1499325
+      md5: 776ef067da0ad59682e3bce0117b05f8
+      size: 5374638
   generate@standard_effort:
     cmd: python -m data_generation.generate --n 50000 --seed 47 --input-mode 
       EFFORT --elevation-mean 45.0 --elevation-std 20.0 --hit-tolerance 5.0 
