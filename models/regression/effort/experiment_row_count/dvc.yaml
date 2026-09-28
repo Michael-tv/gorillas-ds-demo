@@ -1,0 +1,208 @@
+# experiment_row_count (regression): does more data help? Each script sweeps 6
+# sample-size tiers internally on data/gorillas_effort.parquet.
+#
+# All paths below are ../../../../-prefixed -- this file lives four levels
+# under the repo root (models/<domain>/<mode>/<experiment>/dvc.yaml), next to
+# the training scripts it runs. See the top-level README's "Running one
+# pipeline at a time" section for the full explanation of this repo's
+# cross-pipeline-dependency / relative-path / explicit-params.yaml conventions.
+
+stages:
+
+  train_row_count_effort_linear_regression:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_row_count.train_linear_regression
+    deps:
+      - ../../../../data/gorillas_effort.parquet
+      - ../../../../models/regression/effort/experiment_row_count/train_linear_regression.py
+      - ../../../../models/regression/algorithms/linear_regression.py
+      - ../../../../models/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+          - search.regression.linear_regression.n_iter
+      - ../../../../models/regression/effort/experiment_row_count/params.yaml:
+          - tiers
+          - cv
+    outs:
+      - ../../../../experiments_results/regression/effort/experiment_row_count/tiers/linear_regression/
+    metrics:
+      - ../../../../experiments_results/regression/effort/experiment_row_count/models/metrics_linear_regression.csv:
+          cache: false
+
+  train_row_count_effort_decision_tree:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_row_count.train_decision_tree
+    deps:
+      - ../../../../data/gorillas_effort.parquet
+      - ../../../../models/regression/effort/experiment_row_count/train_decision_tree.py
+      - ../../../../models/regression/algorithms/decision_tree.py
+      - ../../../../models/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+          - search.regression.decision_tree.n_iter
+      - ../../../../models/regression/effort/experiment_row_count/params.yaml:
+          - tiers
+          - cv
+    outs:
+      - ../../../../experiments_results/regression/effort/experiment_row_count/tiers/decision_tree/
+    metrics:
+      - ../../../../experiments_results/regression/effort/experiment_row_count/models/metrics_decision_tree.csv:
+          cache: false
+
+  # train_row_count_effort_knn:
+  #   cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_row_count.train_knn
+  #   deps:
+  #     - ../../../../data/gorillas_effort.parquet
+  #     - ../../../../models/regression/effort/experiment_row_count/train_knn.py
+  #     - ../../../../models/regression/algorithms/knn.py
+  #     - ../../../../models/regression/common/loader.py
+  #     - ../../../../feature_engineering.py
+  #     - ../../../../splitting.py
+  #   params:
+  #     - ../../../../params.yaml:
+  #         - test_size
+  #         - search.regression.knn.n_iter
+  #         - search.regression.knn.cv
+  #     - ../../../../models/regression/effort/experiment_row_count/params.yaml:
+  #         - tiers
+  #   outs:
+  #     - ../../../../experiments_results/regression/effort/experiment_row_count/tiers/knn/
+  #   metrics:
+  #     - ../../../../experiments_results/regression/effort/experiment_row_count/models/metrics_knn.csv:
+  #         cache: false
+
+  # train_row_count_effort_polynomial:
+  #   cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_row_count.train_polynomial
+  #   deps:
+  #     - ../../../../data/gorillas_effort.parquet
+  #     - ../../../../models/regression/effort/experiment_row_count/train_polynomial.py
+  #     - ../../../../models/regression/algorithms/polynomial.py
+  #     - ../../../../models/regression/common/loader.py
+  #     - ../../../../feature_engineering.py
+  #     - ../../../../splitting.py
+  #   params:
+  #     - ../../../../params.yaml:
+  #         - test_size
+  #         - search.regression.polynomial.n_iter
+  #         - search.regression.polynomial.cv
+  #     - ../../../../models/regression/effort/experiment_row_count/params.yaml:
+  #         - tiers
+  #   outs:
+  #     - ../../../../experiments_results/regression/effort/experiment_row_count/tiers/polynomial/
+  #   metrics:
+  #     - ../../../../experiments_results/regression/effort/experiment_row_count/models/metrics_polynomial.csv:
+  #         cache: false
+
+  # train_row_count_effort_random_forest:
+  #   cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_row_count.train_random_forest
+  #   deps:
+  #     - ../../../../data/gorillas_effort.parquet
+  #     - ../../../../models/regression/effort/experiment_row_count/train_random_forest.py
+  #     - ../../../../models/regression/algorithms/random_forest.py
+  #     - ../../../../models/regression/common/loader.py
+  #     - ../../../../feature_engineering.py
+  #     - ../../../../splitting.py
+  #   params:
+  #     - ../../../../params.yaml:
+  #         - test_size
+  #         - search.regression.random_forest.n_iter
+  #         - search.regression.random_forest.cv
+  #     - ../../../../models/regression/effort/experiment_row_count/params.yaml:
+  #         - tiers
+  #   outs:
+  #     - ../../../../experiments_results/regression/effort/experiment_row_count/tiers/random_forest/
+  #   metrics:
+  #     - ../../../../experiments_results/regression/effort/experiment_row_count/models/metrics_random_forest.csv:
+  #         cache: false
+
+  # train_row_count_effort_mlp:
+  #   cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_row_count.train_mlp
+  #   deps:
+  #     - ../../../../data/gorillas_effort.parquet
+  #     - ../../../../models/regression/effort/experiment_row_count/train_mlp.py
+  #     - ../../../../models/regression/algorithms/mlp.py
+  #     - ../../../../models/regression/common/loader.py
+  #     - ../../../../feature_engineering.py
+  #     - ../../../../splitting.py
+  #   params:
+  #     - ../../../../params.yaml:
+  #         - test_size
+  #         - search.regression.mlp.n_iter
+  #         - search.regression.mlp.cv
+  #     - ../../../../models/regression/effort/experiment_row_count/params.yaml:
+  #         - tiers
+  #   outs:
+  #     - ../../../../experiments_results/regression/effort/experiment_row_count/tiers/mlp/
+  #   metrics:
+  #     - ../../../../experiments_results/regression/effort/experiment_row_count/models/metrics_mlp.csv:
+  #         cache: false
+
+  # train_row_count_effort_xgboost:
+  #   cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_row_count.train_xgboost
+  #   deps:
+  #     - ../../../../data/gorillas_effort.parquet
+  #     - ../../../../models/regression/effort/experiment_row_count/train_xgboost.py
+  #     - ../../../../models/regression/algorithms/xgboost.py
+  #     - ../../../../models/regression/common/loader.py
+  #     - ../../../../feature_engineering.py
+  #     - ../../../../splitting.py
+  #   params:
+  #     - ../../../../params.yaml:
+  #         - test_size
+  #         - search.regression.xgboost.n_iter
+  #         - search.regression.xgboost.cv
+  #     - ../../../../models/regression/effort/experiment_row_count/params.yaml:
+  #         - tiers
+  #   outs:
+  #     - ../../../../experiments_results/regression/effort/experiment_row_count/tiers/xgboost/
+  #   metrics:
+  #     - ../../../../experiments_results/regression/effort/experiment_row_count/models/metrics_xgboost.csv:
+  #         cache: false
+
+  # train_row_count_effort_ridge:
+  #   cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_row_count.train_ridge
+  #   deps:
+  #     - ../../../../data/gorillas_effort.parquet
+  #     - ../../../../models/regression/effort/experiment_row_count/train_ridge.py
+  #     - ../../../../models/regression/algorithms/ridge.py
+  #     - ../../../../models/regression/common/loader.py
+  #     - ../../../../feature_engineering.py
+  #     - ../../../../splitting.py
+  #   params:
+  #     - ../../../../params.yaml:
+  #         - test_size
+  #         - search.regression.ridge.n_iter
+  #         - search.regression.ridge.cv
+  #     - ../../../../models/regression/effort/experiment_row_count/params.yaml:
+  #         - tiers
+  #   outs:
+  #     - ../../../../experiments_results/regression/effort/experiment_row_count/tiers/ridge/
+  #   metrics:
+  #     - ../../../../experiments_results/regression/effort/experiment_row_count/models/metrics_ridge.csv:
+  #         cache: false
+
+  # train_row_count_effort_lasso:
+  #   cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_row_count.train_lasso
+  #   deps:
+  #     - ../../../../data/gorillas_effort.parquet
+  #     - ../../../../models/regression/effort/experiment_row_count/train_lasso.py
+  #     - ../../../../models/regression/algorithms/lasso.py
+  #     - ../../../../models/regression/common/loader.py
+  #     - ../../../../feature_engineering.py
+  #     - ../../../../splitting.py
+  #   params:
+  #     - ../../../../params.yaml:
+  #         - test_size
+  #         - search.regression.lasso.n_iter
+  #         - search.regression.lasso.cv
+  #     - ../../../../models/regression/effort/experiment_row_count/params.yaml:
+  #         - tiers
+  #   outs:
+  #     - ../../../../experiments_results/regression/effort/experiment_row_count/tiers/lasso/
+  #   metrics:
+  #     - ../../../../experiments_results/regression/effort/experiment_row_count/models/metrics_lasso.csv:
+  #         cache: false

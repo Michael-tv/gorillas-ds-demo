@@ -1,0 +1,10 @@
+# RandomizedSearchCV/*CV fold count for this experiment's search, one value
+# for every model. This experiment's whole point is to be the "before"
+# baseline that deliberately keeps k-fold CV (see this folder's
+# train_*.py docstrings) after experiment_raw switched the rest of the
+# standard-pool search to a single validation split
+# (splitting.single_split_cv()) -- so unlike every other standard-pool
+# experiment, this one's cv value is genuinely still read. Moved out of the
+# shared root params.yaml since it's specific to this one comparison, not a
+# global setting.
+cv: 5

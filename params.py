@@ -17,8 +17,14 @@ def load_params():
 
 
 def search_params(domain, model):
-    """Return the {n_iter, cv} RandomizedSearchCV (or *CV/GridSearchCV) budget
-    for one model. Either key may be None if that algorithm doesn't use it."""
+    """Return the {n_iter} RandomizedSearchCV (or *CV/GridSearchCV) search
+    budget for one model. May be None if that algorithm doesn't search.
+
+    The CV fold count used to live alongside n_iter here too, but it's a
+    pool/experiment property (single-split on the standard pool, grouped
+    k-fold on the Gorillas pools, per README's "Cross-validation" section) --
+    a caller that needs it reads its own experiment's local params.yaml
+    (load_experiment_params(__file__)["cv"]) instead."""
     return load_params()["search"][domain][model]
 
 

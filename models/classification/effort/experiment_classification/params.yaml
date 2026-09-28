@@ -1,0 +1,9 @@
+# RandomizedSearchCV/*CV fold count for this experiment's search, one value
+# for every model -- moved out of the shared root params.yaml since it's an
+# experiment/pool concern, not a global one: this pool's grouped,
+# label-stratified CV protects against leaking a board's correlated throws
+# across folds, unlike the standard pool's search, which now uses a single
+# validation split instead (splitting.single_split_cv()) and never reads this
+# key at all. Capped at the number of groups available -- see
+# splitting.cv_for().
+cv: 5

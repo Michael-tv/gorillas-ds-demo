@@ -9,7 +9,7 @@ per-experiment orchestration (which data, which features, which output
 directory) is explicit and local to this file.
 
 data/skewed_training_data.parquet is the low-angle slice filter_skewed
-produces (pipelines/standard/dvc.yaml's filter_skewed stage); rows above
+produces (this folder's dvc.yaml, `filter_skewed` stage); rows above
 skew.max_angle_deg are held out separately as data/skewed_holdout.parquet, the
 out-of-distribution test set this demo measures against (AUDIT.md tasks
 8-10). Always the 5 engineered features -- this demo has no raw variant.
@@ -37,7 +37,7 @@ def main():
         X, y, groups, test_size=params.load_params()["test_size"], random_state=42)
 
     search = params.search_params("regression", KEY)
-    cv_folds = splitting.cv_for(search["cv"], X_train, y_train, groups_train)
+    cv_folds = splitting.single_split_cv()
 
     feature_step = ("features", EngineeredFeatures(output_columns=ENG_FEATURES))
     print(f"{algo.NAME} -- experiment_skew\n")

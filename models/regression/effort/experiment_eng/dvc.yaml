@@ -1,0 +1,214 @@
+# experiment_eng: the 9-model engineered-feature sweep, permanently on
+# data/gorillas_effort.parquet. See ../experiment_raw/dvc.yaml's header -- same
+# pattern, ENG_FEATURES instead of RAW_FEATURES.
+#
+# All paths below are ../../../../-prefixed -- this file lives four levels
+# under the repo root (models/<domain>/<mode>/<experiment>/dvc.yaml), next to
+# the training scripts it runs. See the top-level README's "Running one
+# pipeline at a time" section for the full explanation of this repo's
+# cross-pipeline-dependency / relative-path / explicit-params.yaml conventions.
+
+stages:
+
+  train_eng_effort_linear_regression:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_eng.train_linear_regression
+    deps:
+      - ../../../../data/gorillas_effort.parquet
+      - ../../../../models/regression/effort/experiment_eng/train_linear_regression.py
+      - ../../../../models/regression/algorithms/linear_regression.py
+      - ../../../../models/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+          - search.regression.linear_regression.n_iter
+      - ../../../../models/regression/effort/experiment_eng/params.yaml:
+          - cv
+    outs:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/model_linear_regression.joblib
+    metrics:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/metrics_linear_regression.csv:
+          cache: false
+
+  train_eng_effort_decision_tree:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_eng.train_decision_tree
+    deps:
+      - ../../../../data/gorillas_effort.parquet
+      - ../../../../models/regression/effort/experiment_eng/train_decision_tree.py
+      - ../../../../models/regression/algorithms/decision_tree.py
+      - ../../../../models/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+          - search.regression.decision_tree.n_iter
+      - ../../../../models/regression/effort/experiment_eng/params.yaml:
+          - cv
+    outs:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/model_decision_tree.joblib
+    metrics:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/metrics_decision_tree.csv:
+          cache: false
+
+  train_eng_effort_knn:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_eng.train_knn
+    deps:
+      - ../../../../data/gorillas_effort.parquet
+      - ../../../../models/regression/effort/experiment_eng/train_knn.py
+      - ../../../../models/regression/algorithms/knn.py
+      - ../../../../models/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+          - search.regression.knn.n_iter
+      - ../../../../models/regression/effort/experiment_eng/params.yaml:
+          - cv
+    outs:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/model_knn.joblib
+    metrics:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/metrics_knn.csv:
+          cache: false
+
+  train_eng_effort_polynomial:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_eng.train_polynomial
+    deps:
+      - ../../../../data/gorillas_effort.parquet
+      - ../../../../models/regression/effort/experiment_eng/train_polynomial.py
+      - ../../../../models/regression/algorithms/polynomial.py
+      - ../../../../models/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+          - search.regression.polynomial.n_iter
+      - ../../../../models/regression/effort/experiment_eng/params.yaml:
+          - cv
+    outs:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/model_polynomial.joblib
+    metrics:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/metrics_polynomial.csv:
+          cache: false
+
+  train_eng_effort_random_forest:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_eng.train_random_forest
+    deps:
+      - ../../../../data/gorillas_effort.parquet
+      - ../../../../models/regression/effort/experiment_eng/train_random_forest.py
+      - ../../../../models/regression/algorithms/random_forest.py
+      - ../../../../models/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+          - search.regression.random_forest.n_iter
+      - ../../../../models/regression/effort/experiment_eng/params.yaml:
+          - cv
+    outs:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/model_random_forest.joblib
+    metrics:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/metrics_random_forest.csv:
+          cache: false
+
+  train_eng_effort_mlp:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_eng.train_mlp
+    deps:
+      - ../../../../data/gorillas_effort.parquet
+      - ../../../../models/regression/effort/experiment_eng/train_mlp.py
+      - ../../../../models/regression/algorithms/mlp.py
+      - ../../../../models/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+          - search.regression.mlp.n_iter
+      - ../../../../models/regression/effort/experiment_eng/params.yaml:
+          - cv
+    outs:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/model_mlp.joblib
+    metrics:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/metrics_mlp.csv:
+          cache: false
+
+  train_eng_effort_xgboost:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_eng.train_xgboost
+    deps:
+      - ../../../../data/gorillas_effort.parquet
+      - ../../../../models/regression/effort/experiment_eng/train_xgboost.py
+      - ../../../../models/regression/algorithms/xgboost.py
+      - ../../../../models/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+          - search.regression.xgboost.n_iter
+      - ../../../../models/regression/effort/experiment_eng/params.yaml:
+          - cv
+    outs:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/model_xgboost.joblib
+    metrics:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/metrics_xgboost.csv:
+          cache: false
+
+  train_eng_effort_ridge:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_eng.train_ridge
+    deps:
+      - ../../../../data/gorillas_effort.parquet
+      - ../../../../models/regression/effort/experiment_eng/train_ridge.py
+      - ../../../../models/regression/algorithms/ridge.py
+      - ../../../../models/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+          - search.regression.ridge.n_iter
+      - ../../../../models/regression/effort/experiment_eng/params.yaml:
+          - cv
+    outs:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/model_ridge.joblib
+    metrics:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/metrics_ridge.csv:
+          cache: false
+
+  train_eng_effort_lasso:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_eng.train_lasso
+    deps:
+      - ../../../../data/gorillas_effort.parquet
+      - ../../../../models/regression/effort/experiment_eng/train_lasso.py
+      - ../../../../models/regression/algorithms/lasso.py
+      - ../../../../models/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+          - search.regression.lasso.n_iter
+      - ../../../../models/regression/effort/experiment_eng/params.yaml:
+          - cv
+    outs:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/model_lasso.joblib
+    metrics:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/metrics_lasso.csv:
+          cache: false
+
+  train_eng_effort_decision_tree_overfit:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.effort.experiment_eng.train_decision_tree_overfit
+    deps:
+      - ../../../../data/gorillas_effort.parquet
+      - ../../../../models/regression/effort/experiment_eng/train_decision_tree_overfit.py
+      - ../../../../models/regression/common/loader.py
+      - ../../../../feature_engineering.py
+    outs:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/model_decision_tree_overfit.joblib
+    metrics:
+      - ../../../../experiments_results/regression/effort/experiment_eng/models/metrics_decision_tree_overfit.csv:
+          cache: false
+

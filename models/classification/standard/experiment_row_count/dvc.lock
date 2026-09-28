@@ -1,0 +1,326 @@
+schema: '2.0'
+stages:
+  train_row_count_classification_standard_mlp:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.classification.standard.experiment_row_count.train_mlp
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/classification/algorithms/mlp.py
+      hash: md5
+      md5: 349ae919e03aeb209ba3eb21f5369ba1
+      size: 1302
+    - path: ../../../../models/classification/common/loader.py
+      hash: md5
+      md5: 0773b087d8e86bdb01e86a7da66d895a
+      size: 6723
+    - path: 
+        ../../../../models/classification/standard/experiment_row_count/train_mlp.py
+      hash: md5
+      md5: ee66c2f7d1b1036d3a40209e5d782b82
+      size: 4701
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      ../../../../models/classification/standard/experiment_row_count/params.yaml:
+        tiers:
+        - 1000
+        - 2000
+        - 5000
+        - 10000
+        - 20000
+        - 50000
+      ../../../../params.yaml:
+        search.classification.mlp.cv: 5
+        search.classification.mlp.n_iter: 15
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/classification/standard/experiment_row_count/models/metrics_mlp.csv
+      hash: md5
+      md5: c7a43f26aa1cc25528efa6a3fc81ef8b
+      size: 757
+    - path: 
+        ../../../../experiments_results/classification/standard/experiment_row_count/tiers/mlp/
+      hash: md5
+      md5: 41c05668f82e7d1b9705db45bc23d13a.dir
+      size: 936355
+      nfiles: 6
+  train_row_count_classification_standard_xgboost:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.classification.standard.experiment_row_count.train_xgboost
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/classification/algorithms/xgboost.py
+      hash: md5
+      md5: de17e5f297c9be80a5b90ebd3c65cf7a
+      size: 1614
+    - path: ../../../../models/classification/common/loader.py
+      hash: md5
+      md5: 0773b087d8e86bdb01e86a7da66d895a
+      size: 6723
+    - path: 
+        ../../../../models/classification/standard/experiment_row_count/train_xgboost.py
+      hash: md5
+      md5: d62166a1a0269cf4a35bcff7c7c69545
+      size: 4713
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      ../../../../models/classification/standard/experiment_row_count/params.yaml:
+        tiers:
+        - 1000
+        - 2000
+        - 5000
+        - 10000
+        - 20000
+        - 50000
+      ../../../../params.yaml:
+        search.classification.xgboost.cv: 5
+        search.classification.xgboost.n_iter: 20
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/classification/standard/experiment_row_count/models/metrics_xgboost.csv
+      hash: md5
+      md5: e78f30d363712844a566412c9bb1e065
+      size: 756
+    - path: 
+        ../../../../experiments_results/classification/standard/experiment_row_count/tiers/xgboost/
+      hash: md5
+      md5: 848df0a1fe38eb77d2bffa42f5e320c0.dir
+      size: 10845895
+      nfiles: 6
+  train_row_count_classification_standard_random_forest:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.classification.standard.experiment_row_count.train_random_forest
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/classification/algorithms/random_forest.py
+      hash: md5
+      md5: 422ac486f846114c4769c682a53b4049
+      size: 898
+    - path: ../../../../models/classification/common/loader.py
+      hash: md5
+      md5: 0773b087d8e86bdb01e86a7da66d895a
+      size: 6723
+    - path: 
+        ../../../../models/classification/standard/experiment_row_count/train_random_forest.py
+      hash: md5
+      md5: f4fd502973d18c815df90d99b00be4e5
+      size: 4731
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      ../../../../models/classification/standard/experiment_row_count/params.yaml:
+        tiers:
+        - 1000
+        - 2000
+        - 5000
+        - 10000
+        - 20000
+        - 50000
+      ../../../../params.yaml:
+        search.classification.random_forest.cv: 5
+        search.classification.random_forest.n_iter: 20
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/classification/standard/experiment_row_count/models/metrics_random_forest.csv
+      hash: md5
+      md5: d7c873c0c713060d2d1a13734db12f58
+      size: 746
+    - path: 
+        ../../../../experiments_results/classification/standard/experiment_row_count/tiers/random_forest/
+      hash: md5
+      md5: 968dddfc86ce289c74797c3a183b9383.dir
+      size: 442774326
+      nfiles: 6
+  train_row_count_classification_standard_knn:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.classification.standard.experiment_row_count.train_knn
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/classification/algorithms/knn.py
+      hash: md5
+      md5: 07ebf065bfe7300c507cc96062e35b79
+      size: 1452
+    - path: ../../../../models/classification/common/loader.py
+      hash: md5
+      md5: 0773b087d8e86bdb01e86a7da66d895a
+      size: 6723
+    - path: 
+        ../../../../models/classification/standard/experiment_row_count/train_knn.py
+      hash: md5
+      md5: 3f28a8782ff70ba3b177849508b00995
+      size: 4701
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      ../../../../models/classification/standard/experiment_row_count/params.yaml:
+        tiers:
+        - 1000
+        - 2000
+        - 5000
+        - 10000
+        - 20000
+        - 50000
+      ../../../../params.yaml:
+        search.classification.knn.cv: 5
+        search.classification.knn.n_iter: 12
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/classification/standard/experiment_row_count/models/metrics_knn.csv
+      hash: md5
+      md5: c312cef266a379908c9db8b374b291c3
+      size: 761
+    - path: 
+        ../../../../experiments_results/classification/standard/experiment_row_count/tiers/knn/
+      hash: md5
+      md5: 4f449774e4cac673c9bb1f8b4737cc80.dir
+      size: 8400080
+      nfiles: 6
+  train_row_count_classification_standard_decision_tree:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.classification.standard.experiment_row_count.train_decision_tree
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/classification/algorithms/decision_tree.py
+      hash: md5
+      md5: 54cbd5f1bb3375ff4da0a348d92a23cd
+      size: 1402
+    - path: ../../../../models/classification/common/loader.py
+      hash: md5
+      md5: 0773b087d8e86bdb01e86a7da66d895a
+      size: 6723
+    - path: 
+        ../../../../models/classification/standard/experiment_row_count/train_decision_tree.py
+      hash: md5
+      md5: 6f214778bcc9ae9940cf0d9abf3a822a
+      size: 4731
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      ../../../../models/classification/standard/experiment_row_count/params.yaml:
+        tiers:
+        - 1000
+        - 2000
+        - 5000
+        - 10000
+        - 20000
+        - 50000
+      ../../../../params.yaml:
+        search.classification.decision_tree.cv: 5
+        search.classification.decision_tree.n_iter: 30
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/classification/standard/experiment_row_count/models/metrics_decision_tree.csv
+      hash: md5
+      md5: bc72e748e80b833816a101c1fac4d2b7
+      size: 768
+    - path: 
+        ../../../../experiments_results/classification/standard/experiment_row_count/tiers/decision_tree/
+      hash: md5
+      md5: 6b051267790110afaa46b752c46ee89d.dir
+      size: 305174
+      nfiles: 6
+  train_row_count_classification_standard_logistic_regression:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.classification.standard.experiment_row_count.train_logistic_regression
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/classification/algorithms/logistic_regression.py
+      hash: md5
+      md5: 6584bc22f3abb1bb19a04df93db34cf7
+      size: 823
+    - path: ../../../../models/classification/common/loader.py
+      hash: md5
+      md5: 0773b087d8e86bdb01e86a7da66d895a
+      size: 6723
+    - path: 
+        ../../../../models/classification/standard/experiment_row_count/train_logistic_regression.py
+      hash: md5
+      md5: 517b64506f3580ad4d1392b852e253d9
+      size: 4799
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      ../../../../models/classification/standard/experiment_row_count/params.yaml:
+        tiers:
+        - 1000
+        - 2000
+        - 5000
+        - 10000
+        - 20000
+        - 50000
+      ../../../../params.yaml:
+        search.classification.logistic_regression.cv:
+        search.classification.logistic_regression.n_iter:
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/classification/standard/experiment_row_count/models/metrics_logistic_regression.csv
+      hash: md5
+      md5: 83a507c94de4a56fc4752a0f58c151a0
+      size: 748
+    - path: 
+        ../../../../experiments_results/classification/standard/experiment_row_count/tiers/logistic_regression/
+      hash: md5
+      md5: 5d6bd413741b98e1c155c1c10be3d03a.dir
+      size: 9222
+      nfiles: 6

@@ -1,0 +1,110 @@
+schema: '2.0'
+stages:
+  train_row_count_effort_decision_tree:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.regression.effort.experiment_row_count.train_decision_tree
+    deps:
+    - path: ../../../../data/gorillas_effort.parquet
+      hash: md5
+      md5: bcc2f5f8ce63b9d3d923475e6cc3e799
+      size: 2815224
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/regression/algorithms/decision_tree.py
+      hash: md5
+      md5: bed8398d1a21c3e83481ba4e9769d9c2
+      size: 898
+    - path: ../../../../models/regression/common/loader.py
+      hash: md5
+      md5: 57ccfa7d145d4ea7e96ee7f5f7998ef0
+      size: 8540
+    - path: 
+        ../../../../models/regression/effort/experiment_row_count/train_decision_tree.py
+      hash: md5
+      md5: 97cdd43475a2f942b6dad1a64caa8983
+      size: 4035
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      params.yaml:
+        tiers:
+        - 500
+        - 1000
+        - 2000
+        - 3000
+        - 4000
+        - 5000
+      ../../../../params.yaml:
+        search.regression.decision_tree.cv: 5
+        search.regression.decision_tree.n_iter: 30
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/regression/effort/experiment_row_count/models/metrics_decision_tree.csv
+      hash: md5
+      md5: 1599df4290a493529b86bb9dd5c71cc0
+      size: 390
+    - path: 
+        ../../../../experiments_results/regression/effort/experiment_row_count/tiers/decision_tree/
+      hash: md5
+      md5: c3a9454bd3d2ec3b2b35f5d0c30b8eaa.dir
+      size: 151260
+      nfiles: 6
+  train_row_count_effort_linear_regression:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.regression.effort.experiment_row_count.train_linear_regression
+    deps:
+    - path: ../../../../data/gorillas_effort.parquet
+      hash: md5
+      md5: bcc2f5f8ce63b9d3d923475e6cc3e799
+      size: 2815224
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/regression/algorithms/linear_regression.py
+      hash: md5
+      md5: c0c3562a8c9a71bcb44de15c0abc769a
+      size: 439
+    - path: ../../../../models/regression/common/loader.py
+      hash: md5
+      md5: 57ccfa7d145d4ea7e96ee7f5f7998ef0
+      size: 8540
+    - path: 
+        ../../../../models/regression/effort/experiment_row_count/train_linear_regression.py
+      hash: md5
+      md5: 531f046d60d2f4b274290598bd42f748
+      size: 4433
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      params.yaml:
+        cv: 5
+        tiers:
+        - 500
+        - 1000
+        - 2000
+        - 3000
+        - 4000
+        - 5000
+      ../../../../params.yaml:
+        search.regression.linear_regression.n_iter:
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/regression/effort/experiment_row_count/models/metrics_linear_regression.csv
+      hash: md5
+      md5: bb3334caf1e8e0fd6613a254c9cf0f81
+      size: 382
+    - path: 
+        ../../../../experiments_results/regression/effort/experiment_row_count/tiers/linear_regression/
+      hash: md5
+      md5: 3716116638e76231678d37b1daac8a3c.dir
+      size: 12150
+      nfiles: 6

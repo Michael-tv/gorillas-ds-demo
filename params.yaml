@@ -5,10 +5,23 @@
 # `dvc exp run`/`dvc repro` will retrain them and `dvc exp show`/`dvc exp
 # diff` will compare the resulting metrics side by side.
 #
-# `n_iter`/`cv` are the RandomizedSearchCV (or GridSearchCV/*CV) budget each
+# `n_iter` is the RandomizedSearchCV (or GridSearchCV/*CV) search budget each
 # training script was hardcoding before; `null` means that algorithm doesn't
-# use that knob (e.g. LinearRegression has no search, decision_tree_overfit
-# intentionally skips cross-validation to demonstrate worst-case overfitting).
+# search at all (LinearRegression/LogisticRegression have no hyperparameters
+# to tune, decision_tree_overfit intentionally skips cross-validation to
+# demonstrate worst-case overfitting).
+#
+# There is no `cv` (fold count) here anymore -- it moved to each experiment's
+# own local params.yaml (models/<domain>/<mode>/<experiment>/params.yaml),
+# since the right CV strategy is a pool/experiment concern, not a global one:
+# the standard pool's search now uses a single validation split
+# (splitting.single_split_cv(), which reads no fold-count knob at all) while
+# the Gorillas pools' grouped CV -- which prevents leakage across a board's
+# correlated throws, not just estimates variance -- and experiment_cv_
+# baseline's deliberate "before" 5-fold comparison both still need a real,
+# sweepable fold count. Keeping one shared `cv` here would either be ignored
+# by 6 of the 9 non-demo experiments or force every experiment to the same
+# fold count regardless of whether it means anything for that pool.
 
 # Which generated pool every training/evaluation script reads, by name --
 # matches a key in dvc_datasets.yaml (Python-generated) or a Gorillas dataset
@@ -46,20 +59,20 @@ skew:
 
 search:
   regression:
-    linear_regression:      {n_iter: null, cv: 5}
-    ridge:                   {n_iter: null, cv: 5}
-    lasso:                   {n_iter: null, cv: 5}
-    polynomial:              {n_iter: null, cv: 5}
-    decision_tree:           {n_iter: 30,   cv: 5}
-    decision_tree_overfit:   {n_iter: null, cv: null}
-    knn:                     {n_iter: 20,   cv: 5}
-    random_forest:           {n_iter: 20,   cv: 5}
-    mlp:                     {n_iter: 15,   cv: 5}
-    xgboost:                 {n_iter: 20,   cv: 5}
+    linear_regression:      {n_iter: null}
+    ridge:                   {n_iter: null}
+    lasso:                   {n_iter: null}
+    polynomial:              {n_iter: null}
+    decision_tree:           {n_iter: 30}
+    decision_tree_overfit:   {n_iter: null}
+    knn:                     {n_iter: 20}
+    random_forest:           {n_iter: 20}
+    mlp:                     {n_iter: 15}
+    xgboost:                 {n_iter: 20}
   classification:
-    logistic_regression:    {n_iter: null, cv: null}
-    decision_tree:           {n_iter: 30,   cv: 5}
-    knn:                     {n_iter: 12,   cv: 5}
-    random_forest:           {n_iter: 20,   cv: 5}
-    mlp:                     {n_iter: 15,   cv: 5}
-    xgboost:                 {n_iter: 20,   cv: 5}
+    logistic_regression:    {n_iter: null}
+    decision_tree:           {n_iter: 30}
+    knn:                     {n_iter: 12}
+    random_forest:           {n_iter: 20}
+    mlp:                     {n_iter: 15}
+    xgboost:                 {n_iter: 20}

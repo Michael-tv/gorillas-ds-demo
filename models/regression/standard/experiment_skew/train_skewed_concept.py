@@ -1,6 +1,6 @@
 """SKEWED model -- a random forest trained on a low-angle slice of the
 standard pool: only rows with launch_angle_deg <= params.yaml's
-skew.max_angle_deg, produced by pipelines/standard/dvc.yaml's filter_skewed
+skew.max_angle_deg, produced by this folder's dvc.yaml `filter_skewed`
 stage.
 
 The lesson is extrapolation. Training data is concentrated at low launch

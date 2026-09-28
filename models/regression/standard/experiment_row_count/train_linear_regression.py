@@ -64,7 +64,7 @@ def main():
         print(f"\n=== {algo.NAME} -- n_samples={n} ===")
         X_train, X_test, y_train, y_test, groups_train = splitting.split(
             X, y, groups, test_size=test_size, random_state=42)
-        cv_folds = splitting.cv_for(search["cv"], X_train, y_train, groups_train)
+        cv_folds = splitting.single_split_cv()
 
         feature_step = ("features", EngineeredFeatures(output_columns=loader.FEATURES))
         model = algo.fit(X_train, y_train, feature_step, {"n_iter": search["n_iter"], "cv": cv_folds})

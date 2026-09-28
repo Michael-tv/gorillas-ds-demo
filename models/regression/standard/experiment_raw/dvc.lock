@@ -1,0 +1,47 @@
+schema: '2.0'
+stages:
+  train_raw_linear_regression:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.regression.standard.experiment_raw.train_linear_regression
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/regression/algorithms/linear_regression.py
+      hash: md5
+      md5: c0c3562a8c9a71bcb44de15c0abc769a
+      size: 439
+    - path: ../../../../models/regression/common/loader.py
+      hash: md5
+      md5: 57ccfa7d145d4ea7e96ee7f5f7998ef0
+      size: 8540
+    - path: 
+        ../../../../models/regression/standard/experiment_raw/train_linear_regression.py
+      hash: md5
+      md5: 1259b886c314274b4306092b7ac41323
+      size: 2229
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      ../../../../params.yaml:
+        n_samples: 40000
+        search.regression.linear_regression.n_iter:
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_raw/models/metrics_linear_regression.csv
+      hash: md5
+      md5: 5758a6fc7bf634c0b3e6d8958be01c8a
+      size: 70
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_raw/models/model_linear_regression.joblib
+      hash: md5
+      md5: b6d22867b99ac6af5d0f7d63730326d6
+      size: 2025

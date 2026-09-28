@@ -1,0 +1,53 @@
+# experiment_leakage: the data-leakage demo -- train_clean.py vs
+# train_leaky.py, same architecture, only whether the test rows are
+# accidentally included in training. Standard-pool only.
+#
+# All paths below are ../../../../-prefixed -- this file lives four levels
+# under the repo root (models/<domain>/<mode>/<experiment>/dvc.yaml), next to
+# the training scripts it runs. See the top-level README's "Running one
+# pipeline at a time" section for the full explanation of this repo's
+# cross-pipeline-dependency / relative-path / explicit-params.yaml conventions.
+
+vars:
+  - ../../../../params.yaml
+
+stages:
+
+  train_leakage_clean:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.standard.experiment_leakage.train_clean
+    deps:
+      - ../../../../data/standard_velocity.parquet
+      - ../../../../models/regression/standard/experiment_leakage/train_clean.py
+      - ../../../../models/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - n_samples
+          - test_size
+    outs:
+      - ../../../../experiments_results/regression/standard/experiment_leakage/models/model_dt_clean.joblib
+    metrics:
+      - ../../../../experiments_results/regression/standard/experiment_leakage/models/metrics_dt_clean.csv:
+          cache: false
+
+  train_leakage_leaky:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m models.regression.standard.experiment_leakage.train_leaky
+    deps:
+      - ../../../../data/standard_velocity.parquet
+      - ../../../../models/regression/standard/experiment_leakage/train_leaky.py
+      - ../../../../models/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - n_samples
+          - test_size
+    outs:
+      - ../../../../experiments_results/regression/standard/experiment_leakage/models/model_dt_leaky.joblib
+    metrics:
+      - ../../../../experiments_results/regression/standard/experiment_leakage/models/metrics_dt_leaky.csv:
+          cache: false
+
+  # ── Bias/variance demo (experiment_bias_variance/, standard pool) ────────
+

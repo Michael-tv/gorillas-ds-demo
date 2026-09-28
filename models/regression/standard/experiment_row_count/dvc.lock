@@ -1,0 +1,487 @@
+schema: '2.0'
+stages:
+  train_row_count_standard_lasso:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.regression.standard.experiment_row_count.train_lasso
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/regression/algorithms/lasso.py
+      hash: md5
+      md5: fb375e7e4120494547c8ed51ff7b6347
+      size: 787
+    - path: ../../../../models/regression/common/loader.py
+      hash: md5
+      md5: 57ccfa7d145d4ea7e96ee7f5f7998ef0
+      size: 8540
+    - path: 
+        ../../../../models/regression/standard/experiment_row_count/train_lasso.py
+      hash: md5
+      md5: 0dceea566905d1906d1411100f3a51c9
+      size: 3950
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      ../../../../models/regression/standard/experiment_row_count/params.yaml:
+        tiers:
+        - 1000
+        - 2000
+        - 5000
+        - 10000
+        - 20000
+        - 50000
+      ../../../../params.yaml:
+        search.regression.lasso.cv: 5
+        search.regression.lasso.n_iter:
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/models/metrics_lasso.csv
+      hash: md5
+      md5: 47a71f79c1c94383afe5d5a75b3b976b
+      size: 400
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/tiers/lasso/
+      hash: md5
+      md5: 94e244709614b75a5d8b086610e6f426.dir
+      size: 14472
+      nfiles: 6
+  train_row_count_standard_ridge:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.regression.standard.experiment_row_count.train_ridge
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/regression/algorithms/ridge.py
+      hash: md5
+      md5: 6e4c4241b06f803a88213e979cf3d1fb
+      size: 613
+    - path: ../../../../models/regression/common/loader.py
+      hash: md5
+      md5: 57ccfa7d145d4ea7e96ee7f5f7998ef0
+      size: 8540
+    - path: 
+        ../../../../models/regression/standard/experiment_row_count/train_ridge.py
+      hash: md5
+      md5: f4b62cf51e013d9db0dc7f799012b566
+      size: 3950
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      ../../../../models/regression/standard/experiment_row_count/params.yaml:
+        tiers:
+        - 1000
+        - 2000
+        - 5000
+        - 10000
+        - 20000
+        - 50000
+      ../../../../params.yaml:
+        search.regression.ridge.cv: 5
+        search.regression.ridge.n_iter:
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/models/metrics_ridge.csv
+      hash: md5
+      md5: cdb31c95ab164588a523d3233e3966e0
+      size: 392
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/tiers/ridge/
+      hash: md5
+      md5: 222c0190b7b11f9800875459549ea6fd.dir
+      size: 12654
+      nfiles: 6
+  train_row_count_standard_polynomial:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.regression.standard.experiment_row_count.train_polynomial
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/regression/algorithms/polynomial.py
+      hash: md5
+      md5: f92a58f2ad5da25b843487f399e502c5
+      size: 1105
+    - path: ../../../../models/regression/common/loader.py
+      hash: md5
+      md5: 57ccfa7d145d4ea7e96ee7f5f7998ef0
+      size: 8540
+    - path: 
+        ../../../../models/regression/standard/experiment_row_count/train_polynomial.py
+      hash: md5
+      md5: bc13e3a9c450062d1743a0ecd5ca2212
+      size: 3965
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      ../../../../models/regression/standard/experiment_row_count/params.yaml:
+        tiers:
+        - 1000
+        - 2000
+        - 5000
+        - 10000
+        - 20000
+        - 50000
+      ../../../../params.yaml:
+        search.regression.polynomial.cv: 5
+        search.regression.polynomial.n_iter:
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/models/metrics_polynomial.csv
+      hash: md5
+      md5: ce83c269567426b4fc38cad4e5d3dcac
+      size: 396
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/tiers/polynomial/
+      hash: md5
+      md5: c0139f3d0df4872e8f980aeb8bd6ca7b.dir
+      size: 20302
+      nfiles: 6
+  train_row_count_standard_linear_regression:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.regression.standard.experiment_row_count.train_linear_regression
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/regression/algorithms/linear_regression.py
+      hash: md5
+      md5: c0c3562a8c9a71bcb44de15c0abc769a
+      size: 439
+    - path: ../../../../models/regression/common/loader.py
+      hash: md5
+      md5: 57ccfa7d145d4ea7e96ee7f5f7998ef0
+      size: 8540
+    - path: 
+        ../../../../models/regression/standard/experiment_row_count/train_linear_regression.py
+      hash: md5
+      md5: f90a10d1244c4c431f2a7f1e682feeae
+      size: 3995
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      params.yaml:
+        tiers:
+        - 1000
+        - 2000
+        - 5000
+        - 10000
+        - 20000
+        - 50000
+      ../../../../params.yaml:
+        search.regression.linear_regression.n_iter:
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/models/metrics_linear_regression.csv
+      hash: md5
+      md5: 8f57d69c36038d93128d10228b9e2ff8
+      size: 396
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/tiers/linear_regression/
+      hash: md5
+      md5: e05f2d82702f5cd5180826e01b5da24b.dir
+      size: 12150
+      nfiles: 6
+  train_row_count_standard_decision_tree:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.regression.standard.experiment_row_count.train_decision_tree
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/regression/algorithms/decision_tree.py
+      hash: md5
+      md5: bed8398d1a21c3e83481ba4e9769d9c2
+      size: 898
+    - path: ../../../../models/regression/common/loader.py
+      hash: md5
+      md5: 57ccfa7d145d4ea7e96ee7f5f7998ef0
+      size: 8540
+    - path: 
+        ../../../../models/regression/standard/experiment_row_count/train_decision_tree.py
+      hash: md5
+      md5: f12fdbd99bbc9fdafea6072e350609ed
+      size: 3963
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      ../../../../models/regression/standard/experiment_row_count/params.yaml:
+        tiers:
+        - 1000
+        - 2000
+        - 5000
+        - 10000
+        - 20000
+        - 50000
+      ../../../../params.yaml:
+        search.regression.decision_tree.cv: 5
+        search.regression.decision_tree.n_iter: 30
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/models/metrics_decision_tree.csv
+      hash: md5
+      md5: d989c0fcb2a00b24821b25bc018eecf6
+      size: 388
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/tiers/decision_tree/
+      hash: md5
+      md5: 0d2114608df4e70b4f1036e49e0d17f8.dir
+      size: 933324
+      nfiles: 6
+  train_row_count_standard_knn:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.regression.standard.experiment_row_count.train_knn
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/regression/algorithms/knn.py
+      hash: md5
+      md5: f17a8b4b698de48776a29c886786cafd
+      size: 962
+    - path: ../../../../models/regression/common/loader.py
+      hash: md5
+      md5: 57ccfa7d145d4ea7e96ee7f5f7998ef0
+      size: 8540
+    - path: 
+        ../../../../models/regression/standard/experiment_row_count/train_knn.py
+      hash: md5
+      md5: e537b822c603b9ab1504685d7f2323ce
+      size: 3933
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      ../../../../models/regression/standard/experiment_row_count/params.yaml:
+        tiers:
+        - 1000
+        - 2000
+        - 5000
+        - 10000
+        - 20000
+        - 50000
+      ../../../../params.yaml:
+        search.regression.knn.cv: 5
+        search.regression.knn.n_iter: 20
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/models/metrics_knn.csv
+      hash: md5
+      md5: 7bb71ac831e0b64d2bbf7a2e1c6c8c0d
+      size: 396
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/tiers/knn/
+      hash: md5
+      md5: e6cde892d8fa5bf48922c95c1140f674.dir
+      size: 11971488
+      nfiles: 6
+  train_row_count_standard_mlp:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.regression.standard.experiment_row_count.train_mlp
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/regression/algorithms/mlp.py
+      hash: md5
+      md5: 590b7cc7d12f0827f30f7ff7720b415b
+      size: 1047
+    - path: ../../../../models/regression/common/loader.py
+      hash: md5
+      md5: 57ccfa7d145d4ea7e96ee7f5f7998ef0
+      size: 8540
+    - path: 
+        ../../../../models/regression/standard/experiment_row_count/train_mlp.py
+      hash: md5
+      md5: 5a4c3a6a7c2dfecb403fff890d7d522f
+      size: 3933
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      ../../../../models/regression/standard/experiment_row_count/params.yaml:
+        tiers:
+        - 1000
+        - 2000
+        - 5000
+        - 10000
+        - 20000
+        - 50000
+      ../../../../params.yaml:
+        search.regression.mlp.cv: 5
+        search.regression.mlp.n_iter: 15
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/models/metrics_mlp.csv
+      hash: md5
+      md5: d3577969b8584abadbe8f817951e8e50
+      size: 395
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/tiers/mlp/
+      hash: md5
+      md5: 126a405dcd3c2d8579fd010c53960137.dir
+      size: 5195734
+      nfiles: 6
+  train_row_count_standard_random_forest:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.regression.standard.experiment_row_count.train_random_forest
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/regression/algorithms/random_forest.py
+      hash: md5
+      md5: e48a1f853b4a8a4687f01e1d24b7408d
+      size: 1004
+    - path: ../../../../models/regression/common/loader.py
+      hash: md5
+      md5: 57ccfa7d145d4ea7e96ee7f5f7998ef0
+      size: 8540
+    - path: 
+        ../../../../models/regression/standard/experiment_row_count/train_random_forest.py
+      hash: md5
+      md5: b7683a32e538e95329880d640a46c44d
+      size: 3963
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      ../../../../models/regression/standard/experiment_row_count/params.yaml:
+        tiers:
+        - 1000
+        - 2000
+        - 5000
+        - 10000
+        - 20000
+        - 50000
+      ../../../../params.yaml:
+        search.regression.random_forest.cv: 5
+        search.regression.random_forest.n_iter: 20
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/models/metrics_random_forest.csv
+      hash: md5
+      md5: ff74800cd4e0605b6ea7646456c99f2a
+      size: 391
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/tiers/random_forest/
+      hash: md5
+      md5: 0164fded68c3e28935877000112fb25c.dir
+      size: 250807356
+      nfiles: 6
+  train_row_count_standard_xgboost:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.regression.standard.experiment_row_count.train_xgboost
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/regression/algorithms/xgboost.py
+      hash: md5
+      md5: 0e60d99f7eb6d114be718adfced50edf
+      size: 1068
+    - path: ../../../../models/regression/common/loader.py
+      hash: md5
+      md5: 57ccfa7d145d4ea7e96ee7f5f7998ef0
+      size: 8540
+    - path: 
+        ../../../../models/regression/standard/experiment_row_count/train_xgboost.py
+      hash: md5
+      md5: 6a53ce307bd7c6de254cc6854711b2a8
+      size: 3945
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      ../../../../models/regression/standard/experiment_row_count/params.yaml:
+        tiers:
+        - 1000
+        - 2000
+        - 5000
+        - 10000
+        - 20000
+        - 50000
+      ../../../../params.yaml:
+        search.regression.xgboost.cv: 5
+        search.regression.xgboost.n_iter: 20
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/models/metrics_xgboost.csv
+      hash: md5
+      md5: 40f49c7fe39afcf61fc684959ac3288a
+      size: 395
+    - path: 
+        ../../../../experiments_results/regression/standard/experiment_row_count/tiers/xgboost/
+      hash: md5
+      md5: c298c5291b1a6972aed9017b299134cb.dir
+      size: 11495895
+      nfiles: 6

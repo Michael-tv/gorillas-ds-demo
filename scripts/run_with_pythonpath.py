@@ -12,10 +12,10 @@ Usage:
     python scripts/run_with_pythonpath.py <pythonpath_dir> <python arg>...
 
 Every stage in this repo now uses the same shape:
-    ... ../.. -m models.<domain>.<mode>.experiment_<name>.train_<model>
+    ... ../../../.. -m models.<domain>.<mode>.experiment_<name>.train_<model>
 
-<pythonpath_dir> is always the repo root (`../..` from a pipelines/<name>/
-dvc.yaml stage), since `-m` resolves its dotted module path against it
+<pythonpath_dir> is always the repo root (`../../../..` from a models/<domain>/<mode>/
+<experiment>/dvc.yaml stage), since `-m` resolves its dotted module path against it
 (`models.regression.standard.experiment_raw.train_linear_regression` ->
 models/regression/standard/experiment_raw/train_linear_regression.py).
 Every `experiment_<name>/train_<model>.py` script is self-contained -- no

@@ -24,7 +24,7 @@ stages:
   #
   # data/standard_effort.parquet and data/standard_velocity.parquet are each
   # a single seeded, pre-shuffled pool at the largest size (50000 rows) --
-  # pipelines/standard samples the first `n_samples` rows from whichever one
+  # the standard experiments sample the first `n_samples` rows from whichever one
   # a stage reads (see params.yaml) instead of each size having its own
   # generated file. That makes a sample-size convergence experiment
   # (`dvc exp run --set-param n_samples=...`) nested samples of one draw, so
@@ -32,7 +32,7 @@ stages:
   #
   # A dataset variant expressible as a row filter over an existing generated
   # file (rather than a new draw) doesn't need a dvc_datasets.yaml entry at
-  # all -- see pipelines/standard/experiment_skew/dvc.yaml's filter_skewed
+  # all -- see models/regression/standard/experiment_skew/dvc.yaml's filter_skewed
   # stage, which trains on a low-angle subset of the pool.
   #
   # This file holds only the two shared data producers -- standard and
@@ -40,19 +40,20 @@ stages:
   # joined into one (an earlier version of this file joined them per mode
   # via a now-removed join_effort/join_velocity stage; reversed at the repo
   # owner's request -- "they are meant for two different experiments").
-  # Every training stage lives in its own pipeline under pipelines/ -- one
-  # per {mode, experiment}: pipelines/standard/<experiment> reads whichever
+  # Every training stage lives in its own pipeline, next to the scripts it
+  # runs -- one per {domain, mode, experiment} at models/<domain>/<mode>/
+  # <experiment>/dvc.yaml: the standard/<experiment> ones read whichever
   # pool ${training_data} names (standard_effort, standard_velocity, or any
-  # other generated pool); pipelines/effort/<experiment> and
-  # pipelines/velocity/<experiment> are permanently on gorillas_effort/
+  # other generated pool); effort/<experiment> and velocity/<experiment>
+  # are permanently on gorillas_effort/
   # gorillas_velocity. Each is a standalone dvc.yaml with a `deps:` entry
   # naming a file THIS file's stages produce -- DVC resolves that
   # cross-pipeline dependency by the file path itself, not by an explicit
   # pipeline reference, the same way any two stages depend on each other;
   # no different from a dependency within one file. Run `dvc repro -P` from
   # the repo root to reproduce every pipeline in dependency order, `dvc
-  # repro -R pipelines/<mode>` for one mode's experiments, or target
-  # `pipelines/<mode>/<experiment>/dvc.yaml` to run just that one -- see the
+  # repro -R models/<domain>/<mode>` for one mode's experiments, or target
+  # `models/<domain>/<mode>/<experiment>/dvc.yaml` to run just that one -- see the
   # README's "Running one pipeline at a time" section.
 
   generate:
