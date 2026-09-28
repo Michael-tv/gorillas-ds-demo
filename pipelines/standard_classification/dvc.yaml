@@ -19,11 +19,12 @@ stages:
   train_classification:
     foreach: ${classification_models}
     do:
-      cmd: python ../../scripts/run_with_pythonpath.py ../../models/classification/run ../../models/classification/${item.script} TRAIN_MODEL_NAME=${key}
+      cmd: python ../../scripts/run_with_pythonpath.py ../.. -m models.classification.train --run run --algorithm ${item.algorithm} --key ${key}
       deps:
         - ../../data/${training_data}.parquet
-        - ../../models/classification/${item.script}
-        - ../../models/classification/run/train_utils.py
+        - ../../models/classification/train.py
+        - ../../models/classification/algorithms/${item.algorithm}.py
+        - ../../models/classification/runs.py
         - ../../models/classification/common/loader.py
         - ../../feature_engineering.py
         - ../../splitting.py
@@ -32,8 +33,8 @@ stages:
             - training_data
             - n_samples
             - test_size
-            - search.classification.${item.model}.n_iter
-            - search.classification.${item.model}.cv
+            - search.classification.${item.algorithm}.n_iter
+            - search.classification.${item.algorithm}.cv
       outs:
         - ../../experiments/classification/run/models/model_${key}.joblib
       metrics:

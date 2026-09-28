@@ -1,18 +1,22 @@
 # Which classification models each training stage expands into. dvc.yaml
 # reads this via `vars:` and turns every entry into one independently-cached
-# stage. Split from the former dvc_models.yaml so regression and
-# classification are configured, and can be changed, independently of each
-# other.
+# stage.
+#
+# `algorithm:` names a module in models/classification/algorithms/ (also the
+# key into params.yaml's search.classification block); the entry's own
+# top-level key is the output name (model_<key>.joblib, metrics_<key>.csv)
+# and doubles as `--key` to models/classification/train.py. Every entry here
+# has algorithm == key -- no aliases in this domain today.
 #
 # classification_models also drives the Gorillas effort/velocity groups
 # (train_classification_effort, train_classification_velocity) -- the same
-# matrix, against a different (fixed) pool per group.
+# matrix, against a different (fixed) pool per pipeline.
 
 classification_models:
   # The same sweep minus polynomial, for which there is no classifier script.
-  logistic_regression: {script: train_logistic_regression.py, model: logistic_regression}
-  decision_tree:       {script: train_decision_tree.py,       model: decision_tree}
-  knn:                 {script: train_knn.py,                 model: knn}
-  random_forest:       {script: train_random_forest.py,       model: random_forest}
-  mlp:                 {script: train_mlp.py,                 model: mlp}
-  xgboost:             {script: train_xgboost.py,             model: xgboost}
+  logistic_regression: {algorithm: logistic_regression}
+  decision_tree:       {algorithm: decision_tree}
+  knn:                 {algorithm: knn}
+  random_forest:       {algorithm: random_forest}
+  mlp:                 {algorithm: mlp}
+  xgboost:             {algorithm: xgboost}

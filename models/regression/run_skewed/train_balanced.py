@@ -55,10 +55,10 @@ model = Pipeline([FEATURE_STEP,
 model.fit(X_train, y_train)
 
 print("\nRandom Forest (balanced) -- train set")
-print_metrics(y_train, model.predict(X_train))
+print_metrics("balanced", y_train, model.predict(X_train))
 
 print("Random Forest (balanced) -- test set, IN-distribution")
-print_metrics(y_test, model.predict(X_test))
+print_metrics("balanced", y_test, model.predict(X_test))
 mae_in = mean_absolute_error(y_test, model.predict(X_test))
 
 # Scored on the same holdout the skewed model is scored on, so the two numbers

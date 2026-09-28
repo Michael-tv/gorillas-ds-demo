@@ -1,2 +1,2 @@
-model,accuracy,precision,recall,f1,roc_auc
-logistic_regression,0.495375,0.495213,0.478500,0.486713,0.501078
+model,precision,recall,f1,pr_auc,roc_auc,accuracy,baseline_accuracy,positive_rate
+logistic_regression,0.482240,0.442911,0.461740,0.474777,0.499857,0.485625,0.501875,0.498125

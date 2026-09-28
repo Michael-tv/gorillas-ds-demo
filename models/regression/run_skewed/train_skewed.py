@@ -54,10 +54,10 @@ model = Pipeline([FEATURE_STEP,
 model.fit(X_train, y_train)
 
 print("\nRandom Forest (skewed) -- train set")
-print_metrics(y_train, model.predict(X_train))
+print_metrics("skewed", y_train, model.predict(X_train))
 
 print("Random Forest (skewed) -- test set, IN-distribution")
-print_metrics(y_test, model.predict(X_test))
+print_metrics("skewed", y_test, model.predict(X_test))
 mae_in = mean_absolute_error(y_test, model.predict(X_test))
 
 # The claim, measured.

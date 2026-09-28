@@ -1,12 +1,15 @@
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "models", "regression", "run_eng"))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 import pandas as pd
 from feature_engineering import add_engineered_columns
 from feature_evaluation import evaluate, plot_features, plot_outliers
-from train_utils import DATA, FEATURES, TARGET, N_SAMPLES
-import params  # train_utils put the repo root on sys.path
+import params
+from models.regression.runs import RUNS
+
+_CFG = RUNS["eng"]
+DATA, FEATURES, N_SAMPLES = _CFG.data, _CFG.features, _CFG.n_samples
+TARGET = "initial_velocity_ms"
 
 df = add_engineered_columns(params.take_samples(pd.read_parquet(DATA), N_SAMPLES))  # take_samples raises instead of silently truncating (AUDIT.md task 35)
 

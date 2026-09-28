@@ -1,9 +1,12 @@
-"""Shared loader for the classification datasets (run_10k/20k/40k).
+"""Shared loader for classification. Reads the raw generated dataset and
+derives the engineered feature columns (wind_x_ms, drag_param, height_diff_m)
+at load time via feature_engineering.add_engineered_columns -- generated data
+never stores them.
 
-Replaces the byte-identical train_utils.py copies that used to live in each of
-those folders. Reads the raw generated dataset and derives the engineered
-feature columns (wind_x_ms, drag_param, height_diff_m) at load time via
-feature_engineering.add_engineered_columns -- generated data never stores them.
+model_name is an explicit parameter to print_metrics, not read from
+TRAIN_MODEL_NAME / inferred from sys.argv[0] -- models/classification/train.py
+calls this module directly and can just pass it (AUDIT.md C1 / the
+run_*/train_utils.py cleanup).
 """
 import csv as _csv
 import os
@@ -86,7 +89,7 @@ def save_metrics(models_dir, model_name, **kw):
         w.writerow([model_name] + [f"{v:.6f}" if isinstance(v, float) else str(v) for v in kw.values()])
 
 
-def print_metrics(models_dir, y_test, y_pred, y_prob=None):
+def print_metrics(models_dir, model_name, y_test, y_pred, y_prob=None):
     """Report the metrics that survive class imbalance, and report them first.
 
     Accuracy used to lead this block, which is actively misleading on a Gorillas
@@ -130,8 +133,6 @@ def print_metrics(models_dir, y_test, y_pred, y_prob=None):
     print(f"  Actual Miss  {tn:>5}  {fp:>5}")
     print(f"  Actual Hit   {fn:>5}  {tp:>5}")
     print()
-    script = os.path.splitext(os.path.basename(sys.argv[0]))[0]
-    model_name = script[6:] if script.startswith("train_") else script
     save_metrics(models_dir, model_name, precision=prec, recall=rec, f1=f1,
                  pr_auc=pr_auc, roc_auc=auc, accuracy=acc,
                  baseline_accuracy=baseline, positive_rate=pos_rate)

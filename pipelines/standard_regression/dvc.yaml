@@ -2,8 +2,8 @@
 # training_data pool (params.yaml -- standard_training_data by default, or
 # any Gorillas *_regression pool via --set-param). See
 # pipelines/effort_regression/dvc.yaml's header for the full explanation of
-# the cross-pipeline-dependency / ../../-path / explicit-params.yaml pattern
-# every pipeline under pipelines/ follows.
+# the cross-pipeline-dependency / ../../-path / explicit-params.yaml /
+# models.regression.train pattern every pipeline under pipelines/ follows.
 #
 # Everything regression-domain that isn't one of the four fixed Gorillas
 # groups lives here: the 9-model sweep (train_raw/train_eng), the skew filter
@@ -13,6 +13,16 @@
 # train_leakage_* and train_bias_variance_* all read ${training_data}
 # directly, so splitting them into more files would only add cross-pipeline
 # dependency edges without adding any group a reader would want to run alone.
+#
+# train_leakage_*, train_bias_variance_* and the two run_skewed concept
+# scripts still invoke scripts/run_with_pythonpath.py -- they are each used by
+# scripts that live in their OWN folder (train_clean.py next to
+# run_leakage/train_utils.py, not shared across multiple folders the way
+# train_random_forest.py used to be), so they were never the "same script,
+# which of several configs" ambiguity AUDIT.md C1 is about, and rewriting
+# them would be scope creep without fixing that problem. Only the
+# foreach-matrix stages (train_raw, train_eng, train_skewed) moved to
+# models.regression.train.
 
 vars:
   - ../../dvc_models_regression.yaml
@@ -23,34 +33,12 @@ stages:
   train_raw:
     foreach: ${regression_models}
     do:
-      cmd: python ../../scripts/run_with_pythonpath.py ../../models/regression/run_raw ../../models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
+      cmd: python ../../scripts/run_with_pythonpath.py ../.. -m models.regression.train --run raw --algorithm ${item.algorithm} --key ${key} --clean "${item.clean}"
       deps:
         - ../../data/${training_data}.parquet
-        - ../../models/regression/${item.script}
-        - ../../models/regression/run_raw/train_utils.py
-        - ../../models/regression/common/loader.py
-        - ../../splitting.py
-      params:
-        - ../../params.yaml:
-            - training_data
-            - n_samples
-            - test_size
-            - search.regression.${item.model}.n_iter
-            - search.regression.${item.model}.cv
-      outs:
-        - ../../experiments/regression/run_raw/models/model_${key}.joblib
-      metrics:
-        - ../../experiments/regression/run_raw/models/metrics_${key}.csv:
-            cache: false
-
-  train_eng:
-    foreach: ${regression_models}
-    do:
-      cmd: python ../../scripts/run_with_pythonpath.py ../../models/regression/run_eng ../../models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
-      deps:
-        - ../../data/${training_data}.parquet
-        - ../../models/regression/${item.script}
-        - ../../models/regression/run_eng/train_utils.py
+        - ../../models/regression/train.py
+        - ../../models/regression/algorithms/${item.algorithm}.py
+        - ../../models/regression/runs.py
         - ../../models/regression/common/loader.py
         - ../../feature_engineering.py
         - ../../splitting.py
@@ -59,22 +47,87 @@ stages:
             - training_data
             - n_samples
             - test_size
-            - search.regression.${item.model}.n_iter
-            - search.regression.${item.model}.cv
+            - search.regression.${item.algorithm}.n_iter
+            - search.regression.${item.algorithm}.cv
+      outs:
+        - ../../experiments/regression/run_raw/models/model_${key}.joblib
+      metrics:
+        - ../../experiments/regression/run_raw/models/metrics_${key}.csv:
+            cache: false
+
+  train_raw_decision_tree_overfit:
+    cmd: python ../../scripts/run_with_pythonpath.py ../.. -m models.regression.train_decision_tree_overfit --run raw --key decision_tree_overfit --clean ""
+    deps:
+      - ../../data/${training_data}.parquet
+      - ../../models/regression/train_decision_tree_overfit.py
+      - ../../models/regression/runs.py
+      - ../../models/regression/common/loader.py
+      - ../../feature_engineering.py
+    params:
+      - ../../params.yaml:
+          - training_data
+          - n_samples
+    outs:
+      - ../../experiments/regression/run_raw/models/model_decision_tree_overfit.joblib
+    metrics:
+      - ../../experiments/regression/run_raw/models/metrics_decision_tree_overfit.csv:
+          cache: false
+
+  train_eng:
+    foreach: ${regression_models}
+    do:
+      cmd: python ../../scripts/run_with_pythonpath.py ../.. -m models.regression.train --run eng --algorithm ${item.algorithm} --key ${key} --clean "${item.clean}"
+      deps:
+        - ../../data/${training_data}.parquet
+        - ../../models/regression/train.py
+        - ../../models/regression/algorithms/${item.algorithm}.py
+        - ../../models/regression/runs.py
+        - ../../models/regression/common/loader.py
+        - ../../feature_engineering.py
+        - ../../splitting.py
+      params:
+        - ../../params.yaml:
+            - training_data
+            - n_samples
+            - test_size
+            - search.regression.${item.algorithm}.n_iter
+            - search.regression.${item.algorithm}.cv
       outs:
         - ../../experiments/regression/run_eng/models/model_${key}.joblib
       metrics:
         - ../../experiments/regression/run_eng/models/metrics_${key}.csv:
             cache: false
 
+  train_eng_decision_tree_overfit:
+    cmd: python ../../scripts/run_with_pythonpath.py ../.. -m models.regression.train_decision_tree_overfit --run eng --key decision_tree_overfit --clean ""
+    deps:
+      - ../../data/${training_data}.parquet
+      - ../../models/regression/train_decision_tree_overfit.py
+      - ../../models/regression/runs.py
+      - ../../models/regression/common/loader.py
+      - ../../feature_engineering.py
+    params:
+      - ../../params.yaml:
+          - training_data
+          - n_samples
+    outs:
+      - ../../experiments/regression/run_eng/models/model_decision_tree_overfit.joblib
+    metrics:
+      - ../../experiments/regression/run_eng/models/metrics_decision_tree_overfit.csv:
+          cache: false
+
   # ── The skewed slice: one filter stage, two outputs ──────────────────────
-  # See the root dvc.yaml's original comment (preserved from before the
-  # pipelines/ split) -- both outputs matter: the kept rows train the skewed
-  # models, the excluded rows are the out-of-distribution test set
-  # (AUDIT.md tasks 8-10).
+  # Both outputs matter: the kept rows train the skewed models, the excluded
+  # rows are the out-of-distribution test set (AUDIT.md tasks 8-10).
 
   filter_skewed:
-    cmd: python -m data_generation.filter_skewed --out ../../data/skewed_training_data.parquet --holdout-out ../../data/skewed_holdout.parquet
+    # --out/--holdout-out are NOT resolved relative to CWD -- data_generation/
+    # io.py's resolve_output() anchors a relative path to its own hardcoded
+    # REPO_ROOT (Path(__file__).resolve().parent.parent), so these must be
+    # bare `data/...` paths, unlike every ../../-prefixed path elsewhere in
+    # this file. Confirmed by testing: the ../../-prefixed form silently wrote
+    # to a path two levels ABOVE the repo root instead of failing loudly.
+    cmd: python ../../scripts/run_with_pythonpath.py ../.. -m data_generation.filter_skewed --out data/skewed_training_data.parquet --holdout-out data/skewed_holdout.parquet
     deps:
       - ../../data/${training_data}.parquet
       - ../../data_generation/filter_skewed.py
@@ -91,11 +144,12 @@ stages:
   train_skewed:
     foreach: ${skewed_models}
     do:
-      cmd: python ../../scripts/run_with_pythonpath.py ../../models/regression/run_skewed ../../models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
+      cmd: python ../../scripts/run_with_pythonpath.py ../.. -m models.regression.train --run skewed --algorithm ${item.algorithm} --key ${key} --clean "${item.clean}"
       deps:
         - ../../data/skewed_training_data.parquet
-        - ../../models/regression/${item.script}
-        - ../../models/regression/run_skewed/train_utils.py
+        - ../../models/regression/train.py
+        - ../../models/regression/algorithms/${item.algorithm}.py
+        - ../../models/regression/runs.py
         - ../../models/regression/common/loader.py
         - ../../feature_engineering.py
         - ../../splitting.py
@@ -104,8 +158,8 @@ stages:
             - training_data
             - skew.max_angle_deg
             - test_size
-            - search.regression.${item.model}.n_iter
-            - search.regression.${item.model}.cv
+            - search.regression.${item.algorithm}.n_iter
+            - search.regression.${item.algorithm}.cv
       outs:
         - ../../experiments/regression/run_skewed/models/model_${key}.joblib
       metrics:
@@ -120,6 +174,7 @@ stages:
       - ../../data/skewed_holdout.parquet
       - ../../models/regression/run_skewed/train_skewed.py
       - ../../models/regression/run_skewed/train_utils.py
+      - ../../models/regression/runs.py
       - ../../models/regression/common/loader.py
       - ../../feature_engineering.py
       - ../../splitting.py
@@ -144,6 +199,7 @@ stages:
       - ../../data/skewed_holdout.parquet
       - ../../models/regression/run_skewed/train_balanced.py
       - ../../models/regression/run_skewed/train_utils.py
+      - ../../models/regression/runs.py
       - ../../models/regression/common/loader.py
       - ../../feature_engineering.py
       - ../../splitting.py

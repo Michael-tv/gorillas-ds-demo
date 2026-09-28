@@ -1,7 +1,20 @@
 # Which regression models each training stage expands into. dvc.yaml reads
 # this via `vars:` and turns every entry into one independently-cached stage.
-# Split from the former dvc_models.yaml so regression and classification are
-# configured, and can be changed, independently of each other.
+#
+# `algorithm:` names a module in models/regression/algorithms/ (also the key
+# into params.yaml's search.regression block); the entry's own top-level key
+# is the output name (model_<key>.joblib, metrics_<key>.csv) and doubles as
+# `--key` to models/regression/train.py. Most entries have algorithm == key;
+# `random_forest_no_outlier` is the one alias, reusing random_forest's logic
+# under a different name and a different `clean` value.
+#
+# decision_tree_overfit is NOT listed here even though it is part of the
+# seven-model sweep conceptually -- it needs a different script
+# (train_decision_tree_overfit.py, not models/regression/train.py) because its
+# whole point is a different control flow with no train/test split, so it
+# cannot share this foreach's single `cmd:` template. It gets its own explicit
+# stage in every regression pipeline instead (see e.g.
+# pipelines/standard_regression/dvc.yaml).
 #
 # THE MATRIX RULE, stated so it is not guesswork (AUDIT.md task 3, §2.7):
 #
@@ -11,56 +24,48 @@
 #       linear_regression  decision_tree  knn  polynomial
 #       random_forest      mlp            xgboost
 #
+#   (decision_tree_overfit is the eighth, standalone as described above.)
 #   Each appears exactly ONCE per run, with the default cleaning (clean: "").
-#   Deviations from that rule are deliberate and listed below, and there are
-#   only three of them. Anything not listed does not exist -- previously the
-#   matrix carried *_range for 6 of 10 models and *_no_outlier for 8, with
-#   nothing recording whether the gaps were intentional, so a reader could not
-#   tell a decision from an oversight.
-#
-# This replaces 22 regression entries (44 stages across train_raw and train_eng)
-# and 17 skewed entries. The *_range variants are gone entirely: `clean: "range"`
-# is demonstrated once, by the one no_outlier/cleaning contrast below, rather
-# than duplicated across six algorithms that all make the same point.
+#   Deviations from that rule are deliberate and listed below, and there is
+#   only one of them in this file. Anything not listed does not exist --
+#   previously the matrix carried *_range for 6 of 10 models and *_no_outlier
+#   for 8, with nothing recording whether the gaps were intentional, so a
+#   reader could not tell a decision from an oversight.
 #
 # regression_models also drives the Gorillas effort/velocity groups
 # (train_raw_effort, train_raw_velocity, train_eng_effort, train_eng_velocity)
-# -- the same matrix, against a different (fixed) pool per group.
+# -- the same matrix, against a different (fixed) pool per pipeline.
 
 regression_models:
-  # The seven-model sweep.
-  linear_regression:  {script: train_linear_regression.py, clean: "", model: linear_regression}
-  decision_tree:      {script: train_decision_tree.py,     clean: "", model: decision_tree}
-  knn:                {script: train_knn.py,               clean: "", model: knn}
-  polynomial:         {script: train_polynomial.py,        clean: "", model: polynomial}
-  random_forest:      {script: train_random_forest.py,     clean: "", model: random_forest}
-  mlp:                {script: train_mlp.py,              clean: "", model: mlp}
-  xgboost:            {script: train_xgboost.py,           clean: "", model: xgboost}
+  linear_regression:  {algorithm: linear_regression, clean: ""}
+  decision_tree:       {algorithm: decision_tree,     clean: ""}
+  knn:                 {algorithm: knn,               clean: ""}
+  polynomial:          {algorithm: polynomial,        clean: ""}
+  random_forest:       {algorithm: random_forest,     clean: ""}
+  mlp:                 {algorithm: mlp,               clean: ""}
+  xgboost:             {algorithm: xgboost,           clean: ""}
 
-  # Deviation 1: an unregularised tree, kept because "the same algorithm, no
-  # depth limit" is the clearest single-slide overfitting demo there is.
-  decision_tree_overfit: {script: train_decision_tree_overfit.py, clean: "", model: decision_tree_overfit}
-
-  # Deviation 2: one cleaning contrast. The same model twice, differing only in
+  # Deviation: one cleaning contrast. The same model twice, differing only in
   # `clean`, is what makes the cleaning strategy visible in `dvc exp show`;
   # repeating it for every algorithm adds stages without adding a lesson.
   # (Note its `no_outlier` strategy is itself an oracle -- see AUDIT.md task 15.)
-  random_forest_no_outlier: {script: train_random_forest.py, clean: "no_outlier", model: random_forest}
+  random_forest_no_outlier: {algorithm: random_forest, clean: "no_outlier"}
 
 skewed_models:
   # The same seven-model sweep on the angle-capped pool, so the only difference
-  # between this run and train_raw is the data it sees.
-  linear_regression: {script: train_linear_regression.py, clean: "", model: linear_regression}
-  decision_tree:     {script: train_decision_tree.py,     clean: "", model: decision_tree}
-  knn:               {script: train_knn.py,               clean: "", model: knn}
-  polynomial:        {script: train_polynomial.py,        clean: "", model: polynomial}
-  random_forest:     {script: train_random_forest.py,     clean: "", model: random_forest}
-  mlp:               {script: train_mlp.py,               clean: "", model: mlp}
-  xgboost:           {script: train_xgboost.py,           clean: "", model: xgboost}
+  # between this run and train_raw is the data it sees. (No decision_tree_overfit
+  # here -- it was never part of this matrix.)
+  linear_regression: {algorithm: linear_regression, clean: ""}
+  decision_tree:     {algorithm: decision_tree,     clean: ""}
+  knn:               {algorithm: knn,               clean: ""}
+  polynomial:        {algorithm: polynomial,        clean: ""}
+  random_forest:     {algorithm: random_forest,     clean: ""}
+  mlp:               {algorithm: mlp,               clean: ""}
+  xgboost:           {algorithm: xgboost,           clean: ""}
 
-  # Deviation 3: ridge and lasso appear here and nowhere else, because
+  # Deviation: ridge and lasso appear here and nowhere else, because
   # regularised-linear versus tree is exactly the extrapolation contrast this
   # run exists to show -- beyond the training range a linear model keeps going
   # while a forest flatlines at its boundary leaf.
-  ridge: {script: train_ridge.py, clean: "", model: ridge}
-  lasso: {script: train_lasso.py, clean: "", model: lasso}
+  ridge: {algorithm: ridge, clean: ""}
+  lasso: {algorithm: lasso, clean: ""}

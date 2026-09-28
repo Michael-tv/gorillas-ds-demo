@@ -1,25 +1,15 @@
-"""Run config for the skewed-extrapolation demo.
+"""Skewed-demo-specific helpers for train_skewed.py and train_balanced.py --
+the two standalone concept scripts that live in this folder.
 
-A thin shim over models/regression/common/loader.py, the same shape as
-run_raw/train_utils.py and run_eng/train_utils.py. It used to be a
-200-line near-duplicate with its own loader, splitter, metrics and a
-load-time angle filter; three things moved out of it (AUDIT.md tasks 8, 9, 7):
-
-  * The angle filter is now the `filter_skewed` DVC stage, so the filtered pool
-    is a real artifact, the bound is a sweepable param, and the excluded rows
-    survive as data/skewed_holdout.parquet instead of being silently dropped.
-  * MAX_ELEVATION_DEG is gone -- the bound lives in params.yaml as
-    `skew.max_angle_deg`.
-  * Feature engineering happens in the model's Pipeline via FEATURE_STEP, not at
-    load time, so the saved .joblib carries its own preprocessing.
-
-Defining FEATURE_STEP is also what unbreaks this run: the nine `train_skewed@*`
-stages import it from here, and its absence made every one of them die on
-`ImportError: cannot import name 'FEATURE_STEP'`.
+The train_skewed@* matrix stages no longer import this file: they go through
+models/regression/train.py --run skewed, which reads the same "skewed"
+RunConfig directly from models/regression/runs.py. This file now exists only
+for the three things unique to the concept scripts -- the out-of-distribution
+holdout, the skewed run's row count (so the balanced control can be sized to
+match it), and loading the full unfiltered pool.
 """
 import os
 import sys
-from functools import partial
 
 import pandas as pd
 
@@ -29,29 +19,30 @@ sys.path.insert(0, REPO_ROOT)
 
 import params
 from models.regression.common import loader
-from feature_engineering import EngineeredFeatures
+from models.regression.runs import RUNS, feature_step
 
-# The filtered slice, not the full pool -- produced by the filter_skewed stage.
-DATA         = os.path.join(REPO_ROOT, "data", "skewed_training_data.parquet")
+_CFG = RUNS["skewed"]
+
+DATA         = _CFG.data
 HOLDOUT_DATA = os.path.join(REPO_ROOT, "data", "skewed_holdout.parquet")
+MODELS_DIR   = _CFG.models_dir
+FEATURE_STEP = feature_step(_CFG)
 
-MODELS_DIR = os.path.join(REPO_ROOT, "experiments", "regression", "run_skewed", "models")
-N_SAMPLES  = params.load_params()["n_samples"]
 
-# Engineered feature set, same as run_eng: loader.load_data hands back the raw
-# columns and FEATURE_STEP derives these inside the Pipeline.
-FEATURES = ["launch_angle_deg", "wind_x_ms", "drag_param", "height_diff_m", "landing_distance_m"]
-TARGET   = loader.TARGET
+def load_data():
+    return loader.load_data(DATA, n_samples=None)
 
-FEATURE_STEP = ("engineer", EngineeredFeatures(output_columns=FEATURES))
 
-# n_samples is deliberately NOT applied here. It sizes the sample-size tiers out
-# of the full pool; this run reads an already-filtered subset whose size is set
-# by skew.max_angle_deg, and slicing it again would confound the two knobs.
-load_data     = partial(loader.load_data, DATA, n_samples=None)
-model_path    = partial(loader.model_path, MODELS_DIR)
-save_metrics  = partial(loader.save_metrics, MODELS_DIR)
-print_metrics = partial(loader.print_metrics, MODELS_DIR)
+def model_path(filename):
+    return loader.model_path(MODELS_DIR, filename)
+
+
+def save_metrics(model_name, **kw):
+    return loader.save_metrics(MODELS_DIR, model_name, **kw)
+
+
+def print_metrics(model_name, y_test, y_pred):
+    return loader.print_metrics(MODELS_DIR, model_name, y_test, y_pred)
 
 
 def load_holdout():

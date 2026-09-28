@@ -1,13 +1,19 @@
-"""Shared loader for every regression run (run_raw_10k/20k/40k, run_eng_10k/
-20k/40k). Always reads the raw physical columns from the shared, pre-shuffled
-pool (see data_generation/generate.py) and cleans/splits them -- it never
+"""Shared loader for every regression run. Always reads the raw physical
+columns from the pool it's pointed at and cleans/splits them -- it never
 derives wind_x_ms/drag_param/height_diff_m itself.
 
-The raw-vs-engineered contrast those run_* pairs exist to demonstrate now
-lives entirely in the model's sklearn Pipeline: run_raw_*/train_utils.py sets
-FEATURE_STEP = ("engineer", "passthrough"), run_eng_*/train_utils.py sets it
-to ("engineer", feature_engineering.EngineeredFeatures(...)) -- same raw
-input, different first pipeline step.
+The raw-vs-engineered contrast (raw/eng runs) lives entirely in the model's
+sklearn Pipeline: models/regression/runs.py's RunConfig.features picks the 9
+raw columns or the 5 engineered ones, and models/regression/train.py builds
+`("features", EngineeredFeatures(output_columns=cfg.features))` from whichever
+list -- same raw input, different first Pipeline step, one place that knows
+how to build it.
+
+`clean` and `model_name` are explicit parameters, not environment variables
+(TRAIN_CLEAN / TRAIN_MODEL_NAME) -- the previous design read them out of
+os.environ because the injected-PYTHONPATH call chain had no other way to
+pass per-run values into a shared script. train.py calls this module directly
+and can just pass them (AUDIT.md C1 / the run_*/train_utils.py cleanup).
 """
 import csv as _csv
 import os
@@ -100,7 +106,7 @@ def _clean_no_outlier(df):
     return df[df["is_outlier"] == "none"]
 
 
-def load_data(data_path, n_samples=None):
+def load_data(data_path, n_samples=None, clean=""):
     """Read, slice, and clean the pool -- returns (X, y) for the caller to
     split. Splitting is a training decision (test_size, stratify, ...), not a
     loading one, so it lives in each training script instead of here."""
@@ -126,7 +132,6 @@ def load_data(data_path, n_samples=None):
     # task 35 / §5.5).
     df = params.take_samples(df, n_samples, pool_name=os.path.basename(data_path))
     n_orig = len(df)
-    clean  = os.environ.get("TRAIN_CLEAN", "")
     if clean == "iqr":
         df = _clean_iqr(df)
         print(f"  IQR cleaning   : {n_orig} -> {len(df)} rows ({n_orig - len(df)} removed)")
@@ -151,9 +156,6 @@ def load_data(data_path, n_samples=None):
 
 def model_path(models_dir, filename):
     os.makedirs(models_dir, exist_ok=True)
-    name = os.environ.get("TRAIN_MODEL_NAME", "")
-    if name:
-        return os.path.join(models_dir, f"model_{name}.joblib")
     return os.path.join(models_dir, filename)
 
 
@@ -166,7 +168,7 @@ def save_metrics(models_dir, model_name, **kw):
         w.writerow([model_name] + [f"{v:.6f}" if isinstance(v, float) else str(v) for v in kw.values()])
 
 
-def print_metrics(models_dir, y_test, y_pred):
+def print_metrics(models_dir, model_name, y_test, y_pred):
     mae  = mean_absolute_error(y_test, y_pred)
     mse  = np.mean((y_test - y_pred) ** 2)
     rmse = np.sqrt(mse)
@@ -176,8 +178,4 @@ def print_metrics(models_dir, y_test, y_pred):
     print(f"  {'Actual':>10}  {'Predicted':>10}  {'Error':>8}")
     for a, p in zip(y_test[:6], y_pred[:6]):
         print(f"  {a:>10.2f}  {p:>10.2f}  {a - p:>+8.2f} m/s")
-    model_name = os.environ.get("TRAIN_MODEL_NAME", "")
-    if not model_name:
-        script = os.path.splitext(os.path.basename(sys.argv[0]))[0]
-        model_name = script[6:] if script.startswith("train_") else script
     save_metrics(models_dir, model_name, mae=mae, mse=mse, rmse=rmse)

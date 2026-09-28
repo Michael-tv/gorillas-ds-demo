@@ -1,12 +1,16 @@
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "models", "classification", "run"))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 import pandas as pd
 from feature_engineering import add_engineered_columns
 from feature_evaluation import evaluate, plot_features, plot_outliers
-from train_utils import DATA, FEATURES, TARGET, N_SAMPLES
-import params  # train_utils put the repo root on sys.path
+import params
+from models.classification.common import loader
+from models.classification.runs import RUNS
+
+_CFG = RUNS["run"]
+DATA, N_SAMPLES = _CFG.data, _CFG.n_samples
+FEATURES, TARGET = loader.FEATURES, loader.TARGET
 
 df = add_engineered_columns(params.take_samples(pd.read_parquet(DATA), N_SAMPLES))  # take_samples raises instead of silently truncating (AUDIT.md task 35)
 

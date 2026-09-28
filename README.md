@@ -70,14 +70,21 @@ feature_engineering.py the 3 derived features, as a function and a Pipeline step
 splitting.py           group-aware train/test splits and cross-validation
 params.py              reads params.yaml; also holds take_samples()
 
-models/regression/     9 regression algorithms, on 3 pools: switchable (run_raw/run_eng)
-                        plus 2 permanent Gorillas groups (run_raw_effort/velocity,
-                        run_eng_effort/velocity) + 3 concept runs
-models/classification/ 6 classification algorithms, on the switchable pool (run/) plus
-                        2 permanent Gorillas groups (run_effort, run_velocity)
-evaluation/             prediction, feature and plotting scripts (run by hand)
-experiments/            trained models (DVC-cached) and metrics (Git-versioned)
-qbasic_gorillas/        the DOSBox game builds, including the datagen fork
+models/regression/
+  runs.py                 the 7 run configs -- which pool, which features, where models land
+  algorithms/             one small module per algorithm: the estimator, its search space
+  train.py                the one entrypoint: `--run --algorithm --key --clean`, everything
+                           common to every algorithm (load, split, CV, save)
+  train_decision_tree_overfit.py   standalone -- different control flow (no split), not
+                           part of the generic driver; own `--run --key --clean`
+  run_skewed/train_utils.py  skewed-demo-only helpers (the OOD holdout, row-count matching)
+                           for the two standalone concept scripts in this folder
+  run_leakage/, run_bias_variance/  folder-local train_utils.py + two scripts each,
+                           untouched by the runs.py/train.py consolidation (see below)
+models/classification/  the same shape: runs.py (3 configs), algorithms/, train.py
+evaluation/              prediction, feature and plotting scripts (run by hand)
+experiments/             trained models (DVC-cached) and metrics (Git-versioned)
+qbasic_gorillas/         the DOSBox game builds, including the datagen fork
 ```
 
 **Switchable pool vs. permanent pipelines.** `train_raw`/`train_eng`/`train_classification`
@@ -219,17 +226,17 @@ pass a stage name (optionally `path/to/dvc.yaml:stage`) to see just its subgraph
 
 ### 4. Evaluate and plot
 
-The `evaluation/` scripts are run by hand — they are **not** in the DAG yet. Most are
-self-contained; the six `evaluate_features.py` scripts import `train_utils`, so they need the
-same PYTHONPATH wrapper the training stages use:
+The `evaluation/` scripts are run by hand — they are **not** in the DAG yet. All of them are
+self-contained now; the six `evaluate_features.py` scripts used to need the same PYTHONPATH
+wrapper the training stages used, back when they imported a run folder's `train_utils.py` --
+they now import `models.<domain>.runs.RUNS` directly, the same registry `train.py` uses, so they
+run like any other script:
 
 ```bash
-python evaluation/regression/run_raw/predict.py                      # self-contained
+python evaluation/regression/run_raw/predict.py
 python evaluation/regression/run_raw/plot_training_data_relationships.py
 python evaluation/regression/compare_models.py
-
-python scripts/run_with_pythonpath.py models/regression/run_raw \
-       evaluation/regression/run_raw/evaluate_features.py            # needs the wrapper
+python evaluation/regression/run_raw/evaluate_features.py
 ```
 
 `predict.py` takes its inputs from a config block at the bottom of the file, including
@@ -269,12 +276,32 @@ by testing rather than assumed:
   params:
     - ../../params.yaml:
         - test_size
-        - search.regression.${item.model}.n_iter
+        - search.regression.${item.algorithm}.n_iter
   ```
 
   Leaving this implicit fails loudly and immediately (`dvc repro` errors with "Parameters
   'test_size, ...' are missing from 'params.yaml'"), rather than silently tracking nothing — so
   if you add a `params:` entry and see that error, this is why.
+
+- **`python -m package.module` needs `scripts/run_with_pythonpath.py` too, for a different
+  reason than the script-path stages do.** `-m` resolves its dotted module path against the
+  *current working directory*, and DVC always runs `cmd:` with the working directory set to
+  wherever the calling `dvc.yaml` lives — `pipelines/effort_regression/`, not the repo root — so
+  a bare `python -m models.regression.train ...` there fails immediately with
+  `ModuleNotFoundError: No module named 'models'`. Every `-m` invocation in `pipelines/*/dvc.yaml`
+  therefore also goes through the wrapper, with `../..` (the repo root) as its PYTHONPATH
+  argument: `python ../../scripts/run_with_pythonpath.py ../.. -m models.regression.train ...`.
+  Confirmed by testing: this is exactly how the mistake surfaced.
+
+- **Not every script resolves its own `--out`-style arguments the same way.** Most `deps`/`outs`
+  paths in `pipelines/*/dvc.yaml` are `../../`-prefixed because DVC resolves them relative to the
+  dvc.yaml itself (the first bullet above). `data_generation/filter_skewed.py`'s `--out` and
+  `--holdout-out` arguments are different: `data_generation/io.py`'s `resolve_output()` anchors a
+  relative path to its own hardcoded repo root (`Path(__file__).resolve().parent.parent`), not to
+  CWD — so passing it a `../../`-prefixed path double-resolves and writes two directories *above*
+  the repo root. `filter_skewed`'s `cmd:` in `pipelines/standard_regression/dvc.yaml` passes bare
+  `data/...` paths for exactly this reason. Confirmed by testing: the `../../`-prefixed form ran
+  without error and silently wrote outside the repo entirely.
 
 `dvc dag` (no `-P` needed — see "3. Compare") and `dvc stage list` both work the same way run
 from any pipeline's own directory, scoped to just that file, or from the repo root against
@@ -437,29 +464,43 @@ pipeline, see §4.
 
 ### 2. A new algorithm in an existing sweep
 
-Write `models/regression/train_<name>.py` (or `models/classification/train_<name>.py`),
-matching the shape every existing script uses:
+Write `models/regression/algorithms/<name>.py` (or `models/classification/algorithms/<name>.py`)
+exposing `NAME` and a `fit()` function — everything common to every algorithm (loading, the
+group-aware split, computing CV folds, printing/saving metrics, saving the model) lives once in
+`models/<domain>/train.py`; a module here owns only what actually differs: the estimator, its
+Pipeline shape, its search space, and how it searches.
 
 ```python
-from train_utils import load_data, print_metrics, model_path, FEATURE_STEP  # FEATURE_STEP: regression only
-import params, splitting
+# models/regression/algorithms/my_algorithm.py
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.ensemble import SomeRegressor
 
-X, y, groups = load_data()
-X_train, X_test, y_train, y_test, groups_train = splitting.split(
-    X, y, groups, test_size=params.load_params()["test_size"], random_state=42)
-CV_FOLDS = splitting.cv_for(CV, X_train, y_train, groups_train)   # only if it searches
-# ... fit, print_metrics(y_test, preds), joblib.dump(..., model_path("model_<name>.joblib"))
+NAME = "My Algorithm"
+PARAM_DIST = {"model__some_param": [1, 2, 3]}
+
+def fit(X_train, y_train, feature_step, search_cfg):
+    pipeline = Pipeline([feature_step, ("model", SomeRegressor(random_state=42))])
+    search = RandomizedSearchCV(pipeline, param_distributions=PARAM_DIST,
+                                n_iter=search_cfg["n_iter"], cv=search_cfg["cv"],
+                                scoring="neg_mean_squared_error", random_state=42, n_jobs=-1)
+    search.fit(X_train, y_train)
+    print(f"Best params: {search.best_params_}")
+    return search.best_estimator_
 ```
 
-`splitting.split`/`cv_for` are mandatory, not optional — skip them and the model trains on a
-plain `train_test_split`, silently reintroducing the group leakage `group_id` exists to prevent
-whenever a Gorillas pool is active.
+(Classification's `fit(X_train, y_train, search_cfg)` has no `feature_step` — every
+classification run uses the same engineered features.) Not every algorithm searches:
+`ridge.py`/`lasso.py` use a `*CV` meta-estimator with no external wrapper, and
+`linear_regression.py` doesn't search at all — see those three for the pattern if yours doesn't
+either.
 
-Add an entry to `dvc_models_regression.yaml` or `dvc_models_classification.yaml`:
+Register it in `models/regression/algorithms/__init__.py`'s `ALGORITHMS` dict, and add an entry
+to `dvc_models_regression.yaml` or `dvc_models_classification.yaml`:
 
 ```yaml
 regression_models:
-  my_algorithm: {script: train_my_algorithm.py, clean: "", model: my_algorithm}
+  my_algorithm: {algorithm: my_algorithm, clean: ""}
 ```
 
 Add its search budget to `params.yaml`'s `search:` block (`{n_iter: null, cv: null}` if it
@@ -474,9 +515,9 @@ entry in `dvc_models_regression.yaml` / `dvc_models_classification.yaml`.
 
 ```yaml
 regression_models:
-  linear_regression:  {script: train_linear_regression.py, clean: "", model: linear_regression}
-  # decision_tree:     {script: train_decision_tree.py,     clean: "", model: decision_tree}
-  knn:                {script: train_knn.py,               clean: "", model: knn}
+  linear_regression:  {algorithm: linear_regression, clean: ""}
+  # decision_tree:     {algorithm: decision_tree,     clean: ""}
+  knn:                {algorithm: knn,               clean: ""}
 ```
 
 No other file changes — there's no separate `enabled: false` flag, presence in the matrix *is*
@@ -502,11 +543,13 @@ Two things this does **not** do:
 ### 3. A new evaluation/plotting script
 
 Not yet part of the DAG (`evaluation/` is run by hand — see "Known state"). Follow an existing
-script's pattern for the run you're targeting and, if it imports `train_utils`, invoke it
-through the same wrapper the training stages use:
+script's pattern for the run you're targeting; if it needs a run's config (which pool, which
+features), import `models.<domain>.runs.RUNS` the same way `evaluate_features.py` does rather
+than reading a `train_utils.py` -- no PYTHONPATH wrapper needed, every evaluation script is
+self-contained:
 
 ```bash
-python scripts/run_with_pythonpath.py models/regression/run_raw evaluation/regression/run_raw/my_script.py
+python evaluation/regression/run_raw/my_script.py
 ```
 
 ### 4. A new standalone pipeline
@@ -519,14 +562,14 @@ example:
 
 1. **Dataset** — an entry in `dvc_datasets.yaml` (§1). Give it its own name; don't reuse a name
    another pipeline already owns, since these files are meant to be permanent, not overwritten.
-2. **Config shim(s)** — `models/<domain>/<new_run_folder>/train_utils.py`, copied from
-   `models/regression/run_raw_effort/train_utils.py` (or the `_eng`/classification equivalent)
-   with `DATA` repointed at the new file and `N_SAMPLES` set — `None` trains on the whole pool,
-   a number prefix-slices it (and must not exceed the pool's row count, or `params.take_samples`
-   raises rather than silently truncating). One shim per stage the new pipeline needs
-   (`run_raw_*`/`run_eng_*` if it's a regression pipeline with both feature sets).
+2. **Run config** — an entry in `models/<domain>/runs.py`'s `RUNS` dict, not a new file: `data`
+   (the new pool's path), `models_dir`, `features` (for regression: `RAW_FEATURES` or
+   `ENG_FEATURES`), and `n_samples` — `None` trains on the whole pool, a number prefix-slices it
+   (and must not exceed the pool's row count, or `params.take_samples` raises rather than
+   silently truncating). One entry per feature set the new pipeline needs (`raw`/`eng` if it's a
+   regression pipeline with both).
 3. **Pipeline file** — `pipelines/<new_name>/dvc.yaml`, copied from
-   `pipelines/effort_regression/dvc.yaml`. Three things to get right, all found by testing this
+   `pipelines/effort_regression/dvc.yaml`. Four things to get right, all found by testing this
    pattern rather than assumed (see "5. Running one pipeline at a time" for the reasoning):
    - `vars:` loads `../../dvc_models_regression.yaml` (or `_classification.yaml`) and
      `../../params.yaml` — two levels up, since the new file lives two directories under the
@@ -536,6 +579,14 @@ example:
      the key list) — the bare-key form silently looks for a `params.yaml` next to the new
      `dvc.yaml`, which doesn't exist, and fails with "Parameters '...' are missing from
      'params.yaml'".
+   - `cmd:` routes `python -m models.<domain>.train ...` through
+     `../../scripts/run_with_pythonpath.py ../..` -- `-m` resolves against the working
+     directory, which DVC sets to the pipeline's own folder, not the repo root, so a bare `-m`
+     invocation fails with `ModuleNotFoundError: No module named 'models'`.
+   - `decision_tree_overfit` needs its own explicit stage (see
+     `pipelines/effort_regression/dvc.yaml`'s `train_raw_effort_decision_tree_overfit`) if the
+     new pipeline is a regression one -- it isn't part of `${regression_models}` (different
+     script, different control flow), so it doesn't come along with the foreach block.
 4. **Run it**: `cd pipelines/<new_name> && dvc repro`, or `dvc repro pipelines/<new_name>/dvc.yaml`
    from the repo root.
 

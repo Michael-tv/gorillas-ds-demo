@@ -3,7 +3,7 @@
 # asked for, so "run everything for effort-regression" is one `dvc repro`
 # from this directory (or `dvc repro pipelines/effort_regression/dvc.yaml`
 # from the repo root) instead of naming stages individually. See the
-# top-level README's "Running one source-domain pipeline" section.
+# top-level README's "Running one pipeline at a time" section.
 #
 # Depends on data/gorillas_effort_regression.parquet, produced by the
 # generate_gorillas@gorillas_effort_regression stage in the ROOT dvc.yaml --
@@ -25,6 +25,15 @@
 # defaults to a `params.yaml` next to THIS dvc.yaml, which doesn't exist.
 # Confirmed by testing: the bare key form failed with "Parameters
 # 'test_size, ...' are missing from 'params.yaml'" until this was explicit.
+#
+# cmd: invokes models/regression/train.py directly -- an explicit
+# `--run --algorithm --key --clean` CLI -- rather than the old
+# `scripts/run_with_pythonpath.py <run_dir> <script> TRAIN_MODEL_NAME=...
+# TRAIN_CLEAN=...` indirection. That old pattern needed twelve near-identical
+# run_*/train_utils.py shims, each importable only via injected PYTHONPATH,
+# so a shared script like train_random_forest.py could not say which of the
+# twelve it would get by reading it -- see models/regression/runs.py and
+# AUDIT.md C1.
 
 vars:
   - ../../dvc_models_regression.yaml
@@ -35,42 +44,76 @@ stages:
   train_raw_effort:
     foreach: ${regression_models}
     do:
-      cmd: python ../../scripts/run_with_pythonpath.py ../../models/regression/run_raw_effort ../../models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
+      cmd: python ../../scripts/run_with_pythonpath.py ../.. -m models.regression.train --run raw_effort --algorithm ${item.algorithm} --key ${key} --clean "${item.clean}"
       deps:
         - ../../data/gorillas_effort_regression.parquet
-        - ../../models/regression/${item.script}
-        - ../../models/regression/run_raw_effort/train_utils.py
-        - ../../models/regression/common/loader.py
-        - ../../splitting.py
-      params:
-        - ../../params.yaml:
-            - test_size
-            - search.regression.${item.model}.n_iter
-            - search.regression.${item.model}.cv
-      outs:
-        - ../../experiments/regression/run_raw_effort/models/model_${key}.joblib
-      metrics:
-        - ../../experiments/regression/run_raw_effort/models/metrics_${key}.csv:
-            cache: false
-
-  train_eng_effort:
-    foreach: ${regression_models}
-    do:
-      cmd: python ../../scripts/run_with_pythonpath.py ../../models/regression/run_eng_effort ../../models/regression/${item.script} TRAIN_MODEL_NAME=${key} TRAIN_CLEAN=${item.clean}
-      deps:
-        - ../../data/gorillas_effort_regression.parquet
-        - ../../models/regression/${item.script}
-        - ../../models/regression/run_eng_effort/train_utils.py
+        - ../../models/regression/train.py
+        - ../../models/regression/algorithms/${item.algorithm}.py
+        - ../../models/regression/runs.py
         - ../../models/regression/common/loader.py
         - ../../feature_engineering.py
         - ../../splitting.py
       params:
         - ../../params.yaml:
             - test_size
-            - search.regression.${item.model}.n_iter
-            - search.regression.${item.model}.cv
+            - search.regression.${item.algorithm}.n_iter
+            - search.regression.${item.algorithm}.cv
+      outs:
+        - ../../experiments/regression/run_raw_effort/models/model_${key}.joblib
+      metrics:
+        - ../../experiments/regression/run_raw_effort/models/metrics_${key}.csv:
+            cache: false
+
+  # decision_tree_overfit is not part of ${regression_models} (see
+  # dvc_models_regression.yaml's header) -- different script, different
+  # control flow (no split), so its own explicit stage per raw/eng pipeline.
+  train_raw_effort_decision_tree_overfit:
+    cmd: python ../../scripts/run_with_pythonpath.py ../.. -m models.regression.train_decision_tree_overfit --run raw_effort --key decision_tree_overfit --clean ""
+    deps:
+      - ../../data/gorillas_effort_regression.parquet
+      - ../../models/regression/train_decision_tree_overfit.py
+      - ../../models/regression/runs.py
+      - ../../models/regression/common/loader.py
+      - ../../feature_engineering.py
+    outs:
+      - ../../experiments/regression/run_raw_effort/models/model_decision_tree_overfit.joblib
+    metrics:
+      - ../../experiments/regression/run_raw_effort/models/metrics_decision_tree_overfit.csv:
+          cache: false
+
+  train_eng_effort:
+    foreach: ${regression_models}
+    do:
+      cmd: python ../../scripts/run_with_pythonpath.py ../.. -m models.regression.train --run eng_effort --algorithm ${item.algorithm} --key ${key} --clean "${item.clean}"
+      deps:
+        - ../../data/gorillas_effort_regression.parquet
+        - ../../models/regression/train.py
+        - ../../models/regression/algorithms/${item.algorithm}.py
+        - ../../models/regression/runs.py
+        - ../../models/regression/common/loader.py
+        - ../../feature_engineering.py
+        - ../../splitting.py
+      params:
+        - ../../params.yaml:
+            - test_size
+            - search.regression.${item.algorithm}.n_iter
+            - search.regression.${item.algorithm}.cv
       outs:
         - ../../experiments/regression/run_eng_effort/models/model_${key}.joblib
       metrics:
         - ../../experiments/regression/run_eng_effort/models/metrics_${key}.csv:
             cache: false
+
+  train_eng_effort_decision_tree_overfit:
+    cmd: python ../../scripts/run_with_pythonpath.py ../.. -m models.regression.train_decision_tree_overfit --run eng_effort --key decision_tree_overfit --clean ""
+    deps:
+      - ../../data/gorillas_effort_regression.parquet
+      - ../../models/regression/train_decision_tree_overfit.py
+      - ../../models/regression/runs.py
+      - ../../models/regression/common/loader.py
+      - ../../feature_engineering.py
+    outs:
+      - ../../experiments/regression/run_eng_effort/models/model_decision_tree_overfit.joblib
+    metrics:
+      - ../../experiments/regression/run_eng_effort/models/metrics_decision_tree_overfit.csv:
+          cache: false

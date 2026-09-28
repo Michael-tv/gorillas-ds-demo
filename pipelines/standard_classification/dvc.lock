@@ -1,0 +1,53 @@
+schema: '2.0'
+stages:
+  train_classification@logistic_regression:
+    cmd: python ../../scripts/run_with_pythonpath.py ../.. -m 
+      models.classification.train --run run --algorithm logistic_regression 
+      --key logistic_regression
+    deps:
+    - path: ../../data/standard_training_data.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../models/classification/algorithms/logistic_regression.py
+      hash: md5
+      md5: 6584bc22f3abb1bb19a04df93db34cf7
+      size: 823
+    - path: ../../models/classification/common/loader.py
+      hash: md5
+      md5: 0773b087d8e86bdb01e86a7da66d895a
+      size: 6723
+    - path: ../../models/classification/runs.py
+      hash: md5
+      md5: 8759dc9ac4f836d710ce4e2999451ba1
+      size: 1373
+    - path: ../../models/classification/train.py
+      hash: md5
+      md5: 83ba1175a1a59541934e6166198657f5
+      size: 2424
+    - path: ../../splitting.py
+      hash: md5
+      md5: 6b70d3a171d077c0f2db4510dd2c186e
+      size: 5772
+    params:
+      ../../params.yaml:
+        n_samples: 40000
+        search.classification.logistic_regression.cv:
+        search.classification.logistic_regression.n_iter:
+        test_size: 0.2
+        training_data: standard_training_data
+    outs:
+    - path: 
+        ../../experiments/classification/run/models/metrics_logistic_regression.csv
+      hash: md5
+      md5: b5c6ad09f785e4b27d7eef9bb919b8ff
+      size: 176
+    - path: 
+        ../../experiments/classification/run/models/model_logistic_regression.joblib
+      hash: md5
+      md5: 6fe8aaad3ca95bae3fc0d5cce1c5975c
+      size: 1537

@@ -1,2 +1,2 @@
-model,mae,mse,rmse
-skewed,3.172311,32.843185,5.730897
+model,mae,mae_holdout,holdout_mae_ratio,max_angle_deg
+skewed,3.180530,8.189916,2.575016,30.000000
