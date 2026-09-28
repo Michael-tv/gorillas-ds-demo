@@ -1,0 +1,9 @@
+/lasso
+/ridge
+/polynomial
+/linear_regression
+/decision_tree
+/knn
+/mlp
+/random_forest
+/xgboost

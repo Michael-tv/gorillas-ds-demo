@@ -17,7 +17,9 @@ does -- a low hit rate makes "always predict miss" score deceptively high
 accuracy (AUDIT.md task 37 / SS5.4).
 """
 import csv
+import glob
 import os
+import re
 
 import joblib
 from sklearn.metrics import (accuracy_score, average_precision_score,
@@ -31,9 +33,24 @@ from models.classification.common import loader
 
 _REPO_ROOT  = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 DATA        = os.path.join(_REPO_ROOT, "data", "standard_velocity.parquet")
-MODELS_DIR  = os.path.join(_REPO_ROOT, "experiments_results", "classification", "standard", "experiment_row_count", "models")
+EXPERIMENT_DIR = os.path.join(_REPO_ROOT, "experiments_results", "classification", "standard", "experiment_row_count")
+MODELS_DIR  = os.path.join(EXPERIMENT_DIR, "models")
 KEY         = "decision_tree"
+TIERS_DIR   = os.path.join(EXPERIMENT_DIR, "tiers", KEY)
 TIERS       = params.load_experiment_params(__file__)["tiers"]
+
+
+def _clean_stale_tiers():
+    """Delete any model_n<size>.joblib in TIERS_DIR whose size is no longer in
+    TIERS -- this is what makes tiers/<key>/ (a single directory dvc.yaml
+    outs: entry) correctly shrink when a tier is removed from params.yaml,
+    instead of leaving the old tier's model behind as an orphan."""
+    os.makedirs(TIERS_DIR, exist_ok=True)
+    for path in glob.glob(os.path.join(TIERS_DIR, "model_n*.joblib")):
+        m = re.fullmatch(r"model_n(\d+)\.joblib", os.path.basename(path))
+        if m and int(m.group(1)) not in TIERS:
+            os.remove(path)
+            print(f"  Removed stale {os.path.basename(path)} (no longer in TIERS)")
 
 
 def main():
@@ -42,6 +59,7 @@ def main():
     test_size = params.load_params()["test_size"]
 
     os.makedirs(MODELS_DIR, exist_ok=True)
+    _clean_stale_tiers()
     rows = []
     for n in TIERS:
         X, y, groups = X_full[:n], y_full[:n], groups_full[:n]
@@ -66,7 +84,7 @@ def main():
         rows.append({"n_samples": n, "precision": prec, "recall": rec, "f1": f1,
                      "pr_auc": pr_auc, "roc_auc": auc, "accuracy": acc, "baseline_accuracy": baseline})
 
-        joblib.dump(model, os.path.join(MODELS_DIR, f"model_{KEY}_n{n}.joblib"))
+        joblib.dump(model, os.path.join(TIERS_DIR, f"model_n{n}.joblib"))
 
     metrics_path = os.path.join(MODELS_DIR, f"metrics_{KEY}.csv")
     with open(metrics_path, "w", newline="") as f:
@@ -74,7 +92,7 @@ def main():
                                           "pr_auc", "roc_auc", "accuracy", "baseline_accuracy"])
         w.writeheader()
         w.writerows(rows)
-    print(f"\nSaved metrics_{KEY}.csv ({len(rows)} tiers) and {len(rows)} models to {MODELS_DIR}")
+    print(f"\nSaved metrics_{KEY}.csv ({len(rows)} tiers) and {len(rows)} models to {TIERS_DIR}")
 
 
 if __name__ == "__main__":

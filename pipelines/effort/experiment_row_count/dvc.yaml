@@ -27,12 +27,7 @@ stages:
       - ../../../models/regression/effort/experiment_row_count/params.yaml:
           - tiers
     outs:
-      - ../../../experiments_results/regression/effort/experiment_row_count/models/model_linear_regression_n500.joblib
-      - ../../../experiments_results/regression/effort/experiment_row_count/models/model_linear_regression_n1000.joblib
-      - ../../../experiments_results/regression/effort/experiment_row_count/models/model_linear_regression_n2000.joblib
-      - ../../../experiments_results/regression/effort/experiment_row_count/models/model_linear_regression_n3000.joblib
-      - ../../../experiments_results/regression/effort/experiment_row_count/models/model_linear_regression_n4000.joblib
-      - ../../../experiments_results/regression/effort/experiment_row_count/models/model_linear_regression_n5000.joblib
+      - ../../../experiments_results/regression/effort/experiment_row_count/tiers/linear_regression/
     metrics:
       - ../../../experiments_results/regression/effort/experiment_row_count/models/metrics_linear_regression.csv:
           cache: false
@@ -54,12 +49,7 @@ stages:
       - ../../../models/regression/effort/experiment_row_count/params.yaml:
           - tiers
     outs:
-      - ../../../experiments_results/regression/effort/experiment_row_count/models/model_decision_tree_n500.joblib
-      - ../../../experiments_results/regression/effort/experiment_row_count/models/model_decision_tree_n1000.joblib
-      - ../../../experiments_results/regression/effort/experiment_row_count/models/model_decision_tree_n2000.joblib
-      - ../../../experiments_results/regression/effort/experiment_row_count/models/model_decision_tree_n3000.joblib
-      - ../../../experiments_results/regression/effort/experiment_row_count/models/model_decision_tree_n4000.joblib
-      - ../../../experiments_results/regression/effort/experiment_row_count/models/model_decision_tree_n5000.joblib
+      - ../../../experiments_results/regression/effort/experiment_row_count/tiers/decision_tree/
     metrics:
       - ../../../experiments_results/regression/effort/experiment_row_count/models/metrics_decision_tree.csv:
           cache: false
@@ -81,12 +71,7 @@ stages:
   #     - ../../../models/regression/effort/experiment_row_count/params.yaml:
   #         - tiers
   #   outs:
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_knn_n500.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_knn_n1000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_knn_n2000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_knn_n3000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_knn_n4000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_knn_n5000.joblib
+  #     - ../../../experiments_results/regression/effort/experiment_row_count/tiers/knn/
   #   metrics:
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/metrics_knn.csv:
   #         cache: false
@@ -108,12 +93,7 @@ stages:
   #     - ../../../models/regression/effort/experiment_row_count/params.yaml:
   #         - tiers
   #   outs:
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_polynomial_n500.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_polynomial_n1000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_polynomial_n2000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_polynomial_n3000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_polynomial_n4000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_polynomial_n5000.joblib
+  #     - ../../../experiments_results/regression/effort/experiment_row_count/tiers/polynomial/
   #   metrics:
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/metrics_polynomial.csv:
   #         cache: false
@@ -135,12 +115,7 @@ stages:
   #     - ../../../models/regression/effort/experiment_row_count/params.yaml:
   #         - tiers
   #   outs:
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_random_forest_n500.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_random_forest_n1000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_random_forest_n2000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_random_forest_n3000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_random_forest_n4000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_random_forest_n5000.joblib
+  #     - ../../../experiments_results/regression/effort/experiment_row_count/tiers/random_forest/
   #   metrics:
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/metrics_random_forest.csv:
   #         cache: false
@@ -162,12 +137,7 @@ stages:
   #     - ../../../models/regression/effort/experiment_row_count/params.yaml:
   #         - tiers
   #   outs:
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_mlp_n500.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_mlp_n1000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_mlp_n2000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_mlp_n3000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_mlp_n4000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_mlp_n5000.joblib
+  #     - ../../../experiments_results/regression/effort/experiment_row_count/tiers/mlp/
   #   metrics:
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/metrics_mlp.csv:
   #         cache: false
@@ -189,12 +159,7 @@ stages:
   #     - ../../../models/regression/effort/experiment_row_count/params.yaml:
   #         - tiers
   #   outs:
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_xgboost_n500.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_xgboost_n1000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_xgboost_n2000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_xgboost_n3000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_xgboost_n4000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_xgboost_n5000.joblib
+  #     - ../../../experiments_results/regression/effort/experiment_row_count/tiers/xgboost/
   #   metrics:
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/metrics_xgboost.csv:
   #         cache: false
@@ -216,12 +181,7 @@ stages:
   #     - ../../../models/regression/effort/experiment_row_count/params.yaml:
   #         - tiers
   #   outs:
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_ridge_n500.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_ridge_n1000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_ridge_n2000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_ridge_n3000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_ridge_n4000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_ridge_n5000.joblib
+  #     - ../../../experiments_results/regression/effort/experiment_row_count/tiers/ridge/
   #   metrics:
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/metrics_ridge.csv:
   #         cache: false
@@ -243,12 +203,7 @@ stages:
   #     - ../../../models/regression/effort/experiment_row_count/params.yaml:
   #         - tiers
   #   outs:
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_lasso_n500.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_lasso_n1000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_lasso_n2000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_lasso_n3000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_lasso_n4000.joblib
-  #     - ../../../experiments_results/regression/effort/experiment_row_count/models/model_lasso_n5000.joblib
+  #     - ../../../experiments_results/regression/effort/experiment_row_count/tiers/lasso/
   #   metrics:
   #     - ../../../experiments_results/regression/effort/experiment_row_count/models/metrics_lasso.csv:
   #         cache: false
@@ -271,12 +226,7 @@ stages:
   #     - ../../../models/classification/effort/experiment_row_count/params.yaml:
   #         - tiers
   #   outs:
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_logistic_regression_n500.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_logistic_regression_n1000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_logistic_regression_n2000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_logistic_regression_n3000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_logistic_regression_n4000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_logistic_regression_n5000.joblib
+  #     - ../../../experiments_results/classification/effort/experiment_row_count/tiers/logistic_regression/
   #   metrics:
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/metrics_logistic_regression.csv:
   #         cache: false
@@ -298,12 +248,7 @@ stages:
   #     - ../../../models/classification/effort/experiment_row_count/params.yaml:
   #         - tiers
   #   outs:
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_decision_tree_n500.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_decision_tree_n1000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_decision_tree_n2000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_decision_tree_n3000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_decision_tree_n4000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_decision_tree_n5000.joblib
+  #     - ../../../experiments_results/classification/effort/experiment_row_count/tiers/decision_tree/
   #   metrics:
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/metrics_decision_tree.csv:
   #         cache: false
@@ -325,12 +270,7 @@ stages:
   #     - ../../../models/classification/effort/experiment_row_count/params.yaml:
   #         - tiers
   #   outs:
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_knn_n500.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_knn_n1000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_knn_n2000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_knn_n3000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_knn_n4000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_knn_n5000.joblib
+  #     - ../../../experiments_results/classification/effort/experiment_row_count/tiers/knn/
   #   metrics:
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/metrics_knn.csv:
   #         cache: false
@@ -352,12 +292,7 @@ stages:
   #     - ../../../models/classification/effort/experiment_row_count/params.yaml:
   #         - tiers
   #   outs:
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_random_forest_n500.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_random_forest_n1000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_random_forest_n2000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_random_forest_n3000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_random_forest_n4000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_random_forest_n5000.joblib
+  #     - ../../../experiments_results/classification/effort/experiment_row_count/tiers/random_forest/
   #   metrics:
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/metrics_random_forest.csv:
   #         cache: false
@@ -379,12 +314,7 @@ stages:
   #     - ../../../models/classification/effort/experiment_row_count/params.yaml:
   #         - tiers
   #   outs:
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_mlp_n500.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_mlp_n1000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_mlp_n2000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_mlp_n3000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_mlp_n4000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_mlp_n5000.joblib
+  #     - ../../../experiments_results/classification/effort/experiment_row_count/tiers/mlp/
   #   metrics:
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/metrics_mlp.csv:
   #         cache: false
@@ -406,12 +336,7 @@ stages:
   #     - ../../../models/classification/effort/experiment_row_count/params.yaml:
   #         - tiers
   #   outs:
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_xgboost_n500.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_xgboost_n1000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_xgboost_n2000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_xgboost_n3000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_xgboost_n4000.joblib
-  #     - ../../../experiments_results/classification/effort/experiment_row_count/models/model_xgboost_n5000.joblib
+  #     - ../../../experiments_results/classification/effort/experiment_row_count/tiers/xgboost/
   #   metrics:
   #     - ../../../experiments_results/classification/effort/experiment_row_count/models/metrics_xgboost.csv:
   #         cache: false
