@@ -23,36 +23,35 @@ stages:
     - path: 
         ../../../../models/regression/effort/experiment_row_count/train_decision_tree.py
       hash: md5
-      md5: 2674392eba08a62b6843ba9243deddd5
-      size: 4086
+      md5: b8e3e43d25e5dec79e213db0715e2b5f
+      size: 4485
     - path: ../../../../splitting.py
       hash: md5
       md5: a935c061b7a622bd255679ac47a4defe
       size: 6288
     params:
       params.yaml:
-        cv: 5
         n_iter.decision_tree: 30
         tiers:
         - 500
         - 1000
         - 2000
-        - 3000
         - 4000
-        - 5000
+        - 8000
+        - 16000
       ../../../../params.yaml:
         test_size: 0.2
     outs:
     - path: 
         ../../../../experiments_results/regression/effort/experiment_row_count/models/metrics_decision_tree.csv
       hash: md5
-      md5: 1599df4290a493529b86bb9dd5c71cc0
-      size: 390
+      md5: b09e1aead99cb43009bd55ba0ef92e23
+      size: 644
     - path: 
         ../../../../experiments_results/regression/effort/experiment_row_count/tiers/decision_tree/
       hash: md5
-      md5: c3a9454bd3d2ec3b2b35f5d0c30b8eaa.dir
-      size: 151260
+      md5: da3bf332b6038e314c89f581bf382e87.dir
+      size: 241836
       nfiles: 6
   train_row_count_effort_linear_regression:
     cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 

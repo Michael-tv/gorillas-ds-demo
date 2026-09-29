@@ -86,7 +86,7 @@ def main():
 
     metrics_path = os.path.join(MODELS_DIR, f"metrics_{KEY}.csv")
     with open(metrics_path, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=["n_samples", "mae", "mse", "rmse", "train_mae"])
+        w = csv.DictWriter(f, fieldnames=["n_samples", "mae", "mse", "rmse", "train_mae", "variance_proxy"])
         w.writeheader()
         w.writerows(rows)
     print(f"\nSaved metrics_{KEY}.csv ({len(rows)} tiers) and {len(rows)} models to {TIERS_DIR}")
