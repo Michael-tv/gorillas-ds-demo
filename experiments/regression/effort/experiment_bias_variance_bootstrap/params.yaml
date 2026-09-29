@@ -1,13 +1,15 @@
-# Same six sample-size tiers as experiment_row_count/params.yaml, duplicated
-# here rather than shared (this repo's convention is one local params.yaml
-# per experiment -- see the top-level README) so this experiment's
-# bias2/variance numbers line up 1:1 against that experiment's
-# mae/train_mae/variance_proxy at the same n_samples.
+# Same tiers as experiment_row_count/params.yaml, duplicated (not shared) so
+# bias2/variance numbers line up 1:1 against that experiment's mae at each n_samples.
 tiers: [500, 1000, 2000, 3000, 4000, 5000]
 
-# Number of independent bootstrap resamples fit per tier to estimate
-# variance -- see train_linear_regression.py's docstring for the method. 30
-# matches the worked example at geeksforgeeks.org/machine-learning/bias-vs-
-# variance-in-machine-learning; higher reduces noise in the variance
-# estimate at the cost of n_bootstrap model fits per tier.
+# Bootstrap resamples fit per tier to estimate variance. Higher reduces noise
+# in the estimate at the cost of more fits per tier.
 n_bootstrap: 30
+
+# RandomizedSearchCV search budget for Decision Tree, used once per tier to
+# pick fixed hyperparameters before bootstrapping -- see
+# train_decision_tree.py's docstring for why the search itself isn't
+# repeated per bootstrap resample. No entry needed for linear_regression:
+# it has no hyperparameters to tune (see train_linear_regression.py).
+n_iter:
+  decision_tree: 30

@@ -14,21 +14,21 @@ stages:
       size: 439
     - path: ../../../../experiments/regression/common/loader.py
       hash: md5
-      md5: bb711f2e0e6d8c9c4cc3a60311ac19f4
-      size: 8550
+      md5: ec8080d58cccef8bac04416cb2623d54
+      size: 6126
     - path: 
         ../../../../experiments/regression/effort/experiment_bias_variance_bootstrap/train_linear_regression.py
       hash: md5
-      md5: c7eeba6dc311155789f16c983dadb808
-      size: 6529
+      md5: 8edcf2aa23ea5e07f1bd1eb77822d1bc
+      size: 5193
     - path: ../../../../feature_engineering.py
       hash: md5
       md5: 8eda998d4f6c5b4d3fe473c57789faf0
       size: 1773
     - path: ../../../../splitting.py
       hash: md5
-      md5: a935c061b7a622bd255679ac47a4defe
-      size: 6288
+      md5: 99fc9bb86c5456313c8cec92118eb948
+      size: 4052
     params:
       params.yaml:
         n_bootstrap: 30
@@ -52,4 +52,59 @@ stages:
       hash: md5
       md5: 3716116638e76231678d37b1daac8a3c.dir
       size: 12150
+      nfiles: 6
+  train_bias_variance_bootstrap_effort_decision_tree:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      experiments.regression.effort.experiment_bias_variance_bootstrap.train_decision_tree
+    deps:
+    - path: ../../../../data/gorillas_effort.parquet
+      hash: md5
+      md5: bcc2f5f8ce63b9d3d923475e6cc3e799
+      size: 2815224
+    - path: ../../../../experiments/regression/algorithms/decision_tree.py
+      hash: md5
+      md5: bed8398d1a21c3e83481ba4e9769d9c2
+      size: 898
+    - path: ../../../../experiments/regression/common/loader.py
+      hash: md5
+      md5: ec8080d58cccef8bac04416cb2623d54
+      size: 6126
+    - path: 
+        ../../../../experiments/regression/effort/experiment_bias_variance_bootstrap/train_decision_tree.py
+      hash: md5
+      md5: 22e48dbbe108e5c76c220ec418704959
+      size: 5594
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: 99fc9bb86c5456313c8cec92118eb948
+      size: 4052
+    params:
+      params.yaml:
+        n_bootstrap: 30
+        n_iter:
+          decision_tree: 30
+        tiers:
+        - 500
+        - 1000
+        - 2000
+        - 3000
+        - 4000
+        - 5000
+      ../../../../params.yaml:
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments/regression/effort/experiment_bias_variance_bootstrap/results/metrics/metrics_decision_tree.csv
+      hash: md5
+      md5: 77edc36090cb5bb950a638fbe81bf351
+      size: 544
+    - path: 
+        ../../../../experiments/regression/effort/experiment_bias_variance_bootstrap/results/models/decision_tree/
+      hash: md5
+      md5: 123f767413d62acac6267f9e8b841230.dir
+      size: 153276
       nfiles: 6
