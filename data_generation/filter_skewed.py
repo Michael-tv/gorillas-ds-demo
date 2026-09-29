@@ -1,36 +1,17 @@
 """Splits the standard pool into a low-angle slice and its complement.
 
 The "skewed" demo trains on launch angles up to `skew.max_angle_deg` only, to
-show what happens when a model is asked to predict outside the range it was
-trained on. This used to be a filter inside
-`experiments/regression/run_skewed/train_utils.py`, applied at load time, which had
-three problems (AUDIT.md task 8, §"Skew by filter stage, not a second dataset"):
+show a model extrapolating outside its training range. Emits two outputs
+because the filter must run before the train/test split: the excluded rows
+become the out-of-distribution test set, so "extrapolates poorly beyond the
+cap" is measured rather than asserted.
 
-  * The filtered pool was invisible -- not an artifact you could open, plot, or
-    show an audience, and not a node in the DAG, so the lineage story
-    "generate -> filter -> train" was not there to read.
-  * The bound was a Python constant, so it could not be swept with
-    `dvc exp run --set-param skew.max_angle_deg=...` or compared in
-    `dvc exp show`.
-  * **The filter ran before the train/test split, so the test set carried the
-    same hole.** The demo asserted the model "extrapolates poorly beyond 30
-    degrees" while no stage ever evaluated it beyond 30 degrees.
+A filter, not a second generated dataset -- only the angle distribution
+changes, not every other sampled value or the row count.
 
-That last one is why this stage emits TWO outputs. The kept rows are what the
-skewed models train on; the excluded rows are the out-of-distribution test set
-that makes the claim measurable rather than asserted.
-
-A filter rather than a second generated dataset, deliberately: same draw, same
-noise realisation, one variable changed. Generating a second pool with a
-different elevation distribution would change the elevation distribution AND
-every other sampled value AND the row count, so a worse skewed score could not
-be attributed to the distribution.
-
-The cap is one-sided on purpose. Tree ensembles cannot extrapolate -- beyond the
-training range a random forest flatlines at its boundary leaf mean while a
-linear model keeps going, and that contrast is the lesson. A gap in the middle
-of the range is a much weaker demo: a forest interpolates across it adequately
-and linear models are indifferent to it.
+The cap is one-sided: tree ensembles flatline at the boundary leaf mean past
+the training range while linear models keep going, and a mid-range gap would
+make that contrast far weaker.
 """
 import argparse
 import os
@@ -62,8 +43,7 @@ def main():
     p.add_argument("--holdout-out", required=True,
                    help="parquet for the excluded rows -- the OOD test set")
     p.add_argument("--max-angle-deg", type=float, default=None,
-                   help="default: params.yaml skew.max_angle_deg, so it is sweepable "
-                        "with --set-param and shows up in dvc exp show")
+                   help="default: params.yaml skew.max_angle_deg (sweepable via --set-param)")
     args = p.parse_args()
 
     in_path = args.in_path or params.data_path()
@@ -85,9 +65,7 @@ def main():
           f"  [{holdout[ANGLE_COLUMN].min():.1f}-{holdout[ANGLE_COLUMN].max():.1f} deg]"
           if len(holdout) else "  Holdout (OOD)  : 0 rows")
 
-    # Both sides must still satisfy the contract -- a filter that produced an
-    # empty or single-class frame would otherwise only surface much later, as a
-    # confusing failure inside a training stage.
+    # Catch an empty/single-class split here, not as a confusing failure downstream.
     if kept.empty:
         sys.exit(f"  [error] no rows at or below {max_angle} deg -- nothing to train on. "
                  f"Raise skew.max_angle_deg.")

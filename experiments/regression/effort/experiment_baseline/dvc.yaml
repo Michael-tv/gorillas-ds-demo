@@ -1,12 +1,6 @@
-# experiment_baseline (effort): the simplest possible run on this pool -- one
-# default Linear Regression, no hyperparameter search, 1000 no-outlier rows.
-# See experiments/regression/effort/experiment_baseline/train_linear_regression.py.
-#
-# All paths below are ../../../../-prefixed -- this file lives four levels
-# under the repo root (experiments/<domain>/<mode>/<experiment>/dvc.yaml), next to
-# the training scripts it runs. See the top-level README's "Running one
-# pipeline at a time" section for the full explanation of this repo's
-# cross-pipeline-dependency / relative-path / explicit-params.yaml conventions.
+# experiment_baseline (effort): single default Linear Regression, no search, 1000 rows.
+# Paths are ../../../../-prefixed (4 levels under repo root); see README "Running one
+# pipeline at a time" for the relative-path convention.
 
 stages:
 

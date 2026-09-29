@@ -2,19 +2,14 @@
 performance improves with more data.
 
 TIERS are nested prefix slices of one seeded, pre-shuffled pool
-(data/gorillas_effort.parquet, 5000 rows) -- growing the sample size is
-the only thing that changes between tiers. Same principle as
-experiments/regression/standard/experiment_row_count/'s regression version;
-mirrors params.yaml's n_samples convergence knob, swept here in one script
-instead of requiring `dvc exp run --set-param n_samples=...` once per tier.
+(data/gorillas_effort.parquet, 5000 rows) -- growing the sample size is the
+only thing that changes between tiers.
 
 Writes one row per tier to metrics_<key>.csv (n_samples, precision, recall,
 f1, pr_auc, roc_auc, accuracy, baseline_accuracy) and one
-model_<key>_n<size>.joblib per tier, so every tier's model stays inspectable,
-not just the metrics curve. Precision/recall/F1/PR-AUC lead over accuracy
-for the same reason experiments/classification/common/loader.py's print_metrics
-does -- a low hit rate makes "always predict miss" score deceptively high
-accuracy (AUDIT.md task 37 / SS5.4).
+model_<key>_n<size>.joblib per tier. Precision/recall/F1/PR-AUC lead over
+accuracy: a low hit rate makes "always predict miss" score deceptively high
+accuracy.
 """
 import csv
 import glob

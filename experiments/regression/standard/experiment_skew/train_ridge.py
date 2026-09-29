@@ -3,9 +3,7 @@
 Ridge/Lasso appear only in this experiment (not the raw/eng sweeps) --
 regularised-linear versus tree is the extrapolation contrast this demo
 exists to show: beyond the training range a linear model keeps going while a
-forest flatlines at its boundary leaf. See train_linear_regression.py in
-this folder for the full explanation of this experiment_<name>/
-train_<model>.py pattern and this demo's data.
+forest flatlines at its boundary leaf.
 """
 import os
 

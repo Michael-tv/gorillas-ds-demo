@@ -1,12 +1,8 @@
 # experiment_row_count (regression): does more data help? Each script sweeps 6
-# sample-size tiers internally on
-# data/standard_velocity.parquet and writes one metrics row per tier.
-#
-# All paths below are ../../../../-prefixed -- this file lives four levels
-# under the repo root (experiments/<domain>/<mode>/<experiment>/dvc.yaml), next to
-# the training scripts it runs. See the top-level README's "Running one
-# pipeline at a time" section for the full explanation of this repo's
-# cross-pipeline-dependency / relative-path / explicit-params.yaml conventions.
+# sample-size tiers internally on data/standard_velocity.parquet, one metrics
+# row per tier.
+# Paths are ../../../../-prefixed (4 levels under repo root); see README "Running one
+# pipeline at a time" for the relative-path convention.
 
 stages:
 

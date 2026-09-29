@@ -1,12 +1,10 @@
-"""Shared loader for classification. Reads the raw generated dataset and
-derives the engineered feature columns (wind_x_ms, drag_param, height_diff_m)
-at load time via feature_engineering.add_engineered_columns -- generated data
-never stores them.
+"""Shared loader for classification. Reads the raw dataset and derives the
+engineered feature columns (wind_x_ms, drag_param, height_diff_m) at load
+time via feature_engineering.add_engineered_columns; generated data never
+stores them.
 
-model_name is an explicit parameter to print_metrics, not read from
-TRAIN_MODEL_NAME / inferred from sys.argv[0] -- experiments/classification/train.py
-calls this module directly and can just pass it (AUDIT.md C1 / the
-run_*/train_utils.py cleanup).
+model_name is an explicit parameter to print_metrics rather than inferred,
+since experiments/classification/train.py calls this module directly.
 """
 import csv as _csv
 import os
@@ -53,20 +51,14 @@ def load_data(data_path, n_samples=None, clean=""):
         print(  "  Run:    dvc repro (or the matching data_generation script)")
         print()
         sys.exit(1)
-    # Validated on read, not only on write: data/ is DVC-cached rather than in
-    # Git, so the pool on disk can predate the current code (e.g. a 13-column
-    # pool generated before group_id existed) with nothing in the working tree
-    # showing it. Both producers write through the same checks -- see
-    # data_generation/contract.py (AUDIT.md task 38).
+    # Validated on read, not just on write: data/ is DVC-cached, so the pool on
+    # disk can predate the current code (e.g. missing group_id) with nothing in
+    # the working tree showing it.
     df = check_contract(pd.read_parquet(data_path), source=os.path.basename(data_path),
                         verbose=False)
-    # data_path is the shared, pre-shuffled pool -- prefix-slicing here (rather
-    # than caching a separate generated file per size) gives the size tiers
-    # nested samples of one draw, so growing the sample size is the only thing
-    # that changes between tiers. take_samples raises rather than silently
-    # returning a short frame when the pool holds fewer than n_samples rows,
-    # which a Gorillas pool (5,000 rows vs n_samples: 40000) does (AUDIT.md
-    # task 35 / §5.5).
+    # data_path is the shared, pre-shuffled pool; prefix-slicing gives nested
+    # samples across size tiers. take_samples raises rather than silently
+    # returning a short frame if the pool has fewer rows than n_samples.
     df = params.take_samples(df, n_samples, pool_name=os.path.basename(data_path))
     if clean == "no_outlier":
         n_orig = len(df)
@@ -75,9 +67,8 @@ def load_data(data_path, n_samples=None, clean=""):
     df = add_engineered_columns(df)
     X = df[FEATURES].values
     y = df[TARGET].values
-    # See the note in experiments/regression/common/loader.py: group_id is not a
-    # feature, but a group-aware split is impossible without it (AUDIT.md task
-    # 36 / finding N2).
+    # See the note in experiments/regression/common/loader.py: group_id is not
+    # a feature, but a group-aware split is impossible without it.
     groups = df[GROUP_COLUMN].to_numpy()
     print(f"Loaded {len(X)} samples -- hits: {int(y.sum())}  misses: {len(y) - int(y.sum())}\n")
     return X, y, groups
@@ -98,15 +89,9 @@ def save_metrics(models_dir, model_name, **kw):
 
 
 def print_metrics(models_dir, model_name, y_test, y_pred, y_prob=None):
-    """Report the metrics that survive class imbalance, and report them first.
-
-    Accuracy used to lead this block, which is actively misleading on a Gorillas
-    pool: the hit rate there is 5-7%, so predicting "miss" for every single row
-    scores 93-95% and looks like a working model (AUDIT.md task 37 / §5.4).
-    Precision, recall and PR-AUC lead instead, and the always-miss baseline is
-    printed next to accuracy so the gap between them is visible rather than
-    something the audience has to be told about. The canonical "accuracy is the
-    wrong metric" lesson arrives here for free -- it just has to be shown.
+    """Report precision/recall/PR-AUC first, not accuracy: with a 5-7% hit rate,
+    predicting "miss" every time scores 93-95% accuracy while doing nothing
+    useful, so the always-miss baseline is printed alongside it for comparison.
     """
     prec = precision_score(y_test, y_pred, zero_division=0)
     rec  = recall_score(y_test, y_pred, zero_division=0)

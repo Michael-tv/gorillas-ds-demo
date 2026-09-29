@@ -1,16 +1,7 @@
 """Train MLP on the standard pool's engineered feature columns.
 
-Converted from the train_classification@<model> foreach matrix
-(experiments/classification/train.py --run run --algorithm mlp)
-to this experiment_classification/ folder's one-script-per-model pattern --
-see experiments/regression/standard/experiment_skew/train_linear_regression.py
-for the general experiment_<name>/train_<model>.py rationale.
-
 Reads data/standard_velocity.parquet, sliced to the first `n_samples` rows
-(params.yaml) -- kept switchable here (unlike the Gorillas-domain scripts,
-which are fixed-size) mainly so a full sweep can be shrunk for a faster run.
-See experiments/classification/*/experiment_row_count/ for the dedicated
-sample-size-convergence story; this script trains at a single size.
+(params.yaml) so a full sweep can be shrunk for a faster run.
 """
 import os
 

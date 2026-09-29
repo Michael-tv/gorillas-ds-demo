@@ -1,20 +1,8 @@
 """Worst-case overfitting demo, on the standard pool's 9 raw columns.
 
-Converted from experiments/regression/train_decision_tree_overfit.py (--run raw
---key decision_tree_overfit) to this experiment_cv_baseline/ folder's standalone-
-script pattern -- see ../experiment_skew/train_linear_regression.py for the
-general rationale.
-
-Every other model here trains on X_train and scores on held-out X_test; this
-one deliberately does neither -- it fits on the ENTIRE dataset with no split
-at all, sweeping a param grid and keeping whichever combination gets the
-lowest TRAINING error, to show what a fully-grown tree with zero validation
-looks like.
-
-Kept identical to experiment_raw except for retaining 5-fold cross-validation
-in the hyperparameter search (see splitting.cv_for) -- a deliberate "before"
-baseline so experiment_raw (single validation split) can be compared against
-the original CV-based search for cost/robustness.
+Fits on the entire dataset with no train/test split, sweeping a param grid
+and keeping whichever combination gets the lowest TRAINING error -- shows
+what a fully-grown tree with zero validation looks like.
 """
 import itertools
 import os

@@ -1,15 +1,7 @@
 """
-Input-output relationship plots for the training split of run_eng_10k.
-
-Applies the same 80/20 train_test_split used by train_all.py so the plots
-reflect exactly what the models are trained on, not the holdout test set.
-
-Each panel: training points (blue) over withheld test points (grey) +
-dashed line showing the true physics relationship computed from training-set
-means while sweeping that feature across its range.
-
-drag_param is decomposed back to Cd using fixed mean mass/radius for the
-physics curve, since individual mass/radius/Cd are not stored in this dataset.
+Input-output relationship plots for the run_eng training split.
+Uses the same train/test split as training, so the plot reflects what the models actually see.
+drag_param is decomposed back to Cd using fixed mean mass/radius (not stored per-row).
 """
 import math
 import os
@@ -41,7 +33,7 @@ FEATURES = [
 TARGET = "landing_distance_m"
 
 # ── Load and split ────────────────────────────────────────────────────────────
-df = add_engineered_columns(params.take_samples(pd.read_parquet(DATA), N_SAMPLES))  # take_samples raises instead of silently truncating (AUDIT.md task 35)
+df = add_engineered_columns(params.take_samples(pd.read_parquet(DATA), N_SAMPLES))  # raises instead of silently truncating
 df_train, df_test = train_test_split(df, test_size=TEST_SIZE, random_state=RANDOM_STATE)
 
 X_train = df_train[FEATURES].values

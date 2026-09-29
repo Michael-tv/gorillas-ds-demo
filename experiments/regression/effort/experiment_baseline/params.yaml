@@ -1,10 +1,3 @@
-# Fixed sample size for this baseline. Cleaning runs over the full effort
-# pool first, then this slices the first n_samples clean rows -- so 1000
-# here means 1000 rows with outliers already excluded, not 1000 raw rows
-# that shrink once outliers are dropped. Same clean-then-slice order as
-# experiment_row_count/train_linear_regression.py; unlike that sweep, this
-# experiment trains at exactly one size.
-#
-# No `cv` key here -- this baseline is a plain LinearRegression().fit(), with
-# no hyperparameter search and so no cross-validation fold count to set.
+# 1000 clean rows (outliers excluded, cleaning happens before this slice).
+# No `cv` key: plain LinearRegression().fit(), no search.
 n_samples: 1000

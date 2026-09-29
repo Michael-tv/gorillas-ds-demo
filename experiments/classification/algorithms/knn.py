@@ -15,10 +15,9 @@ PARAM_DIST = {
 def fit(X_train, y_train, search_cfg):
     """KNeighborsClassifier has NO class_weight parameter -- unlike the
     logistic, tree and forest models, it cannot be reweighted for the 5-7%
-    hit rate (AUDIT.md task 37 / §5.4). Left as-is deliberately rather than
-    papered over: "not every model exposes the knob" is worth saying out
-    loud, and the precision/recall/PR-AUC reported downstream show what that
-    costs. weights="distance" is in the search space but weights NEIGHBOURS
+    hit rate. Left as-is deliberately: "not every model exposes the knob" is
+    worth saying out loud, and the precision/recall/PR-AUC reported
+    downstream show what that costs. weights="distance" weights NEIGHBOURS
     by distance, not CLASSES by frequency -- it is not a substitute."""
     pipeline = Pipeline([("scaler", StandardScaler()), ("model", KNeighborsClassifier())])
     search = RandomizedSearchCV(

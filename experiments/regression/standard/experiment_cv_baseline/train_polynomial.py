@@ -1,16 +1,7 @@
 """Train Polynomial Regression on the standard pool's 9 raw feature columns.
 
-Converted from the train_raw@<model> foreach matrix (experiments/regression/
-train.py --run raw --algorithm polynomial) to this experiment_cv_baseline/
-folder's one-script-per-model pattern -- see
-../experiment_skew/train_polynomial.py for the general
-experiment_<name>/train_<model>.py rationale.
-
 Reads data/standard_velocity.parquet, sliced to the first `n_samples` rows
-(params.yaml) -- kept switchable here (unlike the Gorillas-domain raw/eng
-scripts, which are fixed-size) mainly so a full sweep can be shrunk for a
-faster run without editing this file. See experiment_row_count/ for the
-dedicated sample-size-convergence story; this script trains at a single size.
+(params.yaml).
 
 Kept identical to experiment_raw except for retaining 5-fold cross-validation
 in the hyperparameter search (see splitting.cv_for) -- a deliberate "before"

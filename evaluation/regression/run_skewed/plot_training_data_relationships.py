@@ -1,17 +1,7 @@
 """
-Input-output relationship plots for the training split of run_skewed.
-
-Applies the same 80/20 train_test_split used by train_all.py so the plots
-reflect exactly what the models are trained on, not the holdout test set.
-
-Each panel: training points (blue) over withheld test points (grey) +
-dashed line showing the true physics relationship computed from training-set
-means while sweeping that feature across its range.
-
-Note: launch_angle_deg is skewed to 5–30° (vs the full 5–85° range in other runs).
-
-drag_param is decomposed back to Cd using fixed mean mass/radius for the
-physics curve, since individual mass/radius/Cd are not stored in this dataset.
+Input-output relationship plots for the run_skewed training split.
+launch_angle_deg is skewed to 5-30 deg (vs the full 5-85 deg range in other runs).
+drag_param is decomposed back to Cd using fixed mean mass/radius (not stored per-row).
 """
 import math
 import os
@@ -28,11 +18,7 @@ import params
 from physics import simulate
 from feature_engineering import add_engineered_columns
 
-# The filtered slice the filter_skewed stage wrote -- the same file the skewed
-# models train on, rather than the full pool re-filtered here with a private
-# copy of the bound (which is params.yaml's skew.max_angle_deg -- AUDIT.md
-# tasks 8/9). Plotting a differently-derived slice than the models saw is
-# exactly the drift this avoids.
+# The filtered slice filter_skewed wrote -- same file the models train on, not re-filtered here.
 DATA              = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "data", "skewed_training_data.parquet")
 MAX_ANGLE         = params.load_params()["skew"]["max_angle_deg"]
 TEST_SIZE         = 0.2

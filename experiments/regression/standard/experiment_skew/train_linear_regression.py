@@ -1,18 +1,10 @@
 """Train Linear Regression on the skewed-extrapolation demo pool.
 
-Worked example of the experiment_<name>/train_<model>.py pattern: one
-standalone, explicit script per model, no --run/--algorithm dispatch through
-train.py/runs.py to trace. Still imports the shared, already-one-file-per-model
-experiments/regression/algorithms/<name>.py (its Pipeline shape and search space
-aren't duplicated here) and the shared loader/splitting utilities -- only the
-per-experiment orchestration (which data, which features, which output
-directory) is explicit and local to this file.
-
 data/skewed_training_data.parquet is the low-angle slice filter_skewed
-produces (this folder's dvc.yaml, `filter_skewed` stage); rows above
-skew.max_angle_deg are held out separately as data/skewed_holdout.parquet, the
-out-of-distribution test set this demo measures against (AUDIT.md tasks
-8-10). Always the 5 engineered features -- this demo has no raw variant.
+produces; rows above skew.max_angle_deg are held out separately as
+data/skewed_holdout.parquet, the out-of-distribution test set this demo
+measures against. Always the 5 engineered features -- this demo has no raw
+variant.
 """
 import os
 

@@ -1,11 +1,8 @@
-"""Scatter plot of throw landing sites (landing_distance_m vs landing_height_m)
-for a chosen dataset.
+"""Scatter plot of throw landing sites (landing_distance_m vs landing_height_m).
 
-Unlike the run_*/plot_training_data_relationships.py scripts -- which plot the
-regression target against each INPUT feature and hardcode which file they
-read -- this plots landing sites in physical space (downrange distance vs
-landing height, in the thrower's own frame where x=0 is the launch point) for
-any parquet pool passed via --data.
+Unlike run_*/plot_training_data_relationships.py (which plots the target
+against each input feature for a hardcoded file), this plots physical landing
+sites for any parquet pool passed via --data.
 """
 import argparse
 import os
@@ -21,15 +18,10 @@ sys.path.insert(0, REPO_ROOT)
 import params
 from data_generation.contract import check_contract
 
-# The real Gorillas board's own extent, in the same meters used by every
-# landing_distance_m/landing_height_m column (both producers -- see
-# data_generation/gorillas.py's METERS_PER_PIXEL and physics.py's ground_z).
-# Mode 9 (SCREEN 9, 640x350 EGA) is what the batch data-gen build always runs
-# in (qbasic_gorillas/dosbox-datagen/gorilla.bas: ScrWidth=640, GroundY=
-# BottomLine=335 -- the ground line height/landing_height_m is measured from).
-# Clamping the axes to this box, rather than autoscaling to the data, keeps
-# the injected gravity/data_error outliers (which can land far outside any
-# real board) from stretching the plot until the real data is a thin band.
+# Board extent matches the original game's screen (640x350 EGA, ground at
+# y=335), in the same meters/pixel scale both data producers use. Clamping
+# axes to this box (rather than autoscaling) keeps injected outliers from
+# stretching the plot until the real data is a thin band.
 _METERS_PER_PIXEL = 0.2
 BOARD_WIDTH_M  = 640 * _METERS_PER_PIXEL   # 128 m
 BOARD_HEIGHT_M = 335 * _METERS_PER_PIXEL   # 67 m, ground (GroundY) to screen top

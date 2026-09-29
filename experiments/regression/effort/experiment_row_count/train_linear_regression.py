@@ -2,33 +2,26 @@
 performance improves with more data.
 
 TIERS are nested prefix slices of one seeded, pre-shuffled pool
-(data/gorillas_effort.parquet, 5000 rows) -- growing the sample size is
-the only thing that changes between tiers, so a later tier's extra rows are
-exactly the earlier tier's rows plus more, not a different draw. Same
-principle as params.yaml's n_samples convergence knob, swept here in one
-script instead of requiring `dvc exp run --set-param n_samples=...` once per
-tier. See experiments/regression/standard/experiment_skew/train_linear_regression.py for the general
-experiment_<name>/train_<model>.py pattern.
+(data/gorillas_effort.parquet, 5000 rows) -- growing the sample size is the
+only thing that changes between tiers, so a later tier's extra rows are
+exactly the earlier tier's rows plus more, not a different draw.
 
 Writes one row per tier to metrics_<key>.csv (n_samples, mae, mse, rmse,
 train_mae, variance_proxy) and one model_n<size>.joblib per tier into
-models/<key>/, so every tier's model stays inspectable, not just the metrics
-curve. models/<key>/ is declared as a single directory dvc.yaml `outs:` entry
-(rather than one entry per tier), so DVC tracks whatever's actually in there
--- the cleanup pass below, which deletes any tier file that's no longer in
-TIERS before training, is what keeps that directory (and this run) matching
-params.yaml's tiers list.
+models/<key>/, so every tier's model stays inspectable. models/<key>/ is a
+single directory dvc.yaml `outs:` entry, so the cleanup pass below removes
+any tier file no longer in TIERS before training, keeping that directory in
+sync with params.yaml's tiers list.
 
 train_mae/variance_proxy are a cheap bias/variance proxy, not a real
 decomposition. train_mae stands in for bias: a tier where it stays close to
-the test mae (both high) is bias-limited -- too simple a model for the
-data, which more of the same data can't fix. variance_proxy (= mae -
-train_mae, the train/test gap) stands in for variance: a large gap is
-variance-limited -- overfit to the training draw, which more data (or less
-model flexibility) would help. A real decomposition needs several
-independently-resampled training sets at each size to see how predictions
-actually vary; this is one model per tier, so it's a heuristic read on the
-gap, not a measurement of variance itself.
+the test mae (both high) is bias-limited -- more of the same data won't
+help. variance_proxy (= mae - train_mae, the train/test gap) stands in for
+variance: a large gap is variance-limited -- overfit to the training draw,
+which more data (or less model flexibility) would help. A real
+decomposition needs several independently-resampled training sets per size
+to see how predictions actually vary; this is one model per tier, so it's a
+heuristic read on the gap, not a measurement of variance itself.
 """
 import csv
 import glob

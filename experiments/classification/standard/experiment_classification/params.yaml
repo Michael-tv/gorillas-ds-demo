@@ -1,9 +1,5 @@
-# RandomizedSearchCV search budget (n_iter), one value for every model --
-# moved out of the shared root params.yaml for the same reason as the
-# regression side (see e.g.
-# experiments/regression/effort/experiment_raw/params.yaml). `null` means that
-# algorithm doesn't search (LogisticRegression has no hyperparameters to
-# tune here).
+# RandomizedSearchCV budget per model. `null` = no search (logistic regression has
+# no hyperparameters to tune here).
 n_iter:
   logistic_regression: null
   decision_tree:        30

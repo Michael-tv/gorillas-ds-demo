@@ -19,14 +19,10 @@ def load_params():
 def load_experiment_params(script_file):
     """Load the params.yaml colocated with a training script's own directory
     -- experiment-specific config (row-count sweep tiers, the RandomizedSearchCV/
-    *CV search budget `n_iter`, and -- where the experiment's CV strategy
-    actually uses one, see README's "Cross-validation" section -- the fold
-    count `cv`) that varies by pool/experiment rather than being shared
-    globally like params.yaml. `n_iter`/`cv` used to live in a global
-    `search:` block here; both are pool/experiment properties (single-split
-    on the standard pool, grouped k-fold on the Gorillas pools), so they
-    moved out to whichever experiment folder actually reads them -- a caller
-    does e.g. `load_experiment_params(__file__)["n_iter"][KEY]`."""
+    *CV search budget `n_iter`, and the fold count `cv`) that varies by
+    pool/experiment rather than being shared globally: single-split on the
+    standard pool, grouped k-fold on the Gorillas pools. A caller does e.g.
+    `load_experiment_params(__file__)["n_iter"][KEY]`."""
     path = os.path.join(os.path.dirname(os.path.abspath(script_file)), "params.yaml")
     with open(path) as f:
         return yaml.safe_load(f)
@@ -43,11 +39,10 @@ def take_samples(df, n_samples, pool_name=None):
     The sample-size tiers work by prefix-slicing one pre-shuffled pool, so each
     tier is a nested subset of the same draw. `df.iloc[:n]` silently returns
     fewer rows when the pool is smaller than `n` -- and the Gorillas pools hold
-    5,000 rows against `n_samples: 40000`, so switching `training_data` to one
-    of them used to change the sample size by 8x with nothing in the output
-    saying so, flatlining the convergence experiment (AUDIT.md task 35 / §5.5).
-    For a knob whose entire purpose is "same data, different sample size", not
-    honouring the value has to be an error rather than a silent substitution.
+    only 5,000 rows, so a mismatched `n_samples` could silently shrink a tier
+    instead of erroring. For a knob whose entire purpose is "same data,
+    different sample size", not honouring the value has to be an error rather
+    than a silent substitution.
 
     Pass `n_samples=None` to use the whole pool deliberately.
     """
@@ -68,8 +63,6 @@ def take_samples(df, n_samples, pool_name=None):
 def data_path():
     """Absolute path to the configured training pool (params.yaml
     `training_data`, a name matching a dvc_datasets.yaml or Gorillas dataset
-    key). Every consumer that used to hardcode
-    data/standard_velocity.parquet should call this instead, so the
-    active dataset is a single setting rather than something edited file by
-    file -- see the comment on `training_data` in params.yaml."""
+    key), so the active dataset is a single setting rather than something
+    edited file by file."""
     return os.path.join(_REPO_ROOT, "data", f"{load_params()['training_data']}.parquet")

@@ -4,11 +4,7 @@ performance improves with more data.
 TIERS are nested prefix slices of one seeded, pre-shuffled pool
 (data/standard_velocity.parquet, 50000 rows) -- growing the sample size is
 the only thing that changes between tiers, so a later tier's extra rows are
-exactly the earlier tier's rows plus more, not a different draw. Same
-principle as params.yaml's n_samples convergence knob, swept here in one
-script instead of requiring `dvc exp run --set-param n_samples=...` once per
-tier. See ../experiment_skew/train_linear_regression.py for the general
-experiment_<name>/train_<model>.py pattern.
+exactly the earlier tier's rows plus more, not a different draw.
 
 Writes one row per tier to metrics_<key>.csv (n_samples, mae, mse, rmse) and
 one model_<key>_n<size>.joblib per tier, so every tier's model stays

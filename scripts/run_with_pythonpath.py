@@ -11,17 +11,13 @@ this keeps every stage's `cmd:` identical on any OS.
 Usage:
     python scripts/run_with_pythonpath.py <pythonpath_dir> <python arg>...
 
-Every stage in this repo now uses the same shape:
+Every stage in this repo uses the same shape:
     ... ../../../.. -m experiments.<domain>.<mode>.experiment_<name>.train_<model>
 
 <pythonpath_dir> is always the repo root (`../../../..` from an experiments/<domain>/<mode>/
 <experiment>/dvc.yaml stage), since `-m` resolves its dotted module path against it
 (`experiments.regression.standard.experiment_raw.train_linear_regression` ->
 experiments/regression/standard/experiment_raw/train_linear_regression.py).
-Every `experiment_<name>/train_<model>.py` script is self-contained -- no
-folder-local `train_utils.py` to resolve via a different PYTHONPATH, so
-there is no second shape to document here anymore (there used to be one,
-back when concept/demo scripts imported a sibling `train_utils.py`).
 """
 import os
 import subprocess

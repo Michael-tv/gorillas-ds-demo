@@ -1,9 +1,6 @@
-# experiment_cv_baseline: verbatim copy of experiment_raw that deliberately
-# KEEPS 5-fold cross-validation in the hyperparameter search (splitting.cv_for),
-# instead of experiment_raw's single validation split. A "before" comparison
-# baseline for the CV speed/robustness talk demo -- see
-# experiments/regression/standard/experiment_cv_baseline/train_decision_tree.py.
-#
+# experiment_cv_baseline: verbatim copy of experiment_raw that keeps 5-fold CV
+# (splitting.cv_for) instead of a single validation split -- the "before" baseline
+# for the CV speed/robustness demo.
 
 vars:
   - ../../../../params.yaml

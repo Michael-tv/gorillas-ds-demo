@@ -1,9 +1,6 @@
-"""Read metrics_linear_regression.csv and report the baseline's bias/variance
-proxy read. One row, not a sweep -- see ../experiment_row_count/analysis.py
-for the tiered version of this same read. Self-contained, run by hand (not
-in the DAG), matching evaluation/regression/compare_models.py's style: no
-PYTHONPATH wrapper, no repo imports, just pandas + matplotlib on the CSV
-this experiment's dvc.yaml already produced.
+"""Report the baseline experiment's bias/variance proxy read (one row, not a
+sweep -- see experiment_row_count/analysis.py for the tiered version).
+Run by hand, not part of the DAG.
 
     python experiments/regression/effort/experiment_baseline/analysis.py
 """

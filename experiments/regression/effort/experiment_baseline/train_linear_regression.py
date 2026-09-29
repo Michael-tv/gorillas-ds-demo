@@ -1,23 +1,18 @@
 """Train Linear Regression on a fixed 1000-row, no-outlier baseline slice of
-the effort pool -- the simplest possible run on this pool: a default,
-unmodified LinearRegression().fit(), no hyperparameter search, no CV, no
-sweep.
+the effort pool -- the simplest possible run: a default, unmodified
+LinearRegression().fit(), no hyperparameter search, no CV, no sweep.
 
-Cleaning runs over the full pool before slicing, not the other way around,
-so n_samples means 1000 clean rows, not 1000 raw rows that shrink once
-outlier rows are dropped -- same clean-then-slice order as
-experiment_row_count/train_linear_regression.py, just at one fixed size
-instead of a sweep of tiers. See ../experiment_raw/train_linear_regression.py
-for the general experiment_<name>/train_<model>.py pattern this follows.
+Cleaning runs over the full pool before slicing, so n_samples means 1000
+clean rows, not 1000 raw rows that shrink once outliers are dropped.
 
 Also reports train_mae and variance_proxy (= mae - train_mae) alongside the
 usual test mae/mse/rmse -- a cheap bias/variance proxy (train_mae close to
-test mae means bias-, not variance-, limited; a wide variance_proxy gap
-means the opposite). Not a real decomposition -- see
-experiment_row_count/train_linear_regression.py's docstring for why.
-Computed inline here rather than via loader.print_metrics, since that only
-knows about the three test-set metrics; loader.save_metrics is still used
-to write the CSV, since it takes free-form columns.
+test mae means bias-, not variance-, limited; a wide gap means the
+opposite), not a real decomposition (see experiment_row_count/
+train_linear_regression.py's docstring for why). Computed inline rather
+than via loader.print_metrics, which only knows the three test-set metrics;
+loader.save_metrics is still used to write the CSV since it takes free-form
+columns.
 """
 import os
 

@@ -1,13 +1,7 @@
-"""BALANCED model -- the control for the skewed demo (train_skewed_concept.py,
-this folder). Same architecture, same number of rows, but drawn from the full
-launch-angle range instead of a low-angle slice.
-
-Predictions at a steep angle come from interpolation rather than
-extrapolation, so this model stays accurate exactly where the skewed one
-collapses. Three things are held equal so the holdout MAE difference is
-attributable to the training distribution and nothing else (AUDIT.md task 11):
-same row count (matched to the skewed run below), same test_size, same
-feature engineering (EngineeredFeatures, as the skewed model uses).
+"""BALANCED model -- the control for the skewed demo (train_skewed_concept.py).
+Same architecture, row count, test_size, and feature engineering as the
+skewed model; only the training distribution differs (full angle range vs a
+low-angle slice), so the holdout MAE gap is attributable to that alone.
 """
 import os
 
@@ -36,9 +30,8 @@ def main():
     max_angle = params.load_params()["skew"]["max_angle_deg"]
     test_size = params.load_params()["test_size"]
 
-    # Matched to the skewed run rather than chosen, so the comparison isolates
-    # the training distribution -- the pool is pre-shuffled, so a prefix is a
-    # fair sample.
+    # Matched to the skewed run so the comparison isolates the training
+    # distribution; the pool is pre-shuffled, so a prefix is a fair sample.
     n_samples = len(pd.read_parquet(SKEWED_DATA))
     print(f"Sized to match the skewed run : {n_samples:,} rows")
 

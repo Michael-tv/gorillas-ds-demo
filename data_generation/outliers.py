@@ -1,7 +1,4 @@
-"""Row-corruption logic for the "data_error" outlier category.
-
-Extracted from the copy-pasted corruption loop in every old generate_data.py.
-"""
+"""Row-corruption logic for the "data_error" outlier category."""
 
 
 def corrupt_row(rng, values, no_zero_indices=frozenset()):

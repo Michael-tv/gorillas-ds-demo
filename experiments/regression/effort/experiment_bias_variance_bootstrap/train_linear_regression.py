@@ -1,45 +1,24 @@
 """Bootstrap-based bias/variance decomposition for Linear Regression on the
-effort pool, at the same six sample-size tiers as experiment_row_count -- so
-this experiment answers, with real numbers instead of the train/test-gap
-proxy used there, the question that sweep's flat error curve raised: is
-linear regression's plateaued error a bias problem (more data won't help)
-or a variance problem (more data would)?
+effort pool, across the same six sample-size tiers as experiment_row_count:
+is the plateaued error a bias problem (more data won't help) or a variance
+problem (more data would)?
 
-Method (the same identity used by e.g. mlxtend.evaluate.bias_variance_decomp,
-and by the bootstrap implementation at
-https://www.geeksforgeeks.org/machine-learning/bias-vs-variance-in-machine-learning/):
-for each tier, hold ONE fixed test set aside, then fit N_BOOTSTRAP models on
-independent bootstrap resamples of the remaining training rows. Stack their
-predictions on that fixed test set into a (N_BOOTSTRAP, n_test) array and
-decompose the expected squared error:
+For each tier: hold one fixed test set aside, fit N_BOOTSTRAP models on
+independent bootstrap resamples of the training rows, and decompose the
+expected squared error on that test set:
 
     mean_test_mse ~= bias2 + variance + noise_estimate
-
     bias2          = ((y_test - preds.mean(axis=0)) ** 2).mean()
-                     -- how far the *average* prediction sits from the truth
     variance       = preds.var(axis=0).mean()
-                     -- how much the N_BOOTSTRAP models disagree with each other
     noise_estimate = mean_test_mse - bias2 - variance
-                     -- whatever's left: irreducible label noise, plus any
-                     slack from a finite N_BOOTSTRAP/n_test
 
-This only holds for squared-error loss (hence MSE here, not MAE) -- see
-../experiment_row_count/train_linear_regression.py's docstring for why the
-train/test-gap proxy used there is a heuristic, not this.
+Only valid for squared-error loss (MSE, not MAE). Bootstrap resampling is
+done at the group_id level (not per-row), since gorillas throws are
+correlated within a board (see splitting.py) -- a row-level bootstrap would
+understate that correlation and bias the variance estimate down.
 
-Bootstrap resampling is done at the group_id level, not per-row: gorillas
-throws are grouped by board (see splitting.py), so a naive row-level
-bootstrap would let one board's correlated throws be resampled as if
-independent, understating their real correlation and biasing the variance
-estimate down. Resampling whole groups with replacement keeps that
-correlation intact in every resample, the same way splitting.split() keeps
-it intact across the train/test boundary.
-
-One plain (non-bootstrapped) model is also fit and saved per tier, exactly
-as experiment_row_count does, purely so each tier has an inspectable model
--- the N_BOOTSTRAP models used for the decomposition itself are transient
-and not saved (180 of them across 6 tiers x 30 bootstraps would dwarf the
-one-model-per-tier convention for no benefit).
+One plain (non-bootstrapped) model is also fit and saved per tier, purely
+for inspection; the N_BOOTSTRAP models themselves are transient.
 """
 import csv
 import os

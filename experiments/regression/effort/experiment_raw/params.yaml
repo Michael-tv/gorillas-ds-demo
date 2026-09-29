@@ -1,19 +1,12 @@
-# RandomizedSearchCV/*CV fold count for this experiment's search, one value
-# for every model (previously a per-algorithm value under the shared root
-# params.yaml's search.regression.<model>.cv -- moved here since it's an
-# experiment/pool concern, not a global one: this pool's grouped CV protects
-# against leaking a board's correlated throws across folds, unlike the
-# standard pool's search, which now uses a single validation split instead
-# (splitting.single_split_cv()) and never reads this key at all. Capped at
-# the number of groups available -- see splitting.cv_for().
+# CV fold count for this experiment's search (all models). Grouped CV protects
+# against leaking a board's correlated throws across folds; capped at the
+# number of groups available (splitting.cv_for()). Unlike the standard pool's
+# search, which uses a single validation split and never reads this key.
 cv: 5
 
-# RandomizedSearchCV/*CV search budget (n_iter), one value for every model --
-# moved out of the shared root params.yaml since the search block otherwise
-# forced every experiment to share one search-budget schedule with no way to
-# size it per pool/experiment. `null` means that algorithm doesn't search at
-# all (LinearRegression/Ridge/Lasso/Polynomial's *CV meta-estimators pick
-# their own hyperparameter internally, or there simply isn't one).
+# RandomizedSearchCV/*CV search budget per model. `null` means that algorithm
+# doesn't search (LinearRegression/Ridge/Lasso/Polynomial pick their own
+# hyperparameter internally via *CV meta-estimators, or there isn't one).
 n_iter:
   linear_regression: null
   ridge:              null

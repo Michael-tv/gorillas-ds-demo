@@ -1,20 +1,10 @@
-"""Shared loader for every regression run. Always reads the raw physical
-columns from the pool it's pointed at and cleans/splits them -- it never
-derives wind_x_ms/drag_param/height_diff_m itself.
+"""Shared loader for every regression run. Reads the raw physical columns and
+cleans/splits them; it never derives engineered features itself -- that
+happens in each model's sklearn Pipeline (see experiment_raw/experiment_eng
+scripts).
 
-The raw-vs-engineered contrast (raw/eng scripts) lives entirely in the
-model's sklearn Pipeline: each `experiment_raw`/`experiment_eng` script
-builds `("features", EngineeredFeatures(output_columns=RAW_FEATURES_or_
-ENG_FEATURES))` -- same raw input, different first Pipeline step, built
-explicitly in the one script that trains that model on that scheme (see
-experiments/regression/standard/experiment_raw/train_linear_regression.py).
-
-`clean` and `model_name` are explicit parameters, not environment variables
-(TRAIN_CLEAN / TRAIN_MODEL_NAME) -- the previous design read them out of
-os.environ because the injected-PYTHONPATH call chain had no other way to
-pass per-run values into a shared script (AUDIT.md C1 / the run_*/
-train_utils.py cleanup). Every `experiments/<domain>/<mode>/experiment_<name>/
-train_<model>.py` script calls this module directly and just passes them.
+`clean` and `model_name` are explicit parameters rather than env vars, since
+each train_<model>.py script calls this module directly and can just pass them.
 """
 import csv as _csv
 import os
@@ -40,32 +30,13 @@ TARGET = "initial_velocity_ms"
 
 GROUP_COLUMN = "group_id"   # generate.COLUMNS' 14th column -- see splitting.py
 
-# Valid physical ranges for each raw feature and the target. Cleaning always
-# runs on these raw columns, before the pipeline's engineering step -- so
-# run_raw and run_eng apply the exact same cleaning.
-# None means no bound on that side.
+# Valid physical ranges for each raw feature/target. Cleaning runs on these
+# raw columns before the pipeline's engineering step, so run_raw and run_eng
+# clean identically. None means no bound on that side.
 #
-# landing_distance_m has NO lower bound, and that is the whole point of this
-# block (AUDIT.md task 13b). It used to be bounded at 0, on the assumption that a
-# negative landing distance had to be corrupt. It does not: a high-angle shot
-# into a strong headwind genuinely lands behind the launch point -- 73 m/s at 79
-# degrees into 17.4 m/s of headwind lands at -65.0 m, where the same shot
-# windless lands at +30.8 m.
-#
-# Measured over the 50,000-row pool, that one bound was doing most of the damage:
-#
-#   clean:"range" dropped                          964 rows
-#     of which the landing_distance_m >= 0 bound    807  (84%)
-#       of which is_outlier == "none"               727  <- physically valid
-#     every other bound, clean rows dropped           0  <- all doing their job
-#
-#   with the bound removed, clean:"range" drops     167 rows, 100% data_error
-#
-# So the demo was mostly deleting real data while claiming to remove corrupt
-# data. It is now a precise corrupt-row detector rather than a blunt one: of the
-# ~500 deliberately corrupted rows it catches 167, all of them genuinely corrupt.
-# Less sensitive, far more precise -- and that trade is itself worth showing, as
-# what bounds-based cleaning can and cannot do.
+# landing_distance_m has no lower bound: a high-angle shot into a strong
+# headwind can genuinely land behind the launch point, so negative values
+# are valid, not corrupt.
 FEATURE_RANGES = {
     "launch_angle_deg":    (0,    90),
     "wind_speed_ms":       (0,    None),
@@ -117,20 +88,14 @@ def load_data(data_path, n_samples=None, clean=""):
         print(  "  Run:    dvc repro (or the matching data_generation script)")
         print()
         sys.exit(1)
-    # Validated on read, not only on write: data/ is DVC-cached rather than in
-    # Git, so the pool on disk can predate the current code (e.g. a 13-column
-    # pool generated before group_id existed) with nothing in the working tree
-    # showing it. Both producers write through the same checks -- see
-    # data_generation/contract.py (AUDIT.md task 38).
+    # Validated on read, not just on write: data/ is DVC-cached, so the pool on
+    # disk can predate the current code (e.g. missing group_id) with nothing in
+    # the working tree showing it.
     df = check_contract(pd.read_parquet(data_path), source=os.path.basename(data_path),
                         verbose=False)
-    # data_path is the shared, pre-shuffled pool -- prefix-slicing here (rather
-    # than caching a separate generated file per size) gives the size tiers
-    # nested samples of one draw, so growing the sample size is the only thing
-    # that changes between tiers. take_samples raises rather than silently
-    # returning a short frame when the pool holds fewer than n_samples rows,
-    # which a Gorillas pool (5,000 rows vs n_samples: 40000) does (AUDIT.md
-    # task 35 / §5.5).
+    # data_path is the shared, pre-shuffled pool; prefix-slicing gives nested
+    # samples across size tiers. take_samples raises rather than silently
+    # returning a short frame if the pool has fewer rows than n_samples.
     df = params.take_samples(df, n_samples, pool_name=os.path.basename(data_path))
     n_orig = len(df)
     if clean == "iqr":
@@ -144,12 +109,10 @@ def load_data(data_path, n_samples=None, clean=""):
         print(f"  No-outlier cleaning: {n_orig} -> {len(df)} rows ({n_orig - len(df)} removed)")
     X = df[FEATURES]
     y = df[TARGET].values
-    # group_id travels with (X, y) rather than being dropped here: it is not a
-    # feature, but the caller cannot build a group-aware split without it, and
-    # dropping it at the loader is what made task 36 impossible even after task
-    # 32 created the key (AUDIT.md finding N2). splitting.split() decides what to
-    # do with it -- a Gorillas pool groups 32 throws per board, the Python pool
-    # gives every row its own id and so degrades to an ordinary random split.
+    # group_id travels with (X, y) though it's not a feature -- callers need it
+    # for a group-aware split. splitting.split() decides what to do with it: a
+    # Gorillas pool groups 32 throws per board; the Python pool gives every row
+    # its own id and degrades to an ordinary random split.
     groups = df[GROUP_COLUMN].to_numpy()
     print(f"Loaded {len(X)} samples\n")
     return X, y, groups

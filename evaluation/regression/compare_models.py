@@ -10,18 +10,7 @@ REPO_ROOT = os.path.join(HERE, "..", "..")
 # ── Config ────────────────────────────────────────────────────────────────────
 MODELS_TO_COMPARE = [
     # (domain, experiment, model_name) -- domain is "standard"/"effort"/"velocity",
-    # experiment is a folder under experiments/regression/<domain>/ (experiment_raw,
-    # experiment_eng, experiment_skew, experiment_row_count, ...). For
-    # experiment_raw/experiment_eng specifically: vary n_samples via
-    # `dvc exp run --set-param n_samples=...` for the convergence comparison
-    # instead of separate per-size directories (or see experiment_row_count/,
-    # which sweeps that internally and writes one metrics row per tier).
-
-    # Model names must be keys in dvc_models_regression.yaml's regression_models
-    # (for experiment_raw/experiment_eng) -- the sweep is the seven algorithms
-    # plus decision_tree_overfit and random_forest_no_outlier (see that file's
-    # matrix rule), though experiment_raw/experiment_eng are no longer
-    # matrix-driven themselves -- each model is its own standalone script now.
+    # experiment is a folder under experiments/regression/<domain>/.
     # ("standard", "experiment_raw", "knn"),
     ("standard", "experiment_raw", "decision_tree_overfit"),
     ("standard", "experiment_eng", "decision_tree"),

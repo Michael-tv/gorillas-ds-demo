@@ -1,11 +1,8 @@
 datasets:
   standard_effort:
     n: 50000
-    seed: 47   # 43 hits a rare NonTerminatingShotError (very low gravity-outlier
-               # draw + high angle exceeds physics.simulate_landing's max_time,
-               # sampling.py task 13's guarantee -- an existing, pre-EFFORT-mode
-               # simulator edge case, not something this mode introduces); 47
-               # runs cleanly at n=50000.
+    seed: 47   # 43 hits a rare NonTerminatingShotError (low-gravity outlier +
+               # high angle exceeds simulate_landing's max_time); 47 is clean.
     input_mode: EFFORT
     elevation_mean: 45.0
     elevation_std: 20.0
@@ -19,56 +16,31 @@ datasets:
     elevation_std: 20.0
     hit_tolerance: 5.0
 
-  # Add a new dataset by adding another entry here -- dvc.yaml's `generate`
-  # stage expands one independent, independently-cached stage per key (as
-  # generate@<key>), writing to data/<key>.parquet. Changing one entry's
-  # values only reruns that dataset's stage, never the others.
+  # Add a dataset by adding an entry here -- dvc.yaml's `generate` foreach
+  # expands one independently-cached generate@<key> stage per entry, writing
+  # data/<key>.parquet. Covers variants expressible as generate() arguments
+  # (n, seed, input_mode, elevation distribution, hit tolerance); different
+  # generation *logic* needs its own module and stage (see `gorillas_datasets`
+  # / generate_gorillas below, which uses data_generation.gorillas instead).
   #
-  # This covers variants expressible as different arguments to
-  # data_generation.generate.generate() (n, seed, input_mode, elevation
-  # distribution, hit tolerance). A variant needing different generation
-  # *logic* entirely (not just different parameters) needs its own
-  # data_generation module and its own stage in dvc.yaml instead of an entry
-  # here -- see `gorillas_datasets` below, which is exactly that: a different
-  # module (data_generation.gorillas, driving the real QBasic game instead of
-  # physics.py's RK4 integrator), with its own foreach stage
-  # (generate_gorillas) below.
-  #
-  # standard_effort/standard_velocity are the two input modes of the SAME
-  # generator, mirroring the Gorillas pools' own EFFORT/VELOCITY split (see
-  # data_generation/sampling.py's EFFORT_RANGE/MAX_FORCE_N): VELOCITY draws
-  # launch speed directly (this generator's original behavior, kept at seed
-  # 42 so it is a byte-identical continuation of the old single
-  # standard_training_data pool); EFFORT derives it from a capped force
-  # model instead. Both files carry the regression target
-  # (initial_velocity_ms/landing_distance_m) and the classification target
-  # (hit_target) together -- regression and classification both train from
-  # whichever one file they read, same as the Gorillas pools below.
+  # standard_effort/standard_velocity are the two input modes of the same
+  # generator (mirrors the Gorillas EFFORT/VELOCITY split): VELOCITY draws
+  # launch speed directly, EFFORT derives it from a capped force model.
+  # Both carry the regression and classification targets together.
 
 gorillas_datasets:
   # Two variants of the same physical setup (same board count), differing in
-  # what the thrower controls (input_mode) -- see data_generation/gorillas.py
-  # and qbasic_gorillas/dosbox-datagen/ for what input_mode means.
+  # what the thrower controls (input_mode) -- see data_generation/gorillas.py.
   #
-  # One file per mode, not one per {mode} x {regression/classification} --
-  # one throw already produces both initial_velocity_ms and hit_target at
-  # once (data_generation/gorillas.py's _to_contract()), so regression and
-  # classification training both read the same generated file for a given
-  # mode; there is no separate "regression data" vs "classification data" to
-  # generate. (An earlier version of this file split them anyway, purely to
-  # keep regression and classification from sharing a DVC stage node -- that
-  # policy has been reversed; see AUDIT.md.)
+  # One file per mode, not per {mode} x {regression/classification} -- one
+  # throw already produces both initial_velocity_ms and hit_target, so both
+  # training types read the same generated file.
   #
-  # n=5000 lands in the "real one-off pool" range this build measures at
-  # (roughly 15-200 rows/s depending on --workers; DVC doesn't pass --workers
-  # here since it's a performance knob, not a dataset-identity one -- see
-  # data_generation/gorillas.py's own note on that). Not the 40-50k the
-  # Python generator produces in about a minute: this is a second, authentic
+  # n=5000 (vs the Python generator's 40-50k) is a second, authentic data
   # source to compare against, not a replacement for volume.
   #
-  # `throws` and `boards_per_chunk` DO belong here (unlike n_iter/cv-style
-  # tuning knobs) -- both change the resulting rows, not just how fast they
-  # arrive, so a value change here correctly reruns generate_gorillas@<key>.
+  # `throws` and `boards_per_chunk` change the resulting rows (unlike
+  # performance knobs like --workers), so they belong here.
   gorillas_effort:
     n: 60000
     seed: 42

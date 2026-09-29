@@ -1,16 +1,7 @@
 """Train XGBoost on the standard pool's 9 raw feature columns.
 
-Converted from the train_raw@<model> foreach matrix (experiments/regression/
-train.py --run raw --algorithm xgboost) to this experiment_raw/
-folder's one-script-per-model pattern -- see
-../experiment_skew/train_xgboost.py for the general
-experiment_<name>/train_<model>.py rationale.
-
 Reads data/standard_velocity.parquet, sliced to the first `n_samples` rows
-(params.yaml) -- kept switchable here (unlike the Gorillas-domain raw/eng
-scripts, which are fixed-size) mainly so a full sweep can be shrunk for a
-faster run without editing this file. See experiment_row_count/ for the
-dedicated sample-size-convergence story; this script trains at a single size.
+(params.yaml).
 """
 import os
 

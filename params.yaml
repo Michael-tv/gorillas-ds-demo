@@ -1,54 +1,24 @@
 # DVC params -- see dvc.yaml `params:` sections and params.py.
+# Changing a value here marks the matching stage(s) stale for `dvc exp run`/`dvc repro`.
 #
-# Changing a value here (or via `dvc exp run --set-param training_data=...`)
-# marks the matching training stage(s) as stale, so `dvc exp run`/`dvc repro`
-# will retrain them and `dvc exp show`/`dvc exp diff` will compare the
-# resulting metrics side by side.
-#
-# There is no `search:` block here anymore -- both the RandomizedSearchCV/
-# *CV search budget (`n_iter`) and the CV fold count (`cv`) moved to each
-# experiment's own local params.yaml (experiments/<domain>/<mode>/<experiment>/
-# params.yaml), since both are pool/experiment concerns, not global ones:
-# the right search budget and CV strategy (single validation split on the
-# standard pool via splitting.single_split_cv(), which reads no fold-count
-# knob at all, vs. the Gorillas pools'/experiment_cv_baseline's real
-# grouped/k-fold CV via splitting.cv_for()) can differ per experiment, and a
-# single shared block here either meant nothing to most experiments or
-# forced them all onto the same schedule regardless of whether it fit that
-# pool. A local file's `n_iter`/`cv` is read via
-# `params.load_experiment_params(__file__)`, the same mechanism
-# `experiment_row_count` already uses for its own `tiers`.
+# n_iter/cv search knobs live in each experiment's own local params.yaml
+# (experiments/<domain>/<mode>/<experiment>/params.yaml), not here -- read via
+# params.load_experiment_params(__file__).
 
-# Which generated pool every training/evaluation script reads, by name --
-# matches a key in dvc_datasets.yaml (Python-generated) or a Gorillas dataset
-# key (see data_generation/gorillas.py), and resolves to data/<name>.parquet
-# via params.data_path(). Previously this filename was hardcoded in ~11 .py
-# files and 10 dvc.yaml deps: lines; changing it here (or via `dvc exp run
-# --set-param training_data=<name>`) now retargets every one of them at once,
-# and shows up as a compared column in `dvc exp show`.
-#
-# Switching this to a name nothing has generated yet just makes every
-# downstream stage fail on a missing dep -- run the matching generate/
-# generate_gorillas stage (or `dvc repro`) first.
+# Which generated pool to read; matches a key in dvc_datasets.yaml or a
+# Gorillas dataset key, and resolves to data/<name>.parquet via params.data_path().
+# Must be generated first (`dvc repro`) or downstream stages fail on a missing dep.
 training_data: standard_velocity
 
 test_size: 0.2
 
-# Sample-size tier for the convergence experiment (run_raw/run_eng/
-# classification's run all read this instead of a fixed per-directory
-# constant) -- sweep it with e.g. `dvc exp run --set-param n_samples=20000`
-# and compare tiers with `dvc exp show`. Nested prefixes of the same seeded
-# pool (data/standard_velocity.parquet, 50000 rows), so growing
-# n_samples is the only thing that changes between runs.
+# Sample-size tier for the convergence experiment; sweep with
+# `dvc exp run --set-param n_samples=...`. Nested prefix of the seeded
+# standard_velocity pool (50000 rows), so growing n_samples is the only change.
 n_samples: 40000
 
-# The skewed-extrapolation demo. data_generation/filter_skewed.py splits the pool
-# at this launch angle: rows at or below it become the skewed training set, rows
-# above it become data/skewed_holdout.parquet -- the out-of-distribution test set
-# that makes "extrapolates poorly beyond the cap" measurable instead of asserted.
-# Sweep it with `dvc exp run --set-param skew.max_angle_deg=40` and compare in
-# `dvc exp show`; it used to be a Python constant (MAX_ELEVATION_DEG) and so was
-# neither sweepable nor visible. Pool coverage at the time of writing: 5-30 deg
-# = 10,624 rows, 30-50 = 19,520, 50-85 = 19,786.
+# Skewed-extrapolation demo: data_generation/filter_skewed.py splits the pool at
+# this launch angle -- at/below becomes the skewed training set, above becomes
+# the OOD holdout (data/skewed_holdout.parquet).
 skew:
   max_angle_deg: 30

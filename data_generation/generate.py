@@ -18,12 +18,10 @@ COLUMNS = [
     "landing_distance_m", "target_distance_m", "hit_target", "is_outlier", "group_id",
 ]
 # group_id: rows sharing a value were drawn under correlated conditions and
-# must not be split across train/test independently of each other (AUDIT.md
-# task 32/36). This path's rows are i.i.d. -- sample_shot draws every physical
-# input independently per row, so there is no real correlation structure --
-# so generate_rows() assigns each row its own unique id (no grouping effect).
-# The Gorillas path (gorillas.py) is the opposite case: 32 throws share a
-# board's wind and skyline, so its group_id is genuinely shared across rows.
+# must not be split across train/test independently. This path's rows are
+# i.i.d. (each row's inputs drawn independently), so generate_rows() gives
+# every row its own unique id. Contrast gorillas.py, where 32 throws share a
+# board's wind and skyline, so its group_id is genuinely shared.
 
 MASS_COLUMN_INDEX = 4  # never corrupt to exactly 0 -- engineered features divide by it
 
@@ -48,31 +46,27 @@ def generate(n, seed, elevation_dist=DEFAULT_ELEVATION_DIST, hit_tolerance=HIT_T
     """Generate `n` rows deterministically from `seed`.
 
     Seeds its own random.Random rather than relying on the caller having
-    seeded the global `random` module first -- two calls with the same
-    arguments always produce the same DataFrame (AUDIT.md task 2).
+    seeded the global `random` module -- two calls with the same arguments
+    always produce the same DataFrame.
 
-    input_mode="VELOCITY" (default) draws launch speed directly, unchanged
-    from this generator's original behavior. input_mode="EFFORT" derives it
-    from a capped force model instead -- see data_generation/sampling.py.
+    input_mode="VELOCITY" (default) draws launch speed directly.
+    input_mode="EFFORT" derives it from a capped force model instead --
+    see data_generation/sampling.py.
     """
     rng = random.Random(seed)
     rows = generate_rows(rng, n, elevation_dist, _make_build_row(hit_tolerance),
                           no_zero_indices={MASS_COLUMN_INDEX}, input_mode=input_mode)
     # generate_rows returns rows grouped by section (normal, then gravity
-    # outliers, then data errors) -- shuffle so a prefix slice (see
-    # experiments/regression/common/loader.py's `n_samples` slicing, used to nest
-    # smaller sample-size tiers inside this pool for the convergence
-    # experiment) keeps the same outlier mix and hit/miss balance as the full
-    # pool, instead of slicing out only normal rows.
+    # outliers, then data errors) -- shuffle so a prefix slice (loader.py's
+    # n_samples) keeps the same outlier mix instead of slicing out only
+    # normal rows.
     rng.shuffle(rows)
     df = pd.DataFrame(rows, columns=COLUMNS)
     hits = int(df["hit_target"].sum())
     print(f"  Hits : {hits}   Misses : {len(df) - hits}   Tolerance : +/-{hit_tolerance} m")
-    # Validated here rather than only in the CLI, so an in-process caller
-    # (generate_all.py, a test) gets the same guarantee. The checks are shared
-    # with the Gorillas producer and both training loaders -- see
-    # data_generation/contract.py (AUDIT.md task 38). Imported inside the
-    # function because contract.py imports this module for COLUMNS.
+    # Validated here (not just in the CLI) so any in-process caller gets the
+    # same guarantee. Imported inside the function because contract.py
+    # imports this module for COLUMNS (avoids a circular import).
     from data_generation.contract import check_contract
     return check_contract(df, source="generate")
 
@@ -86,8 +80,8 @@ if __name__ == "__main__":
     parser.add_argument("--hit-tolerance", type=float, default=HIT_TOLERANCE)
     parser.add_argument("--seed", type=int, default=42, help="seeds this run's own random.Random for reproducible datasets")
     parser.add_argument("--input-mode", choices=["EFFORT", "VELOCITY"], default="VELOCITY",
-                         help="VELOCITY samples launch speed directly (this generator's original behavior); "
-                              "EFFORT derives it from a capped force model (see data_generation/sampling.py)")
+                         help="VELOCITY samples launch speed directly; EFFORT derives it "
+                              "from a capped force model (see sampling.py)")
     args = parser.parse_args()
     df = generate(args.n, args.seed, elevation_dist=(args.elevation_mean, args.elevation_std),
                    hit_tolerance=args.hit_tolerance, input_mode=args.input_mode)

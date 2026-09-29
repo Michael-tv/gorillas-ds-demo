@@ -1,12 +1,4 @@
-"""Train Polynomial Regression on the velocity pool's 5 engineered feature columns.
-
-Converted from the train_eng@<model> foreach matrix (experiments/regression/
-train.py --run eng --algorithm polynomial) to this experiment_eng/
-folder's one-script-per-model pattern. See ../experiment_raw/
-train_polynomial.py for the n_samples rationale, and
-../experiment_skew/train_polynomial.py for the general
-experiment_<name>/train_<model>.py pattern.
-"""
+"""Train Polynomial Regression on the velocity pool's 5 engineered feature columns."""
 import os
 
 import joblib

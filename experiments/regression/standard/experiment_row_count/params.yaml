@@ -1,17 +1,9 @@
-# Sample-size tiers for this experiment's convergence sweep -- nested prefix
-# slices of one seeded pool (data/standard_velocity.parquet, 50000 rows), so
-# growing a tier is the only thing that changes between runs. See
-# train_linear_regression.py's docstring for the general row-count-sweep
-# rationale. Tracked as a DVC params: dependency (see this pool's dvc.yaml),
-# so changing this list marks every train_row_count_standard_* stage stale.
+# Sample-size tiers: nested prefix slices of the seeded 50000-row pool. Changing
+# this list marks every train_row_count_standard_* stage stale.
 tiers: [1000, 2000, 5000, 10000, 20000, 50000]
 
-# RandomizedSearchCV/*CV search budget (n_iter), one value for every model --
-# moved out of the shared root params.yaml since the search block otherwise
-# forced every experiment to share one search-budget schedule with no way to
-# size it per pool/experiment. `null` means that algorithm doesn't search at
-# all (LinearRegression/Ridge/Lasso/Polynomial's *CV meta-estimators pick
-# their own hyperparameter internally, or there simply isn't one).
+# Search budget (n_iter) per model. null = no search (LinearRegression/Ridge/Lasso/
+# Polynomial pick their hyperparameter internally, or have none).
 n_iter:
   linear_regression: null
   ridge:              null

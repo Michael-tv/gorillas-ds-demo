@@ -99,16 +99,16 @@ stages:
     deps:
     - path: data_generation/gorillas.py
       hash: md5
-      md5: 31a54bb47afa702604fc44ea01d24f85
-      size: 34639
+      md5: 25e30de88679fd00b9802743928e587a
+      size: 28775
     - path: data_generation/io.py
       hash: md5
       md5: ff2db4c73a7e6a7e079822fef8a2f7ec
       size: 664
     - path: data_generation/outliers.py
       hash: md5
-      md5: f5b5b5be11da6d9c0894acd6cf688f79
-      size: 1259
+      md5: 5c6090a644e41a56d47d6dcdd710886d
+      size: 1176
     - path: qbasic_gorillas/dosbox-datagen/gorilla.bas
       hash: md5
       md5: 32f6f5847ba498186b356a3ebe265a30
@@ -120,8 +120,8 @@ stages:
       size: 2815224
     - path: data/gorillas_effort_throws.parquet
       hash: md5
-      md5: 675e2d9ecc0c82677670837d05fe523e
-      size: 15110105
+      md5: 97f14f7cb60d95b853800b27063af27f
+      size: 15117569
   generate@standard_effort:
     cmd: python -m data_generation.generate --n 50000 --seed 47 --input-mode 
       EFFORT --elevation-mean 45.0 --elevation-std 20.0 --hit-tolerance 5.0 

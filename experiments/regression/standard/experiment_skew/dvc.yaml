@@ -1,14 +1,9 @@
-# experiment_skew: the skewed-extrapolation demo -- filter_skewed produces
-# the low-angle training slice and its out-of-distribution holdout, the
-# 9-model sweep trains on the slice, and train_skewed_concept/
-# train_balanced_concept are the worked before/after comparison. Standard-
-# pool only -- no Gorillas equivalent.
-#
-# All paths below are ../../../../-prefixed -- this file lives four levels
-# under the repo root (experiments/<domain>/<mode>/<experiment>/dvc.yaml), next to
-# the training scripts it runs. See the top-level README's "Running one
-# pipeline at a time" section for the full explanation of this repo's
-# cross-pipeline-dependency / relative-path / explicit-params.yaml conventions.
+# experiment_skew: skewed-extrapolation demo -- filter_skewed produces the low-angle
+# training slice + out-of-distribution holdout, the 9-model sweep trains on the
+# slice, and train_skewed_concept/train_balanced_concept are the before/after
+# comparison. Standard-pool only.
+# Paths are ../../../../-prefixed (4 levels under repo root); see README "Running one
+# pipeline at a time" for the relative-path convention.
 
 vars:
   - ../../../../params.yaml
@@ -16,12 +11,9 @@ vars:
 stages:
 
   filter_skewed:
-    # --out/--holdout-out are NOT resolved relative to CWD -- data_generation/
-    # io.py's resolve_output() anchors a relative path to its own hardcoded
-    # REPO_ROOT (Path(__file__).resolve().parent.parent), so these must be
-    # bare `data/...` paths, unlike every ../../../../-prefixed path elsewhere in
-    # this file. Confirmed by testing: the ../-prefixed form (at three levels) silently wrote
-    # to a path two levels ABOVE the repo root instead of failing loudly.
+    # --out/--holdout-out resolve relative to data_generation/io.py's hardcoded
+    # REPO_ROOT, not CWD -- use bare `data/...` paths here, not the
+    # ../../../../-prefixed form used elsewhere in this file.
     cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m data_generation.filter_skewed --out data/skewed_training_data.parquet --holdout-out data/skewed_holdout.parquet
     deps:
       - ../../../../data/${training_data}.parquet
@@ -219,7 +211,7 @@ stages:
   train_skewed_concept:
     cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.standard.experiment_skew.train_skewed_concept
     deps:
-      # Both: it trains on the slice and scores the holdout, which is the point.
+      # Trains on the slice, scores on the holdout -- the point of this stage.
       - ../../../../data/skewed_training_data.parquet
       - ../../../../data/skewed_holdout.parquet
       - ../../../../experiments/regression/standard/experiment_skew/train_skewed_concept.py
@@ -239,8 +231,7 @@ stages:
   train_balanced_concept:
     cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.standard.experiment_skew.train_balanced_concept
     deps:
-      # The full pool to train on, the slice to size against, the holdout to
-      # score on -- all three, so it re-runs when any of them changes.
+      # Full pool to train on, slice to size against, holdout to score on.
       - ../../../../data/standard_velocity.parquet
       - ../../../../data/skewed_training_data.parquet
       - ../../../../data/skewed_holdout.parquet
@@ -257,6 +248,4 @@ stages:
     metrics:
       - ../../../../experiments/regression/standard/experiment_skew/results/metrics/metrics_balanced.csv:
           cache: false
-
-  # ── Leakage demo (experiment_leakage/, a sample of the standard pool) ────
 

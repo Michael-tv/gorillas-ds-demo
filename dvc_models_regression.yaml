@@ -1,40 +1,21 @@
 # Which regression models each training stage expands into. dvc.yaml reads
 # this via `vars:` and turns every entry into one independently-cached stage.
 #
-# `algorithm:` names a module in experiments/regression/algorithms/ (also the key
-# into params.yaml's search.regression block); the entry's own top-level key
-# is the output name (model_<key>.joblib, metrics_<key>.csv) and doubles as
-# `--key` to experiments/regression/train.py. Most entries have algorithm == key;
-# `random_forest_no_outlier` is the one alias, reusing random_forest's logic
-# under a different name and a different `clean` value.
+# `algorithm:` names a module in experiments/regression/algorithms/; the entry's
+# key is the output name (model_<key>.joblib, metrics_<key>.csv) and `--key`
+# to train.py. Most entries have algorithm == key; random_forest_no_outlier
+# is the one alias (reuses random_forest's logic with a different `clean`).
 #
-# decision_tree_overfit is NOT listed here even though it is part of the
-# seven-model sweep conceptually -- it needs a different script
-# (train_decision_tree_overfit.py, not experiments/regression/train.py) because its
-# whole point is a different control flow with no train/test split, so it
-# cannot share this foreach's single `cmd:` template. It gets its own explicit
-# stage in every regression pipeline instead (see e.g.
-# experiments/regression/standard/experiment_raw/dvc.yaml).
+# decision_tree_overfit is NOT listed here -- it needs a different script
+# (no train/test split) so it can't share this foreach's `cmd:` template; it
+# gets its own explicit stage in each regression pipeline instead.
 #
-# THE MATRIX RULE, stated so it is not guesswork (AUDIT.md task 3, §2.7):
+# The sweep is seven algorithms spanning underfit/overfit/instance-based/ensemble:
+# linear_regression, decision_tree, knn, polynomial, random_forest, mlp, xgboost.
+# Each appears once with default cleaning (clean: ""); deviations are listed below.
 #
-#   The sweep is seven regression algorithms, chosen to span the arc a talk
-#   needs -- underfit, overfit, instance-based, ensemble:
-#
-#       linear_regression  decision_tree  knn  polynomial
-#       random_forest      mlp            xgboost
-#
-#   (decision_tree_overfit is the eighth, standalone as described above.)
-#   Each appears exactly ONCE per run, with the default cleaning (clean: "").
-#   Deviations from that rule are deliberate and listed below, and there is
-#   only one of them in this file. Anything not listed does not exist --
-#   previously the matrix carried *_range for 6 of 10 models and *_no_outlier
-#   for 8, with nothing recording whether the gaps were intentional, so a
-#   reader could not tell a decision from an oversight.
-#
-# regression_models also drives the Gorillas effort/velocity groups
-# (train_raw_effort, train_raw_velocity, train_eng_effort, train_eng_velocity)
-# -- the same matrix, against a different (fixed) pool per pipeline.
+# Also drives the Gorillas effort/velocity groups (train_raw_*, train_eng_*)
+# -- same matrix, different fixed pool per pipeline.
 
 regression_models:
   linear_regression:  {algorithm: linear_regression, clean: ""}
@@ -45,16 +26,13 @@ regression_models:
   mlp:                 {algorithm: mlp,               clean: ""}
   xgboost:             {algorithm: xgboost,           clean: ""}
 
-  # Deviation: one cleaning contrast. The same model twice, differing only in
-  # `clean`, is what makes the cleaning strategy visible in `dvc exp show`;
-  # repeating it for every algorithm adds stages without adding a lesson.
-  # (Note its `no_outlier` strategy is itself an oracle -- see AUDIT.md task 15.)
+  # Deviation: one cleaning contrast, to make the cleaning strategy visible
+  # in `dvc exp show` without repeating it for every algorithm.
   random_forest_no_outlier: {algorithm: random_forest, clean: "no_outlier"}
 
 skewed_models:
-  # The same seven-model sweep on the angle-capped pool, so the only difference
-  # between this run and train_raw is the data it sees. (No decision_tree_overfit
-  # here -- it was never part of this matrix.)
+  # Same seven-model sweep on the angle-capped pool, so data is the only
+  # difference vs train_raw. (No decision_tree_overfit -- not part of this matrix.)
   linear_regression: {algorithm: linear_regression, clean: ""}
   decision_tree:     {algorithm: decision_tree,     clean: ""}
   knn:               {algorithm: knn,               clean: ""}
@@ -63,9 +41,7 @@ skewed_models:
   mlp:               {algorithm: mlp,               clean: ""}
   xgboost:           {algorithm: xgboost,           clean: ""}
 
-  # Deviation: ridge and lasso appear here and nowhere else, because
-  # regularised-linear versus tree is exactly the extrapolation contrast this
-  # run exists to show -- beyond the training range a linear model keeps going
-  # while a forest flatlines at its boundary leaf.
+  # Deviation: ridge/lasso appear only here -- regularised-linear vs tree is
+  # the extrapolation contrast this run exists to show.
   ridge: {algorithm: ridge, clean: ""}
   lasso: {algorithm: lasso, clean: ""}

@@ -1,13 +1,7 @@
-# experiment_raw: the 9-model raw-feature sweep, permanently on
-# data/gorillas_effort.parquet. See
-# experiments/regression/effort/experiment_raw/train_linear_regression.py for the
-# one-script-per-model pattern this stage set drives.
-#
-# All paths below are ../../../../-prefixed -- this file lives four levels
-# under the repo root (experiments/<domain>/<mode>/<experiment>/dvc.yaml), next to
-# the training scripts it runs. See the top-level README's "Running one
-# pipeline at a time" section for the full explanation of this repo's
-# cross-pipeline-dependency / relative-path / explicit-params.yaml conventions.
+# experiment_raw: 9-model raw-feature sweep on data/gorillas_effort.parquet.
+# See train_linear_regression.py for the one-script-per-model pattern.
+# Paths are ../../../../-prefixed (4 levels under repo root); see README "Running one
+# pipeline at a time" for the relative-path convention.
 
 stages:
 

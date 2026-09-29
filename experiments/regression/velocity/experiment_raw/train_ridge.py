@@ -1,14 +1,7 @@
 """Train Ridge Regression on the velocity pool's 9 raw feature columns.
 
-Converted from the train_raw@<model> foreach matrix (experiments/regression/
-train.py --run raw --algorithm ridge) to this experiment_raw/
-folder's one-script-per-model pattern -- see
-../experiment_skew/train_ridge.py for the general
-experiment_<name>/train_<model>.py rationale.
-
-Reads data/gorillas_velocity.parquet -- fixed-size, not switchable, matching the
-pre-existing raw_velocity/eng_velocity convention (permanent Gorillas-domain
-pipelines don't take an n_samples slice).
+Reads the full data/gorillas_velocity.parquet pool directly -- fixed-size,
+not a switchable n_samples slice.
 """
 import os
 

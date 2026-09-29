@@ -10,9 +10,8 @@ from feature_engineering import add_engineered_columns
 CV = 5
 
 df = add_engineered_columns(pd.read_parquet(DATA))
-# Signed sqrt: landing_distance_m can be negative (e.g. a strong headwind can
-# land a shot behind the launch point) -- preserve sign and magnitude instead
-# of a plain sqrt, which is undefined for negative inputs.
+# Signed sqrt: landing_distance_m can be negative (e.g. strong headwind), and
+# plain sqrt is undefined for negative inputs -- preserve sign and magnitude.
 df["sqrt_landing_distance_m"] = np.sign(df["landing_distance_m"]) * np.sqrt(df["landing_distance_m"].abs())
 
 FEATURES = ["launch_angle_deg", "wind_x_ms", "drag_param",

@@ -1,17 +1,7 @@
 """
-Input-output relationship plots for the training split used by run_bias_variance.
-
-Data source: data/raw_500k.parquet (same as the bias-variance study),
-with engineered features derived at load time, sub-sampled to
-the first params.yaml n_samples rows of the pre-shuffled pool -- the same
-prefix train_utils.py takes, so this describes exactly the rows the run trains on.
-
-Each panel: training points (blue) over withheld test points (grey) +
-dashed line showing the true physics relationship computed from training-set
-means while sweeping that feature across its range.
-
-drag_param is decomposed back to Cd using fixed mean mass/radius for the
-physics curve, since individual mass/radius/Cd are not stored in this dataset.
+Input-output relationship plots for the run_bias_variance training split.
+Uses the same n_samples prefix as training, so the plot matches what the run trains on.
+drag_param is decomposed back to Cd using fixed mean mass/radius (not stored per-row).
 """
 import math
 import os
@@ -28,10 +18,7 @@ from physics import simulate
 from feature_engineering import add_engineered_columns
 
 DATA         = os.path.join(REPO_ROOT, "data", "raw_500k.parquet")
-# Read from params.yaml, like the training run itself. This used to be a
-# hardcoded copy with a "matches train_utils.py" comment -- a manual sync
-# guaranteed to drift, and it did not respond to --set-param (AUDIT.md task 4b).
-N_SAMPLES    = params.load_params()["n_samples"]
+N_SAMPLES    = params.load_params()["n_samples"]  # read from params.yaml so it matches the training run
 TEST_SIZE    = 0.2
 RANDOM_STATE = 42
 DT           = 0.02

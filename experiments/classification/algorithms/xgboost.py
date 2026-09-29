@@ -24,9 +24,8 @@ def fit(X_train, y_train, search_cfg):
 
     search = RandomizedSearchCV(
         # XGBoost's equivalent of class_weight="balanced" is scale_pos_weight,
-        # which takes the negative/positive ratio rather than a keyword --
-        # computed from the TRAINING labels only, so nothing about the test set
-        # leaks into the model (AUDIT.md task 37 / §5.4).
+        # computed from training labels only so nothing about the test set
+        # leaks into the model.
         XGBClassifier(random_state=42, verbosity=0, eval_metric="logloss",
                       scale_pos_weight=scale_pos_weight),
         param_distributions=PARAM_DIST,

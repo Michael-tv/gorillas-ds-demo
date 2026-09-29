@@ -1,11 +1,6 @@
-# experiment_classification: the 6-model classification sweep, permanently
-# on data/gorillas_velocity.parquet.
-#
-# All paths below are ../../../../-prefixed -- this file lives four levels
-# under the repo root (experiments/<domain>/<mode>/<experiment>/dvc.yaml), next to
-# the training scripts it runs. See the top-level README's "Running one
-# pipeline at a time" section for the full explanation of this repo's
-# cross-pipeline-dependency / relative-path / explicit-params.yaml conventions.
+# experiment_classification: the 6-model classification sweep, permanently on data/gorillas_velocity.parquet.
+# Paths are ../../../../-prefixed (4 levels under repo root); see README "Running one
+# pipeline at a time" for the relative-path convention.
 
 stages:
 

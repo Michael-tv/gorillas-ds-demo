@@ -8,7 +8,7 @@ angles, so when the model is asked about a steep shot it has never seen, it
 cannot extrapolate -- a random forest flatlines at its boundary leaf mean,
 producing a confidently wrong velocity.
 
-Reports MAE on BOTH test sets, which is the whole point (AUDIT.md task 10):
+Reports MAE on BOTH test sets, which is the whole point:
 
   * the in-distribution split, drawn from the same filtered slice -- where
     the model looks fine;

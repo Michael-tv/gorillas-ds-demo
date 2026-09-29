@@ -9,12 +9,8 @@ REPO_ROOT = os.path.join(HERE, "..", "..")
 
 # ── Config ────────────────────────────────────────────────────────────────────
 MODELS_TO_COMPARE = [
-    # (domain, model_name) -- domain is "standard"/"effort"/"velocity"; each
-    # reads experiments/classification/<domain>/experiment_classification/. Vary
-    # n_samples via `dvc exp run --set-param n_samples=...` for the standard
-    # domain's convergence comparison instead of separate per-size
-    # directories (or see experiment_row_count/, which sweeps that
-    # internally and writes one metrics row per tier).
+    # (domain, model_name); reads experiments/classification/<domain>/experiment_classification/.
+    # For an n_samples sweep, use experiment_row_count/ instead of separate entries here.
     ("standard", "decision_tree"),
     # ("standard", "random_forest"),
     # ("standard", "mlp"),

@@ -1,24 +1,9 @@
 """Group-aware train/test splitting and cross-validation.
 
-The Gorillas producer throws 32 bananas at each board, and a board's wind and
-skyline are shared by all of them. A plain `train_test_split` therefore puts
-throws from the same board on both sides of the split, letting a model memorise
-board-specific structure and score against rows it has effectively already seen
--- textbook group leakage, and the largest one in this repo whenever a Gorillas
-pool is active (AUDIT.md §5.1, task 36).
-
-`group_id` (generate.COLUMNS' 14th column, task 32) is the key. This module is
-the single place that knows what to do with it, so every training script gets
-the same behaviour from one implementation:
-
-  * When the active pool genuinely has groups, splits are group-aware
-    (GroupShuffleSplit, or StratifiedGroupKFold when the labels must also be
-    balanced) and cross-validation uses GroupKFold.
-  * When it does not -- the Python producer gives every row its own id, because
-    sample_shot draws each row independently -- a group-aware split degrades
-    to an ordinary random split, which is exactly right. That is why the same
-    code path serves both producers with no per-producer branching in the
-    training scripts.
+The Gorillas producer throws 32 bananas per board, sharing wind/skyline across
+throws -- a plain train_test_split would leak board structure across the split.
+`group_id` marks this; when a pool has no real groups (e.g. the Python
+producer, one id per row), splits degrade to an ordinary random split.
 """
 import numpy as np
 from sklearn.model_selection import (GroupKFold, GroupShuffleSplit,
@@ -27,9 +12,7 @@ from sklearn.model_selection import (GroupKFold, GroupShuffleSplit,
 
 
 def has_groups(groups):
-    """True when `groups` actually groups rows together, i.e. there are fewer
-    distinct values than rows. One group per row carries no grouping
-    information, so treating it as grouped would only cost accuracy."""
+    """True when `groups` has fewer distinct values than rows."""
     if groups is None:
         return False
     groups = np.asarray(groups)
@@ -37,28 +20,21 @@ def has_groups(groups):
 
 
 def _take(data, idx):
-    """Positional selection that works for both a DataFrame (the regression
-    loader returns one, so the Pipeline's engineering step keeps column names)
-    and a plain ndarray (the classification loader returns one)."""
+    """Positional selection that works for both a DataFrame and an ndarray."""
     return data.iloc[idx] if hasattr(data, "iloc") else data[idx]
 
 
 def split(X, y, groups=None, test_size=0.2, random_state=42, stratify=False):
     """Split into train/test, keeping each group wholly on one side.
 
-    Returns `(X_train, X_test, y_train, y_test, groups_train)`. The trailing
-    `groups_train` is what cross-validation needs, so a caller that splits and
-    then cross-validates does not have to index the groups itself and risk
-    getting it subtly wrong.
+    Returns `(X_train, X_test, y_train, y_test, groups_train)`.
 
-    `stratify=True` asks for balanced labels as well -- which matters here
-    because the Gorillas hit rate is 5-7% (§5.4). With groups that means
-    StratifiedGroupKFold, since GroupShuffleSplit cannot stratify; the fold
-    count is derived from `test_size`, so test_size=0.2 takes one fifth.
+    `stratify=True` also balances labels -- useful since the Gorillas hit rate
+    is only 5-7%. With groups this uses StratifiedGroupKFold (GroupShuffleSplit
+    can't stratify); fold count is derived from test_size.
     """
     y = np.asarray(y)
     if not has_groups(groups):
-        # No group structure: an ordinary random split IS the correct split.
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=test_size, random_state=random_state,
             stratify=y if stratify else None)
@@ -86,20 +62,11 @@ def split(X, y, groups=None, test_size=0.2, random_state=42, stratify=False):
 def cv_for(cv, X, y, groups_train, stratify=False):
     """Translate a plain fold count into a group-aware cross-validation scheme.
 
-    Returns something to pass straight as `cv=` -- the fold count unchanged when
-    no grouping applies, otherwise a materialised list of `(train_idx,
-    test_idx)` pairs built with the groups already applied.
+    Returns the fold count unchanged when no grouping applies, otherwise a
+    materialised list of (train_idx, test_idx) pairs -- needed because RidgeCV/
+    LassoCV don't accept a splitter object requiring `groups=` at fit time.
 
-    Materialised pairs rather than a splitter object on purpose: a splitter
-    needs `groups=` supplied again at fit time, which `RandomizedSearchCV.fit`
-    accepts but `RidgeCV` and `LassoCV` do not -- they would raise "the 'groups'
-    parameter should not be None". An explicit list of index pairs is accepted by
-    every sklearn estimator that takes `cv`, so the call site stays one argument
-    either way and no training script has to know which kind of estimator it is
-    holding.
-
-    Folds are capped at the number of groups, since GroupKFold cannot make more
-    folds than there are groups and a small run may legitimately have few.
+    Folds are capped at the number of groups (GroupKFold can't exceed that).
     """
     if cv is None or not has_groups(groups_train):
         return cv
@@ -119,8 +86,7 @@ def cv_for(cv, X, y, groups_train, stratify=False):
 def single_split_cv(test_size=0.2, random_state=42):
     """A single train/validation split to use as `cv=` in place of k-fold CV.
 
-    For pools with no group structure to protect (see `cv_for`), fitting each
-    search candidate 5x buys nothing over fitting it once -- the fold count
-    only matters when groups need spreading across folds without leaking.
+    For ungrouped pools, fitting each search candidate 5x buys nothing over
+    fitting it once.
     """
     return ShuffleSplit(n_splits=1, test_size=test_size, random_state=random_state)

@@ -1,14 +1,6 @@
 """Train MLP on the velocity pool's engineered feature columns.
 
-Converted from the train_classification@<model> foreach matrix
-(experiments/classification/train.py --run run --algorithm mlp)
-to this experiment_classification/ folder's one-script-per-model pattern --
-see experiments/regression/standard/experiment_skew/train_linear_regression.py
-for the general experiment_<name>/train_<model>.py rationale.
-
-Reads data/gorillas_velocity.parquet -- fixed-size, not switchable, matching the
-pre-existing train_classification_velocity convention (permanent Gorillas-domain
-pipelines don't take an n_samples slice).
+Reads data/gorillas_velocity.parquet, a fixed-size pool (no n_samples slicing).
 """
 import os
 

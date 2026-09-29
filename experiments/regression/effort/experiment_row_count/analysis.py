@@ -1,12 +1,6 @@
-"""Read every metrics_<model>.csv this experiment's dvc.yaml produces and
-plot the row-count learning curves: test MAE, train MAE, and the
-variance_proxy gap against n_samples, one line per model. Answers "does more
-data help" directly from the numbers instead of eyeballing a printed table.
-
-Self-contained, run by hand (not in the DAG), matching
-evaluation/regression/compare_models.py's style: no PYTHONPATH wrapper, no
-repo imports, just pandas + matplotlib on the CSVs this experiment's
-dvc.yaml already produced.
+"""Read every metrics_<model>.csv this experiment produces and plot row-count
+learning curves (test MAE, train MAE, variance_proxy) vs n_samples, one line
+per model. Run by hand, not part of the DAG.
 
     python experiments/regression/effort/experiment_row_count/analysis.py
 """
@@ -19,9 +13,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 METRICS_DIR = os.path.join(HERE, "..", "..", "..", "..", "experiments",
                             "regression", "effort", "experiment_row_count", "results", "metrics")
 
-# Every metrics_<model>.csv actually present -- stays in sync with whichever
-# train_<model>.py stages are uncommented in this folder's dvc.yaml, rather
-# than hardcoding a model list that drifts from it.
+# Discover models from files present, rather than hardcoding a list that
+# could drift from this folder's dvc.yaml stages.
 MODELS = sorted(
     fname[len("metrics_"):-len(".csv")]
     for fname in os.listdir(METRICS_DIR)
@@ -44,13 +37,9 @@ for model, df in frames.items():
     for _, row in df.iterrows():
         print(f"{int(row['n_samples']):<10}{row['mae']:>{C}.3f}{row['train_mae']:>{C}.3f}{row['variance_proxy']:>{C+5}.3f}")
 
-    # Read bias/variance off variance_proxy's magnitude, not the raw test-MAE
-    # trend -- a small, noisy test MAE swing across tiers can look like
-    # "moving with n_samples" even for a bias-limited model (linear_regression
-    # here is the example: test MAE bounces +/-0.4 m/s tier to tier with no
-    # real trend, which a trend-only read would misclassify as
-    # variance-limited). variance_proxy's average size relative to the error
-    # itself is the actual bias/variance signal.
+    # Read off variance_proxy's magnitude, not the raw test-MAE trend: a
+    # noisy tier-to-tier swing can look like "moving with n_samples" even for
+    # a bias-limited model.
     vp_share = df["variance_proxy"].abs().mean() / df["mae"].mean()
     read = (f"bias-limited: variance proxy averages {vp_share:.0%} of mean test MAE -- "
             f"train and test track closely, more data is unlikely to help" if vp_share < 0.15

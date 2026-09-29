@@ -14,9 +14,8 @@ PARAM_DIST = {
 
 
 def fit(X_train, y_train, search_cfg):
-    """MLPClassifier has NO class_weight parameter either (see knn's note) --
-    sample reweighting would have to be done by resampling. Judge it on
-    precision/recall/PR-AUC, not accuracy (AUDIT.md task 37 / §5.4)."""
+    """MLPClassifier has no class_weight parameter (see knn's note); judge it
+    on precision/recall/PR-AUC, not accuracy."""
     pipeline = Pipeline([("scaler", StandardScaler()),
                           ("model", MLPClassifier(max_iter=500, early_stopping=True, random_state=42))])
     search = RandomizedSearchCV(

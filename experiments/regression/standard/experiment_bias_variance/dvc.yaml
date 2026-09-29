@@ -1,11 +1,7 @@
-# experiment_bias_variance: the underfitting/overfitting demo -- same
-# DecisionTreeRegressor, max_depth=1 vs max_depth=None. Standard-pool only.
-#
-# All paths below are ../../../../-prefixed -- this file lives four levels
-# under the repo root (experiments/<domain>/<mode>/<experiment>/dvc.yaml), next to
-# the training scripts it runs. See the top-level README's "Running one
-# pipeline at a time" section for the full explanation of this repo's
-# cross-pipeline-dependency / relative-path / explicit-params.yaml conventions.
+# experiment_bias_variance: underfitting/overfitting demo -- same DecisionTreeRegressor,
+# max_depth=1 vs max_depth=None. Standard-pool only.
+# Paths are ../../../../-prefixed (4 levels under repo root); see README "Running one
+# pipeline at a time" for the relative-path convention.
 
 vars:
   - ../../../../params.yaml

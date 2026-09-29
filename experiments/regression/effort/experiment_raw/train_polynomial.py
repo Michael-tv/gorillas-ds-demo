@@ -1,14 +1,8 @@
 """Train Polynomial Regression on the effort pool's 9 raw feature columns.
 
-Converted from the train_raw@<model> foreach matrix (experiments/regression/
-train.py --run raw --algorithm polynomial) to this experiment_raw/
-folder's one-script-per-model pattern -- see
-../experiment_skew/train_polynomial.py for the general
-experiment_<name>/train_<model>.py rationale.
-
-Reads data/gorillas_effort.parquet -- fixed-size, not switchable, matching the
-pre-existing raw_effort/eng_effort convention (permanent Gorillas-domain
-pipelines don't take an n_samples slice).
+Reads data/gorillas_effort.parquet at fixed size (no n_samples slice),
+matching the raw_effort/eng_effort convention for permanent Gorillas-domain
+pipelines.
 """
 import os
 

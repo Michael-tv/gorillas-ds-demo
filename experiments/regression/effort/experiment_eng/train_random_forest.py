@@ -1,12 +1,4 @@
-"""Train Random Forest on the effort pool's 5 engineered feature columns.
-
-Converted from the train_eng@<model> foreach matrix (experiments/regression/
-train.py --run eng --algorithm random_forest) to this experiment_eng/
-folder's one-script-per-model pattern. See ../experiment_raw/
-train_random_forest.py for the n_samples rationale, and
-../experiment_skew/train_random_forest.py for the general
-experiment_<name>/train_<model>.py pattern.
-"""
+"""Train Random Forest on the effort pool's 5 engineered feature columns."""
 import os
 
 import joblib
