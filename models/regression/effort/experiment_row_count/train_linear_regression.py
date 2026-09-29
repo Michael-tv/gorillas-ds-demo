@@ -10,13 +10,25 @@ script instead of requiring `dvc exp run --set-param n_samples=...` once per
 tier. See models/regression/standard/experiment_skew/train_linear_regression.py for the general
 experiment_<name>/train_<model>.py pattern.
 
-Writes one row per tier to metrics_<key>.csv (n_samples, mae, mse, rmse) and
-one model_n<size>.joblib per tier into tiers/<key>/, so every tier's model
-stays inspectable, not just the metrics curve. tiers/<key>/ is declared as a
-single directory dvc.yaml `outs:` entry (rather than one entry per tier), so
-DVC tracks whatever's actually in there -- the cleanup pass below, which
-deletes any tier file that's no longer in TIERS before training, is what
-keeps that directory (and this run) matching params.yaml's tiers list.
+Writes one row per tier to metrics_<key>.csv (n_samples, mae, mse, rmse,
+train_mae, variance_proxy) and one model_n<size>.joblib per tier into
+tiers/<key>/, so every tier's model stays inspectable, not just the metrics
+curve. tiers/<key>/ is declared as a single directory dvc.yaml `outs:` entry
+(rather than one entry per tier), so DVC tracks whatever's actually in there
+-- the cleanup pass below, which deletes any tier file that's no longer in
+TIERS before training, is what keeps that directory (and this run) matching
+params.yaml's tiers list.
+
+train_mae/variance_proxy are a cheap bias/variance proxy, not a real
+decomposition. train_mae stands in for bias: a tier where it stays close to
+the test mae (both high) is bias-limited -- too simple a model for the
+data, which more of the same data can't fix. variance_proxy (= mae -
+train_mae, the train/test gap) stands in for variance: a large gap is
+variance-limited -- overfit to the training draw, which more data (or less
+model flexibility) would help. A real decomposition needs several
+independently-resampled training sets at each size to see how predictions
+actually vary; this is one model per tier, so it's a heuristic read on the
+gap, not a measurement of variance itself.
 """
 import csv
 import glob
@@ -58,7 +70,6 @@ def _clean_stale_tiers():
 def main():
     X_full, y_full, groups_full = loader.load_data(DATA, clean="no_outlier")
     n_iter = params.load_experiment_params(__file__)["n_iter"][KEY]
-    cv = params.load_experiment_params(__file__)["cv"]
     test_size = params.load_params()["test_size"]
 
     os.makedirs(MODELS_DIR, exist_ok=True)
@@ -69,7 +80,7 @@ def main():
         print(f"\n=== {algo.NAME} -- n_samples={n} ===")
         X_train, X_test, y_train, y_test, groups_train = splitting.split(
             X, y, groups, test_size=test_size, random_state=42)
-        cv_folds = splitting.cv_for(cv, X_train, y_train, groups_train)
+        cv_folds = splitting.single_split_cv()
 
         feature_step = ("features", EngineeredFeatures(output_columns=loader.FEATURES))
         model = algo.fit(X_train, y_train, feature_step, {"n_iter": n_iter, "cv": cv_folds})
@@ -77,14 +88,17 @@ def main():
         mae  = mean_absolute_error(y_test, y_pred)
         mse  = float(np.mean((y_test - y_pred) ** 2))
         rmse = mse ** 0.5
-        print(f"  MAE={mae:.3f}  MSE={mse:.3f}  RMSE={rmse:.3f}")
-        rows.append({"n_samples": n, "mae": mae, "mse": mse, "rmse": rmse})
+        train_mae = mean_absolute_error(y_train, model.predict(X_train))
+        variance_proxy = mae - train_mae
+        print(f"  MAE={mae:.3f}  MSE={mse:.3f}  RMSE={rmse:.3f}  train_MAE={train_mae:.3f}  variance_proxy={variance_proxy:.3f}")
+        rows.append({"n_samples": n, "mae": mae, "mse": mse, "rmse": rmse,
+                     "train_mae": train_mae, "variance_proxy": variance_proxy})
 
         joblib.dump(model, os.path.join(TIERS_DIR, f"model_n{n}.joblib"))
 
     metrics_path = os.path.join(MODELS_DIR, f"metrics_{KEY}.csv")
     with open(metrics_path, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=["n_samples", "mae", "mse", "rmse"])
+        w = csv.DictWriter(f, fieldnames=["n_samples", "mae", "mse", "rmse", "train_mae", "variance_proxy"])
         w.writeheader()
         w.writerows(rows)
     print(f"\nSaved metrics_{KEY}.csv ({len(rows)} tiers) and {len(rows)} models to {TIERS_DIR}")

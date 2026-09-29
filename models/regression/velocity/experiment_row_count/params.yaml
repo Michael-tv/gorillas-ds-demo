@@ -6,12 +6,14 @@
 # so changing this list marks every train_row_count_velocity_* stage stale.
 tiers: [500, 1000, 2000, 3000, 4000, 5000]
 
-# RandomizedSearchCV/*CV fold count for this experiment's search, one value
-# for every model -- moved out of the shared root params.yaml since it's an
-# experiment/pool concern: this pool's grouped CV protects against leaking a
-# board's correlated throws across folds. Capped at the number of groups
-# available -- see splitting.cv_for().
-cv: 5
+# No `cv` here -- unlike experiment_raw/eng, this experiment's inner
+# hyperparameter-search validation uses splitting.single_split_cv() (a plain
+# ShuffleSplit), not splitting.cv_for()'s group-aware k-fold. The outer
+# train/test split (splitting.split(), untouched) is still group-aware, so a
+# board's throws never cross into the test set either way -- only the inner
+# validation split used while picking hyperparameters loses group-awareness.
+# Deliberate: the repo owner judged that leakage risk not worth protecting
+# against for this sweep.
 
 # RandomizedSearchCV/*CV search budget (n_iter), one value for every model --
 # moved out of the shared root params.yaml since the search block otherwise

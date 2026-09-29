@@ -77,34 +77,33 @@ stages:
     - path: 
         ../../../../models/regression/effort/experiment_row_count/train_linear_regression.py
       hash: md5
-      md5: 7424ec5ac31bc73a5bb496ddb2ed580e
-      size: 4438
+      md5: abffbb45da3820dc15d25ae0bcd1b9e8
+      size: 5376
     - path: ../../../../splitting.py
       hash: md5
       md5: a935c061b7a622bd255679ac47a4defe
       size: 6288
     params:
       params.yaml:
-        cv: 5
         n_iter.linear_regression:
         tiers:
         - 500
         - 1000
         - 2000
-        - 3000
         - 4000
-        - 5000
+        - 8000
+        - 16000
       ../../../../params.yaml:
         test_size: 0.2
     outs:
     - path: 
         ../../../../experiments_results/regression/effort/experiment_row_count/models/metrics_linear_regression.csv
       hash: md5
-      md5: bb3334caf1e8e0fd6613a254c9cf0f81
-      size: 382
+      md5: 60401df8f52f4aff3459f9d4effe4d45
+      size: 639
     - path: 
         ../../../../experiments_results/regression/effort/experiment_row_count/tiers/linear_regression/
       hash: md5
-      md5: 3716116638e76231678d37b1daac8a3c.dir
+      md5: 52e46fd536b69d86abc789edfec984f5.dir
       size: 12150
       nfiles: 6

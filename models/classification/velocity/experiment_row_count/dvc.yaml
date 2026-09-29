@@ -24,7 +24,6 @@ stages:
           - test_size
       - ../../../../models/classification/velocity/experiment_row_count/params.yaml:
           - tiers
-          - cv
           - n_iter.logistic_regression
     outs:
       - ../../../../experiments_results/classification/velocity/experiment_row_count/tiers/logistic_regression/
@@ -46,7 +45,6 @@ stages:
           - test_size
       - ../../../../models/classification/velocity/experiment_row_count/params.yaml:
           - tiers
-          - cv
           - n_iter.decision_tree
     outs:
       - ../../../../experiments_results/classification/velocity/experiment_row_count/tiers/decision_tree/
@@ -68,7 +66,6 @@ stages:
           - test_size
       - ../../../../models/classification/velocity/experiment_row_count/params.yaml:
           - tiers
-          - cv
           - n_iter.knn
     outs:
       - ../../../../experiments_results/classification/velocity/experiment_row_count/tiers/knn/
@@ -90,7 +87,6 @@ stages:
           - test_size
       - ../../../../models/classification/velocity/experiment_row_count/params.yaml:
           - tiers
-          - cv
           - n_iter.random_forest
     outs:
       - ../../../../experiments_results/classification/velocity/experiment_row_count/tiers/random_forest/
@@ -112,7 +108,6 @@ stages:
           - test_size
       - ../../../../models/classification/velocity/experiment_row_count/params.yaml:
           - tiers
-          - cv
           - n_iter.mlp
     outs:
       - ../../../../experiments_results/classification/velocity/experiment_row_count/tiers/mlp/
@@ -134,7 +129,6 @@ stages:
           - test_size
       - ../../../../models/classification/velocity/experiment_row_count/params.yaml:
           - tiers
-          - cv
           - n_iter.xgboost
     outs:
       - ../../../../experiments_results/classification/velocity/experiment_row_count/tiers/xgboost/

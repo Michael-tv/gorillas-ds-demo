@@ -177,3 +177,34 @@ stages:
       hash: md5
       md5: 484e5149c53d0b9a52f050e53a147e8e
       size: 5600930
+  generate_gorillas@gorillas_velocity:
+    cmd: python -m data_generation.gorillas --n 5000 --seed 44 --input-mode 
+      VELOCITY --throws 32 --boards-per-chunk 25 --hit-tolerance 5.0 --overwrite
+      --out data/gorillas_velocity.parquet --raw-out 
+      data/gorillas_velocity_throws.parquet
+    deps:
+    - path: data_generation/gorillas.py
+      hash: md5
+      md5: 31a54bb47afa702604fc44ea01d24f85
+      size: 34639
+    - path: data_generation/io.py
+      hash: md5
+      md5: ff2db4c73a7e6a7e079822fef8a2f7ec
+      size: 664
+    - path: data_generation/outliers.py
+      hash: md5
+      md5: f5b5b5be11da6d9c0894acd6cf688f79
+      size: 1259
+    - path: qbasic_gorillas/dosbox-datagen/gorilla.bas
+      hash: md5
+      md5: 32f6f5847ba498186b356a3ebe265a30
+      size: 71039
+    outs:
+    - path: data/gorillas_velocity.parquet
+      hash: md5
+      md5: 2f6a3dbd27c8803f115e795207360aa6
+      size: 245787
+    - path: data/gorillas_velocity_throws.parquet
+      hash: md5
+      md5: ad89e8cfee609a2c0cc683e99b699ef4
+      size: 1131029

@@ -23,7 +23,6 @@ stages:
           - test_size
       - ../../../../models/regression/effort/experiment_row_count/params.yaml:
           - tiers
-          - cv
           - n_iter.linear_regression
     outs:
       - ../../../../experiments_results/regression/effort/experiment_row_count/tiers/linear_regression/
@@ -45,7 +44,6 @@ stages:
           - test_size
       - ../../../../models/regression/effort/experiment_row_count/params.yaml:
           - tiers
-          - cv
           - n_iter.decision_tree
     outs:
       - ../../../../experiments_results/regression/effort/experiment_row_count/tiers/decision_tree/

@@ -10,9 +10,13 @@ script instead of requiring `dvc exp run --set-param n_samples=...` once per
 tier. See models/regression/standard/experiment_skew/train_linear_regression.py for the general
 experiment_<name>/train_<model>.py pattern.
 
-Writes one row per tier to metrics_<key>.csv (n_samples, mae, mse, rmse) and
-one model_<key>_n<size>.joblib per tier, so every tier's model stays
-inspectable, not just the metrics curve.
+Writes one row per tier to metrics_<key>.csv (n_samples, mae, mse, rmse,
+train_mae, variance_proxy) and one model_<key>_n<size>.joblib per tier, so
+every tier's model stays inspectable, not just the metrics curve.
+
+train_mae/variance_proxy are a cheap bias/variance proxy, not a real
+decomposition -- see train_linear_regression.py (this folder) for the full
+explanation.
 """
 import csv
 import glob
@@ -54,7 +58,6 @@ def _clean_stale_tiers():
 def main():
     X_full, y_full, groups_full = loader.load_data(DATA, clean="no_outlier")
     n_iter = params.load_experiment_params(__file__)["n_iter"][KEY]
-    cv = params.load_experiment_params(__file__)["cv"]
     test_size = params.load_params()["test_size"]
 
     os.makedirs(MODELS_DIR, exist_ok=True)
@@ -65,7 +68,7 @@ def main():
         print(f"\n=== {algo.NAME} -- n_samples={n} ===")
         X_train, X_test, y_train, y_test, groups_train = splitting.split(
             X, y, groups, test_size=test_size, random_state=42)
-        cv_folds = splitting.cv_for(cv, X_train, y_train, groups_train)
+        cv_folds = splitting.single_split_cv()
 
         feature_step = ("features", EngineeredFeatures(output_columns=loader.FEATURES))
         model = algo.fit(X_train, y_train, feature_step, {"n_iter": n_iter, "cv": cv_folds})
@@ -73,14 +76,17 @@ def main():
         mae  = mean_absolute_error(y_test, y_pred)
         mse  = float(np.mean((y_test - y_pred) ** 2))
         rmse = mse ** 0.5
-        print(f"  MAE={mae:.3f}  MSE={mse:.3f}  RMSE={rmse:.3f}")
-        rows.append({"n_samples": n, "mae": mae, "mse": mse, "rmse": rmse})
+        train_mae = mean_absolute_error(y_train, model.predict(X_train))
+        variance_proxy = mae - train_mae
+        print(f"  MAE={mae:.3f}  MSE={mse:.3f}  RMSE={rmse:.3f}  train_MAE={train_mae:.3f}  variance_proxy={variance_proxy:.3f}")
+        rows.append({"n_samples": n, "mae": mae, "mse": mse, "rmse": rmse,
+                     "train_mae": train_mae, "variance_proxy": variance_proxy})
 
         joblib.dump(model, os.path.join(TIERS_DIR, f"model_n{n}.joblib"))
 
     metrics_path = os.path.join(MODELS_DIR, f"metrics_{KEY}.csv")
     with open(metrics_path, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=["n_samples", "mae", "mse", "rmse"])
+        w = csv.DictWriter(f, fieldnames=["n_samples", "mae", "mse", "rmse", "train_mae"])
         w.writeheader()
         w.writerows(rows)
     print(f"\nSaved metrics_{KEY}.csv ({len(rows)} tiers) and {len(rows)} models to {TIERS_DIR}")

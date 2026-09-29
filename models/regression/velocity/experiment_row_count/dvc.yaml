@@ -23,7 +23,6 @@ stages:
           - test_size
       - ../../../../models/regression/velocity/experiment_row_count/params.yaml:
           - tiers
-          - cv
           - n_iter.linear_regression
     outs:
       - ../../../../experiments_results/regression/velocity/experiment_row_count/tiers/linear_regression/
@@ -45,7 +44,6 @@ stages:
           - test_size
       - ../../../../models/regression/velocity/experiment_row_count/params.yaml:
           - tiers
-          - cv
           - n_iter.decision_tree
     outs:
       - ../../../../experiments_results/regression/velocity/experiment_row_count/tiers/decision_tree/
@@ -67,7 +65,6 @@ stages:
           - test_size
       - ../../../../models/regression/velocity/experiment_row_count/params.yaml:
           - tiers
-          - cv
           - n_iter.knn
     outs:
       - ../../../../experiments_results/regression/velocity/experiment_row_count/tiers/knn/
@@ -89,7 +86,6 @@ stages:
           - test_size
       - ../../../../models/regression/velocity/experiment_row_count/params.yaml:
           - tiers
-          - cv
           - n_iter.polynomial
     outs:
       - ../../../../experiments_results/regression/velocity/experiment_row_count/tiers/polynomial/
@@ -111,7 +107,6 @@ stages:
           - test_size
       - ../../../../models/regression/velocity/experiment_row_count/params.yaml:
           - tiers
-          - cv
           - n_iter.random_forest
     outs:
       - ../../../../experiments_results/regression/velocity/experiment_row_count/tiers/random_forest/
@@ -133,7 +128,6 @@ stages:
           - test_size
       - ../../../../models/regression/velocity/experiment_row_count/params.yaml:
           - tiers
-          - cv
           - n_iter.mlp
     outs:
       - ../../../../experiments_results/regression/velocity/experiment_row_count/tiers/mlp/
@@ -155,7 +149,6 @@ stages:
           - test_size
       - ../../../../models/regression/velocity/experiment_row_count/params.yaml:
           - tiers
-          - cv
           - n_iter.xgboost
     outs:
       - ../../../../experiments_results/regression/velocity/experiment_row_count/tiers/xgboost/
@@ -177,7 +170,6 @@ stages:
           - test_size
       - ../../../../models/regression/velocity/experiment_row_count/params.yaml:
           - tiers
-          - cv
           - n_iter.ridge
     outs:
       - ../../../../experiments_results/regression/velocity/experiment_row_count/tiers/ridge/
@@ -199,7 +191,6 @@ stages:
           - test_size
       - ../../../../models/regression/velocity/experiment_row_count/params.yaml:
           - tiers
-          - cv
           - n_iter.lasso
     outs:
       - ../../../../experiments_results/regression/velocity/experiment_row_count/tiers/lasso/

@@ -56,7 +56,6 @@ def _clean_stale_tiers():
 def main():
     X_full, y_full, groups_full = loader.load_data(DATA, clean="no_outlier")
     n_iter = params.load_experiment_params(__file__)["n_iter"][KEY]
-    cv = params.load_experiment_params(__file__)["cv"]
     test_size = params.load_params()["test_size"]
 
     os.makedirs(MODELS_DIR, exist_ok=True)
@@ -67,7 +66,7 @@ def main():
         print(f"\n=== {algo.NAME} -- n_samples={n} ===")
         X_train, X_test, y_train, y_test, groups_train = splitting.split(
             X, y, groups, test_size=test_size, random_state=42, stratify=True)
-        cv_folds = splitting.cv_for(cv, X_train, y_train, groups_train, stratify=True)
+        cv_folds = splitting.single_split_cv()
 
         model = algo.fit(X_train, y_train, {"n_iter": n_iter, "cv": cv_folds})
         y_pred = model.predict(X_test)
