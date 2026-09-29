@@ -1,0 +1,13 @@
+# Same six sample-size tiers as experiment_row_count/params.yaml, duplicated
+# here rather than shared (this repo's convention is one local params.yaml
+# per experiment -- see the top-level README) so this experiment's
+# bias2/variance numbers line up 1:1 against that experiment's
+# mae/train_mae/variance_proxy at the same n_samples.
+tiers: [500, 1000, 2000, 3000, 4000, 5000]
+
+# Number of independent bootstrap resamples fit per tier to estimate
+# variance -- see train_linear_regression.py's docstring for the method. 30
+# matches the worked example at geeksforgeeks.org/machine-learning/bias-vs-
+# variance-in-machine-learning; higher reduces noise in the variance
+# estimate at the cost of n_bootstrap model fits per tier.
+n_bootstrap: 30

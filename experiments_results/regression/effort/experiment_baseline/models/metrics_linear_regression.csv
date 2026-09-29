@@ -1,0 +1,2 @@
+model,mae,mse,rmse,train_mae,variance_proxy
+linear_regression,5.325885,39.329369,6.271313,5.402374,-0.076489

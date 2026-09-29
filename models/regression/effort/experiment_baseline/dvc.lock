@@ -1,0 +1,47 @@
+schema: '2.0'
+stages:
+  train_baseline_effort_linear_regression:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.regression.effort.experiment_baseline.train_linear_regression
+    deps:
+    - path: ../../../../data/gorillas_effort.parquet
+      hash: md5
+      md5: bcc2f5f8ce63b9d3d923475e6cc3e799
+      size: 2815224
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/regression/algorithms/linear_regression.py
+      hash: md5
+      md5: c0c3562a8c9a71bcb44de15c0abc769a
+      size: 439
+    - path: ../../../../models/regression/common/loader.py
+      hash: md5
+      md5: 57ccfa7d145d4ea7e96ee7f5f7998ef0
+      size: 8540
+    - path: 
+        ../../../../models/regression/effort/experiment_baseline/train_linear_regression.py
+      hash: md5
+      md5: c5bf0880988aa8504b96aab2ac9f9e37
+      size: 3301
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      params.yaml:
+        n_samples: 1000
+      ../../../../params.yaml:
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/regression/effort/experiment_baseline/models/metrics_linear_regression.csv
+      hash: md5
+      md5: bdf9d89d0c8d0024418099b7eac19fb0
+      size: 111
+    - path: 
+        ../../../../experiments_results/regression/effort/experiment_baseline/models/model_linear_regression.joblib
+      hash: md5
+      md5: c98755e84a900c73d935178a93b2aeef
+      size: 2025

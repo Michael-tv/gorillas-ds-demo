@@ -1,0 +1,55 @@
+schema: '2.0'
+stages:
+  train_bias_variance_bootstrap_effort_linear_regression:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      models.regression.effort.experiment_bias_variance_bootstrap.train_linear_regression
+    deps:
+    - path: ../../../../data/gorillas_effort.parquet
+      hash: md5
+      md5: bcc2f5f8ce63b9d3d923475e6cc3e799
+      size: 2815224
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../models/regression/algorithms/linear_regression.py
+      hash: md5
+      md5: c0c3562a8c9a71bcb44de15c0abc769a
+      size: 439
+    - path: ../../../../models/regression/common/loader.py
+      hash: md5
+      md5: 57ccfa7d145d4ea7e96ee7f5f7998ef0
+      size: 8540
+    - path: 
+        ../../../../models/regression/effort/experiment_bias_variance_bootstrap/train_linear_regression.py
+      hash: md5
+      md5: ed137b8e51de2414eecc3119c52040a1
+      size: 6470
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      params.yaml:
+        n_bootstrap: 30
+        tiers:
+        - 500
+        - 1000
+        - 2000
+        - 3000
+        - 4000
+        - 5000
+      ../../../../params.yaml:
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments_results/regression/effort/experiment_bias_variance_bootstrap/models/metrics_linear_regression.csv
+      hash: md5
+      md5: 224ba0725070b68aa6a212c3a1bbb775
+      size: 559
+    - path: 
+        ../../../../experiments_results/regression/effort/experiment_bias_variance_bootstrap/tiers/linear_regression/
+      hash: md5
+      md5: 3716116638e76231678d37b1daac8a3c.dir
+      size: 12150
+      nfiles: 6
