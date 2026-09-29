@@ -219,9 +219,11 @@ __marimo__/
 # Models are DVC-cached (cache: false is not set on them) so Git must ignore
 # them; metrics ARE cache: false in dvc.yaml, meaning DVC intends Git to
 # version them (for `dvc metrics diff` / `dvc exp show` across commits) --
-# so metrics_*.csv must NOT be ignored. Scoped to experiments_results/ so a
-# same-named file elsewhere in the repo isn't caught by accident.
-experiments_results/**/model_*.joblib
+# so metrics_*.csv must NOT be ignored. Result plots (analysis.png,
+# bias_variance_curve.png) are regenerable, same as the models.
+**/results/models/*.joblib
+**/analysis.png
+**/bias_variance_curve.png
 training_data/
 compare_models.png
 /data/
