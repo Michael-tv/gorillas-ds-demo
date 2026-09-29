@@ -1,0 +1,214 @@
+# experiment_eng: the 9-model engineered-feature sweep, permanently on
+# data/gorillas_velocity.parquet. See ../experiment_raw/dvc.yaml's header -- same
+# pattern, ENG_FEATURES instead of RAW_FEATURES.
+#
+# All paths below are ../../../../-prefixed -- this file lives four levels
+# under the repo root (experiments/<domain>/<mode>/<experiment>/dvc.yaml), next to
+# the training scripts it runs. See the top-level README's "Running one
+# pipeline at a time" section for the full explanation of this repo's
+# cross-pipeline-dependency / relative-path / explicit-params.yaml conventions.
+
+stages:
+
+  train_eng_velocity_linear_regression:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.velocity.experiment_eng.train_linear_regression
+    deps:
+      - ../../../../data/gorillas_velocity.parquet
+      - ../../../../experiments/regression/velocity/experiment_eng/train_linear_regression.py
+      - ../../../../experiments/regression/algorithms/linear_regression.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+      - ../../../../experiments/regression/velocity/experiment_eng/params.yaml:
+          - cv
+          - n_iter.linear_regression
+    outs:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/models/model_linear_regression.joblib
+    metrics:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/metrics/metrics_linear_regression.csv:
+          cache: false
+
+  train_eng_velocity_decision_tree:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.velocity.experiment_eng.train_decision_tree
+    deps:
+      - ../../../../data/gorillas_velocity.parquet
+      - ../../../../experiments/regression/velocity/experiment_eng/train_decision_tree.py
+      - ../../../../experiments/regression/algorithms/decision_tree.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+      - ../../../../experiments/regression/velocity/experiment_eng/params.yaml:
+          - cv
+          - n_iter.decision_tree
+    outs:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/models/model_decision_tree.joblib
+    metrics:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/metrics/metrics_decision_tree.csv:
+          cache: false
+
+  train_eng_velocity_knn:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.velocity.experiment_eng.train_knn
+    deps:
+      - ../../../../data/gorillas_velocity.parquet
+      - ../../../../experiments/regression/velocity/experiment_eng/train_knn.py
+      - ../../../../experiments/regression/algorithms/knn.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+      - ../../../../experiments/regression/velocity/experiment_eng/params.yaml:
+          - cv
+          - n_iter.knn
+    outs:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/models/model_knn.joblib
+    metrics:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/metrics/metrics_knn.csv:
+          cache: false
+
+  train_eng_velocity_polynomial:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.velocity.experiment_eng.train_polynomial
+    deps:
+      - ../../../../data/gorillas_velocity.parquet
+      - ../../../../experiments/regression/velocity/experiment_eng/train_polynomial.py
+      - ../../../../experiments/regression/algorithms/polynomial.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+      - ../../../../experiments/regression/velocity/experiment_eng/params.yaml:
+          - cv
+          - n_iter.polynomial
+    outs:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/models/model_polynomial.joblib
+    metrics:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/metrics/metrics_polynomial.csv:
+          cache: false
+
+  train_eng_velocity_random_forest:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.velocity.experiment_eng.train_random_forest
+    deps:
+      - ../../../../data/gorillas_velocity.parquet
+      - ../../../../experiments/regression/velocity/experiment_eng/train_random_forest.py
+      - ../../../../experiments/regression/algorithms/random_forest.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+      - ../../../../experiments/regression/velocity/experiment_eng/params.yaml:
+          - cv
+          - n_iter.random_forest
+    outs:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/models/model_random_forest.joblib
+    metrics:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/metrics/metrics_random_forest.csv:
+          cache: false
+
+  train_eng_velocity_mlp:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.velocity.experiment_eng.train_mlp
+    deps:
+      - ../../../../data/gorillas_velocity.parquet
+      - ../../../../experiments/regression/velocity/experiment_eng/train_mlp.py
+      - ../../../../experiments/regression/algorithms/mlp.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+      - ../../../../experiments/regression/velocity/experiment_eng/params.yaml:
+          - cv
+          - n_iter.mlp
+    outs:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/models/model_mlp.joblib
+    metrics:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/metrics/metrics_mlp.csv:
+          cache: false
+
+  train_eng_velocity_xgboost:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.velocity.experiment_eng.train_xgboost
+    deps:
+      - ../../../../data/gorillas_velocity.parquet
+      - ../../../../experiments/regression/velocity/experiment_eng/train_xgboost.py
+      - ../../../../experiments/regression/algorithms/xgboost.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+      - ../../../../experiments/regression/velocity/experiment_eng/params.yaml:
+          - cv
+          - n_iter.xgboost
+    outs:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/models/model_xgboost.joblib
+    metrics:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/metrics/metrics_xgboost.csv:
+          cache: false
+
+  train_eng_velocity_ridge:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.velocity.experiment_eng.train_ridge
+    deps:
+      - ../../../../data/gorillas_velocity.parquet
+      - ../../../../experiments/regression/velocity/experiment_eng/train_ridge.py
+      - ../../../../experiments/regression/algorithms/ridge.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+      - ../../../../experiments/regression/velocity/experiment_eng/params.yaml:
+          - cv
+          - n_iter.ridge
+    outs:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/models/model_ridge.joblib
+    metrics:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/metrics/metrics_ridge.csv:
+          cache: false
+
+  train_eng_velocity_lasso:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.velocity.experiment_eng.train_lasso
+    deps:
+      - ../../../../data/gorillas_velocity.parquet
+      - ../../../../experiments/regression/velocity/experiment_eng/train_lasso.py
+      - ../../../../experiments/regression/algorithms/lasso.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+      - ../../../../experiments/regression/velocity/experiment_eng/params.yaml:
+          - cv
+          - n_iter.lasso
+    outs:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/models/model_lasso.joblib
+    metrics:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/metrics/metrics_lasso.csv:
+          cache: false
+
+  train_eng_velocity_decision_tree_overfit:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.velocity.experiment_eng.train_decision_tree_overfit
+    deps:
+      - ../../../../data/gorillas_velocity.parquet
+      - ../../../../experiments/regression/velocity/experiment_eng/train_decision_tree_overfit.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+    outs:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/models/model_decision_tree_overfit.joblib
+    metrics:
+      - ../../../../experiments/regression/velocity/experiment_eng/results/metrics/metrics_decision_tree_overfit.csv:
+          cache: false
+

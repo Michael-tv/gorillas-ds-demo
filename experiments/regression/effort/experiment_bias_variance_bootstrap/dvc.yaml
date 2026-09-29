@@ -1,0 +1,35 @@
+# experiment_bias_variance_bootstrap (effort): a real (bootstrap-based)
+# bias/variance decomposition of Linear Regression, at the same six
+# sample-size tiers as experiment_row_count -- so it answers, with real
+# bias2/variance numbers, the question that sweep's flat error curve raised.
+# See experiments/regression/effort/experiment_bias_variance_bootstrap/
+# train_linear_regression.py for the method and its group-level bootstrap.
+#
+# All paths below are ../../../../-prefixed -- this file lives four levels
+# under the repo root (experiments/<domain>/<mode>/<experiment>/dvc.yaml), next to
+# the training scripts it runs. See the top-level README's "Running one
+# pipeline at a time" section for the full explanation of this repo's
+# cross-pipeline-dependency / relative-path / explicit-params.yaml conventions.
+
+stages:
+
+  train_bias_variance_bootstrap_effort_linear_regression:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.effort.experiment_bias_variance_bootstrap.train_linear_regression
+    deps:
+      - ../../../../data/gorillas_effort.parquet
+      - ../../../../experiments/regression/effort/experiment_bias_variance_bootstrap/train_linear_regression.py
+      - ../../../../experiments/regression/algorithms/linear_regression.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - test_size
+      - ../../../../experiments/regression/effort/experiment_bias_variance_bootstrap/params.yaml:
+          - tiers
+          - n_bootstrap
+    outs:
+      - ../../../../experiments/regression/effort/experiment_bias_variance_bootstrap/results/models/linear_regression/
+    metrics:
+      - ../../../../experiments/regression/effort/experiment_bias_variance_bootstrap/results/metrics/metrics_linear_regression.csv:
+          cache: false

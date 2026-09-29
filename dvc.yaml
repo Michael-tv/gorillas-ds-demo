@@ -32,7 +32,7 @@ stages:
   #
   # A dataset variant expressible as a row filter over an existing generated
   # file (rather than a new draw) doesn't need a dvc_datasets.yaml entry at
-  # all -- see models/regression/standard/experiment_skew/dvc.yaml's filter_skewed
+  # all -- see experiments/regression/standard/experiment_skew/dvc.yaml's filter_skewed
   # stage, which trains on a low-angle subset of the pool.
   #
   # This file holds only the two shared data producers -- standard and
@@ -41,7 +41,7 @@ stages:
   # via a now-removed join_effort/join_velocity stage; reversed at the repo
   # owner's request -- "they are meant for two different experiments").
   # Every training stage lives in its own pipeline, next to the scripts it
-  # runs -- one per {domain, mode, experiment} at models/<domain>/<mode>/
+  # runs -- one per {domain, mode, experiment} at experiments/<domain>/<mode>/
   # <experiment>/dvc.yaml: the standard/<experiment> ones read whichever
   # pool ${training_data} names (standard_effort, standard_velocity, or any
   # other generated pool); effort/<experiment> and velocity/<experiment>
@@ -52,8 +52,8 @@ stages:
   # pipeline reference, the same way any two stages depend on each other;
   # no different from a dependency within one file. Run `dvc repro -P` from
   # the repo root to reproduce every pipeline in dependency order, `dvc
-  # repro -R models/<domain>/<mode>` for one mode's experiments, or target
-  # `models/<domain>/<mode>/<experiment>/dvc.yaml` to run just that one -- see the
+  # repro -R experiments/<domain>/<mode>` for one mode's experiments, or target
+  # `experiments/<domain>/<mode>/<experiment>/dvc.yaml` to run just that one -- see the
   # README's "Running one pipeline at a time" section.
 
   generate:

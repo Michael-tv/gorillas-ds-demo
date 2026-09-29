@@ -22,7 +22,7 @@ be a new dependency and a new thing for a reader of this repo to learn.
 import data_generation.generate as gen
 
 # Physical bounds every clean row must satisfy. `None` means unbounded on that
-# side. Mirrors models/regression/common/loader.py's FEATURE_RANGES, which is
+# side. Mirrors experiments/regression/common/loader.py's FEATURE_RANGES, which is
 # what the clean:"range" strategy filters on -- the point of asserting them here
 # is that a *clean* row violating them is a producer bug, whereas a data_error
 # row violating them is the whole purpose of that row.

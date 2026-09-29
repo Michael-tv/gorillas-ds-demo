@@ -1,20 +1,20 @@
 # Which regression models each training stage expands into. dvc.yaml reads
 # this via `vars:` and turns every entry into one independently-cached stage.
 #
-# `algorithm:` names a module in models/regression/algorithms/ (also the key
+# `algorithm:` names a module in experiments/regression/algorithms/ (also the key
 # into params.yaml's search.regression block); the entry's own top-level key
 # is the output name (model_<key>.joblib, metrics_<key>.csv) and doubles as
-# `--key` to models/regression/train.py. Most entries have algorithm == key;
+# `--key` to experiments/regression/train.py. Most entries have algorithm == key;
 # `random_forest_no_outlier` is the one alias, reusing random_forest's logic
 # under a different name and a different `clean` value.
 #
 # decision_tree_overfit is NOT listed here even though it is part of the
 # seven-model sweep conceptually -- it needs a different script
-# (train_decision_tree_overfit.py, not models/regression/train.py) because its
+# (train_decision_tree_overfit.py, not experiments/regression/train.py) because its
 # whole point is a different control flow with no train/test split, so it
 # cannot share this foreach's single `cmd:` template. It gets its own explicit
 # stage in every regression pipeline instead (see e.g.
-# models/regression/standard/experiment_raw/dvc.yaml).
+# experiments/regression/standard/experiment_raw/dvc.yaml).
 #
 # THE MATRIX RULE, stated so it is not guesswork (AUDIT.md task 3, §2.7):
 #

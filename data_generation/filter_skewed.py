@@ -3,7 +3,7 @@
 The "skewed" demo trains on launch angles up to `skew.max_angle_deg` only, to
 show what happens when a model is asked to predict outside the range it was
 trained on. This used to be a filter inside
-`models/regression/run_skewed/train_utils.py`, applied at load time, which had
+`experiments/regression/run_skewed/train_utils.py`, applied at load time, which had
 three problems (AUDIT.md task 8, §"Skew by filter stage, not a second dataset"):
 
   * The filtered pool was invisible -- not an artifact you could open, plot, or

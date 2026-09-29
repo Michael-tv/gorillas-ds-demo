@@ -6,9 +6,9 @@ from feature_engineering import add_engineered_columns
 from feature_evaluation import evaluate, plot_features, plot_outliers
 import params
 
-# Inlined rather than imported from models.regression.runs.RUNS -- that
+# Inlined rather than imported from experiments.regression.runs.RUNS -- that
 # registry (and train.py's --run dispatch) is gone, replaced by
-# models/regression/standard/experiment_eng/, one standalone script per
+# experiments/regression/standard/experiment_eng/, one standalone script per
 # model. This is the same DATA/FEATURES/N_SAMPLES that folder's scripts use.
 DATA      = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "data", "standard_velocity.parquet")
 FEATURES  = ["launch_angle_deg", "wind_x_ms", "drag_param", "height_diff_m", "landing_distance_m"]

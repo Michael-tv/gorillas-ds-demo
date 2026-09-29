@@ -7,7 +7,7 @@ Every generated file carries both the regression target
 (landing_distance_m) and the classification target
 (target_distance_m/hit_target) -- one dataset, both tasks.
 
-models/regression/standard/experiment_leakage and experiment_bias_variance
+experiments/regression/standard/experiment_leakage and experiment_bias_variance
 don't need their own entries here -- they take a prefix slice of
 data/standard_velocity.parquet directly (params.take_samples()).
 """

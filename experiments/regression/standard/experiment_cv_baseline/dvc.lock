@@ -1,0 +1,96 @@
+schema: '2.0'
+stages:
+  train_cv_baseline_ridge:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      experiments.regression.standard.experiment_cv_baseline.train_ridge
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../experiments/regression/algorithms/ridge.py
+      hash: md5
+      md5: 6e4c4241b06f803a88213e979cf3d1fb
+      size: 613
+    - path: ../../../../experiments/regression/common/loader.py
+      hash: md5
+      md5: bb711f2e0e6d8c9c4cc3a60311ac19f4
+      size: 8550
+    - path: 
+        ../../../../experiments/regression/standard/experiment_cv_baseline/train_ridge.py
+      hash: md5
+      md5: 2b2211516cd37aad40f4ca0ce7a18285
+      size: 2780
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      params.yaml:
+        cv: 5
+        n_iter.ridge:
+      ../../../../params.yaml:
+        n_samples: 40000
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments/regression/standard/experiment_cv_baseline/results/metrics/metrics_ridge.csv
+      hash: md5
+      md5: 2b1d4938d0cc52c9107dc9568f652748
+      size: 58
+    - path: 
+        ../../../../experiments/regression/standard/experiment_cv_baseline/results/models/model_ridge.joblib
+      hash: md5
+      md5: ee620a89bc76a000dd8db78bc4f3ec46
+      size: 1949
+  train_cv_baseline_decision_tree:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      experiments.regression.standard.experiment_cv_baseline.train_decision_tree
+    deps:
+    - path: ../../../../data/standard_velocity.parquet
+      hash: md5
+      md5: 062d7de80222caf49180547c00641ace
+      size: 5280498
+    - path: ../../../../experiments/regression/algorithms/decision_tree.py
+      hash: md5
+      md5: bed8398d1a21c3e83481ba4e9769d9c2
+      size: 898
+    - path: ../../../../experiments/regression/common/loader.py
+      hash: md5
+      md5: bb711f2e0e6d8c9c4cc3a60311ac19f4
+      size: 8550
+    - path: 
+        ../../../../experiments/regression/standard/experiment_cv_baseline/train_decision_tree.py
+      hash: md5
+      md5: 9a43fafeb97b4680f613ebff631ba82c
+      size: 2678
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      params.yaml:
+        cv: 5
+        n_iter.decision_tree: 30
+      ../../../../params.yaml:
+        n_samples: 40000
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments/regression/standard/experiment_cv_baseline/results/models/metrics_decision_tree.csv
+      hash: md5
+      md5: 2ba56504f055b351b1ccf24cd5b62348
+      size: 65
+    - path: 
+        ../../../../experiments/regression/standard/experiment_cv_baseline/results/models/model_decision_tree.joblib
+      hash: md5
+      md5: 951d19c153c2a62fdc5dc2dea3bc35b4
+      size: 448642

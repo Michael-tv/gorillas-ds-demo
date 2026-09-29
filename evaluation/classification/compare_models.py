@@ -10,7 +10,7 @@ REPO_ROOT = os.path.join(HERE, "..", "..")
 # ── Config ────────────────────────────────────────────────────────────────────
 MODELS_TO_COMPARE = [
     # (domain, model_name) -- domain is "standard"/"effort"/"velocity"; each
-    # reads models/classification/<domain>/experiment_classification/. Vary
+    # reads experiments/classification/<domain>/experiment_classification/. Vary
     # n_samples via `dvc exp run --set-param n_samples=...` for the standard
     # domain's convergence comparison instead of separate per-size
     # directories (or see experiment_row_count/, which sweeps that
@@ -32,7 +32,7 @@ _COLORS = [
 def load_metrics():
     records = []
     for domain, model in MODELS_TO_COMPARE:
-        path = os.path.join(REPO_ROOT, "experiments_results", "classification", domain, "experiment_classification", "models", f"metrics_{model}.csv")
+        path = os.path.join(REPO_ROOT, "experiments", "classification", domain, "experiment_classification", "results", "metrics", f"metrics_{model}.csv")
         label = f"{domain}/{model}"
         if not os.path.isfile(path):
             print(f"  [skip] {label}: metrics file not found (train first)")

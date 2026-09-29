@@ -7,7 +7,7 @@
 #
 # There is no `search:` block here anymore -- both the RandomizedSearchCV/
 # *CV search budget (`n_iter`) and the CV fold count (`cv`) moved to each
-# experiment's own local params.yaml (models/<domain>/<mode>/<experiment>/
+# experiment's own local params.yaml (experiments/<domain>/<mode>/<experiment>/
 # params.yaml), since both are pool/experiment concerns, not global ones:
 # the right search budget and CV strategy (single validation split on the
 # standard pool via splitting.single_split_cv(), which reads no fold-count

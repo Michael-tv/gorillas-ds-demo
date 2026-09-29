@@ -1,0 +1,50 @@
+# experiment_bias_variance: the underfitting/overfitting demo -- same
+# DecisionTreeRegressor, max_depth=1 vs max_depth=None. Standard-pool only.
+#
+# All paths below are ../../../../-prefixed -- this file lives four levels
+# under the repo root (experiments/<domain>/<mode>/<experiment>/dvc.yaml), next to
+# the training scripts it runs. See the top-level README's "Running one
+# pipeline at a time" section for the full explanation of this repo's
+# cross-pipeline-dependency / relative-path / explicit-params.yaml conventions.
+
+vars:
+  - ../../../../params.yaml
+
+stages:
+
+  train_bias_variance_underfitting:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.standard.experiment_bias_variance.train_underfitting
+    deps:
+      - ../../../../data/standard_velocity.parquet
+      - ../../../../experiments/regression/standard/experiment_bias_variance/train_underfitting.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - n_samples
+          - test_size
+    outs:
+      - ../../../../experiments/regression/standard/experiment_bias_variance/results/models/model_underfitting.joblib
+    metrics:
+      - ../../../../experiments/regression/standard/experiment_bias_variance/results/metrics/metrics_underfitting.csv:
+          cache: false
+
+  train_bias_variance_overfitting:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.standard.experiment_bias_variance.train_overfitting
+    deps:
+      - ../../../../data/standard_velocity.parquet
+      - ../../../../experiments/regression/standard/experiment_bias_variance/train_overfitting.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - n_samples
+          - test_size
+    outs:
+      - ../../../../experiments/regression/standard/experiment_bias_variance/results/models/model_overfitting.joblib
+    metrics:
+      - ../../../../experiments/regression/standard/experiment_bias_variance/results/metrics/metrics_overfitting.csv:
+          cache: false
+

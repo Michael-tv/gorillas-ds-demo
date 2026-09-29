@@ -1,0 +1,226 @@
+# experiment_cv_baseline: verbatim copy of experiment_raw that deliberately
+# KEEPS 5-fold cross-validation in the hyperparameter search (splitting.cv_for),
+# instead of experiment_raw's single validation split. A "before" comparison
+# baseline for the CV speed/robustness talk demo -- see
+# experiments/regression/standard/experiment_cv_baseline/train_decision_tree.py.
+#
+
+vars:
+  - ../../../../params.yaml
+
+stages:
+
+  train_cv_baseline_linear_regression:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.standard.experiment_cv_baseline.train_linear_regression
+    deps:
+      - ../../../../data/standard_velocity.parquet
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/train_linear_regression.py
+      - ../../../../experiments/regression/algorithms/linear_regression.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - n_samples
+          - test_size
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/params.yaml:
+          - cv
+          - n_iter.linear_regression
+    outs:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/models/model_linear_regression.joblib
+    metrics:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/metrics/metrics_linear_regression.csv:
+          cache: false
+
+  train_cv_baseline_decision_tree:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.standard.experiment_cv_baseline.train_decision_tree
+    deps:
+      - ../../../../data/standard_velocity.parquet
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/train_decision_tree.py
+      - ../../../../experiments/regression/algorithms/decision_tree.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - n_samples
+          - test_size
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/params.yaml:
+          - cv
+          - n_iter.decision_tree
+    outs:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/models/model_decision_tree.joblib
+    metrics:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/metrics/metrics_decision_tree.csv:
+          cache: false
+
+  train_cv_baseline_knn:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.standard.experiment_cv_baseline.train_knn
+    deps:
+      - ../../../../data/standard_velocity.parquet
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/train_knn.py
+      - ../../../../experiments/regression/algorithms/knn.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - n_samples
+          - test_size
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/params.yaml:
+          - cv
+          - n_iter.knn
+    outs:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/models/model_knn.joblib
+    metrics:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/metrics/metrics_knn.csv:
+          cache: false
+
+  train_cv_baseline_polynomial:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.standard.experiment_cv_baseline.train_polynomial
+    deps:
+      - ../../../../data/standard_velocity.parquet
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/train_polynomial.py
+      - ../../../../experiments/regression/algorithms/polynomial.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - n_samples
+          - test_size
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/params.yaml:
+          - cv
+          - n_iter.polynomial
+    outs:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/models/model_polynomial.joblib
+    metrics:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/metrics/metrics_polynomial.csv:
+          cache: false
+
+  train_cv_baseline_random_forest:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.standard.experiment_cv_baseline.train_random_forest
+    deps:
+      - ../../../../data/standard_velocity.parquet
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/train_random_forest.py
+      - ../../../../experiments/regression/algorithms/random_forest.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - n_samples
+          - test_size
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/params.yaml:
+          - cv
+          - n_iter.random_forest
+    outs:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/models/model_random_forest.joblib
+    metrics:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/metrics/metrics_random_forest.csv:
+          cache: false
+
+  train_cv_baseline_mlp:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.standard.experiment_cv_baseline.train_mlp
+    deps:
+      - ../../../../data/standard_velocity.parquet
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/train_mlp.py
+      - ../../../../experiments/regression/algorithms/mlp.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - n_samples
+          - test_size
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/params.yaml:
+          - cv
+          - n_iter.mlp
+    outs:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/models/model_mlp.joblib
+    metrics:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/metrics/metrics_mlp.csv:
+          cache: false
+
+  train_cv_baseline_xgboost:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.standard.experiment_cv_baseline.train_xgboost
+    deps:
+      - ../../../../data/standard_velocity.parquet
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/train_xgboost.py
+      - ../../../../experiments/regression/algorithms/xgboost.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - n_samples
+          - test_size
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/params.yaml:
+          - cv
+          - n_iter.xgboost
+    outs:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/models/model_xgboost.joblib
+    metrics:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/metrics/metrics_xgboost.csv:
+          cache: false
+
+  train_cv_baseline_ridge:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.standard.experiment_cv_baseline.train_ridge
+    deps:
+      - ../../../../data/standard_velocity.parquet
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/train_ridge.py
+      - ../../../../experiments/regression/algorithms/ridge.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - n_samples
+          - test_size
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/params.yaml:
+          - cv
+          - n_iter.ridge
+    outs:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/models/model_ridge.joblib
+    metrics:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/metrics/metrics_ridge.csv:
+          cache: false
+
+  train_cv_baseline_lasso:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.standard.experiment_cv_baseline.train_lasso
+    deps:
+      - ../../../../data/standard_velocity.parquet
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/train_lasso.py
+      - ../../../../experiments/regression/algorithms/lasso.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+      - ../../../../splitting.py
+    params:
+      - ../../../../params.yaml:
+          - n_samples
+          - test_size
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/params.yaml:
+          - cv
+          - n_iter.lasso
+    outs:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/models/model_lasso.joblib
+    metrics:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/metrics/metrics_lasso.csv:
+          cache: false
+
+  train_cv_baseline_decision_tree_overfit:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.regression.standard.experiment_cv_baseline.train_decision_tree_overfit
+    deps:
+      - ../../../../data/standard_velocity.parquet
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/train_decision_tree_overfit.py
+      - ../../../../experiments/regression/common/loader.py
+      - ../../../../feature_engineering.py
+    params:
+      - ../../../../params.yaml:
+          - n_samples
+    outs:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/models/model_decision_tree_overfit.joblib
+    metrics:
+      - ../../../../experiments/regression/standard/experiment_cv_baseline/results/metrics/metrics_decision_tree_overfit.csv:
+          cache: false
+

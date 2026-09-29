@@ -4,11 +4,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import pandas as pd
 from feature_evaluation import evaluate, plot_features, plot_outliers
 import params
-from models.regression.common import loader
+from experiments.regression.common import loader
 
-# Inlined rather than imported from models.regression.runs.RUNS -- that
+# Inlined rather than imported from experiments.regression.runs.RUNS -- that
 # registry (and train.py's --run dispatch) is gone, replaced by
-# models/regression/standard/experiment_raw/, one standalone script per
+# experiments/regression/standard/experiment_raw/, one standalone script per
 # model. This is the same DATA/FEATURES/N_SAMPLES that folder's scripts use.
 DATA      = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "data", "standard_velocity.parquet")
 FEATURES  = loader.FEATURES  # the 9 raw columns, as-is

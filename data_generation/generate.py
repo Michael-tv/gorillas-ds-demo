@@ -60,7 +60,7 @@ def generate(n, seed, elevation_dist=DEFAULT_ELEVATION_DIST, hit_tolerance=HIT_T
                           no_zero_indices={MASS_COLUMN_INDEX}, input_mode=input_mode)
     # generate_rows returns rows grouped by section (normal, then gravity
     # outliers, then data errors) -- shuffle so a prefix slice (see
-    # models/regression/common/loader.py's `n_samples` slicing, used to nest
+    # experiments/regression/common/loader.py's `n_samples` slicing, used to nest
     # smaller sample-size tiers inside this pool for the convergence
     # experiment) keeps the same outlier mix and hit/miss balance as the full
     # pool, instead of slicing out only normal rows.

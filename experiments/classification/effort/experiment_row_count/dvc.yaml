@@ -1,0 +1,145 @@
+# experiment_row_count (classification): does more data help? Each script sweeps 6
+# sample-size tiers internally on data/gorillas_effort.parquet.
+#
+# All paths below are ../../../../-prefixed -- this file lives four levels
+# under the repo root (experiments/<domain>/<mode>/<experiment>/dvc.yaml), next to
+# the training scripts it runs. See the top-level README's "Running one
+# pipeline at a time" section for the full explanation of this repo's
+# cross-pipeline-dependency / relative-path / explicit-params.yaml conventions.
+
+stages: {}
+
+  # (every classification stage is commented out for now -- see the regression
+  # file next door for the live ones)
+
+  # train_row_count_classification_effort_logistic_regression:
+  #   cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.classification.effort.experiment_row_count.train_logistic_regression
+  #   deps:
+  #     - ../../../../data/gorillas_effort.parquet
+  #     - ../../../../experiments/classification/effort/experiment_row_count/train_logistic_regression.py
+  #     - ../../../../experiments/classification/algorithms/logistic_regression.py
+  #     - ../../../../experiments/classification/common/loader.py
+  #     - ../../../../feature_engineering.py
+  #     - ../../../../splitting.py
+  #   params:
+  #     - ../../../../params.yaml:
+  #         - test_size
+  #         - search.classification.logistic_regression.n_iter
+  #         - search.classification.logistic_regression.cv
+  #     - ../../../../experiments/classification/effort/experiment_row_count/params.yaml:
+  #         - tiers
+  #   outs:
+  #     - ../../../../experiments/classification/effort/experiment_row_count/results/models/logistic_regression/
+  #   metrics:
+  #     - ../../../../experiments/classification/effort/experiment_row_count/results/metrics/metrics_logistic_regression.csv:
+  #         cache: false
+
+  # train_row_count_classification_effort_decision_tree:
+  #   cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.classification.effort.experiment_row_count.train_decision_tree
+  #   deps:
+  #     - ../../../../data/gorillas_effort.parquet
+  #     - ../../../../experiments/classification/effort/experiment_row_count/train_decision_tree.py
+  #     - ../../../../experiments/classification/algorithms/decision_tree.py
+  #     - ../../../../experiments/classification/common/loader.py
+  #     - ../../../../feature_engineering.py
+  #     - ../../../../splitting.py
+  #   params:
+  #     - ../../../../params.yaml:
+  #         - test_size
+  #         - search.classification.decision_tree.n_iter
+  #         - search.classification.decision_tree.cv
+  #     - ../../../../experiments/classification/effort/experiment_row_count/params.yaml:
+  #         - tiers
+  #   outs:
+  #     - ../../../../experiments/classification/effort/experiment_row_count/results/models/decision_tree/
+  #   metrics:
+  #     - ../../../../experiments/classification/effort/experiment_row_count/results/metrics/metrics_decision_tree.csv:
+  #         cache: false
+
+  # train_row_count_classification_effort_knn:
+  #   cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.classification.effort.experiment_row_count.train_knn
+  #   deps:
+  #     - ../../../../data/gorillas_effort.parquet
+  #     - ../../../../experiments/classification/effort/experiment_row_count/train_knn.py
+  #     - ../../../../experiments/classification/algorithms/knn.py
+  #     - ../../../../experiments/classification/common/loader.py
+  #     - ../../../../feature_engineering.py
+  #     - ../../../../splitting.py
+  #   params:
+  #     - ../../../../params.yaml:
+  #         - test_size
+  #         - search.classification.knn.n_iter
+  #         - search.classification.knn.cv
+  #     - ../../../../experiments/classification/effort/experiment_row_count/params.yaml:
+  #         - tiers
+  #   outs:
+  #     - ../../../../experiments/classification/effort/experiment_row_count/results/models/knn/
+  #   metrics:
+  #     - ../../../../experiments/classification/effort/experiment_row_count/results/metrics/metrics_knn.csv:
+  #         cache: false
+
+  # train_row_count_classification_effort_random_forest:
+  #   cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.classification.effort.experiment_row_count.train_random_forest
+  #   deps:
+  #     - ../../../../data/gorillas_effort.parquet
+  #     - ../../../../experiments/classification/effort/experiment_row_count/train_random_forest.py
+  #     - ../../../../experiments/classification/algorithms/random_forest.py
+  #     - ../../../../experiments/classification/common/loader.py
+  #     - ../../../../feature_engineering.py
+  #     - ../../../../splitting.py
+  #   params:
+  #     - ../../../../params.yaml:
+  #         - test_size
+  #         - search.classification.random_forest.n_iter
+  #         - search.classification.random_forest.cv
+  #     - ../../../../experiments/classification/effort/experiment_row_count/params.yaml:
+  #         - tiers
+  #   outs:
+  #     - ../../../../experiments/classification/effort/experiment_row_count/results/models/random_forest/
+  #   metrics:
+  #     - ../../../../experiments/classification/effort/experiment_row_count/results/metrics/metrics_random_forest.csv:
+  #         cache: false
+
+  # train_row_count_classification_effort_mlp:
+  #   cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.classification.effort.experiment_row_count.train_mlp
+  #   deps:
+  #     - ../../../../data/gorillas_effort.parquet
+  #     - ../../../../experiments/classification/effort/experiment_row_count/train_mlp.py
+  #     - ../../../../experiments/classification/algorithms/mlp.py
+  #     - ../../../../experiments/classification/common/loader.py
+  #     - ../../../../feature_engineering.py
+  #     - ../../../../splitting.py
+  #   params:
+  #     - ../../../../params.yaml:
+  #         - test_size
+  #         - search.classification.mlp.n_iter
+  #         - search.classification.mlp.cv
+  #     - ../../../../experiments/classification/effort/experiment_row_count/params.yaml:
+  #         - tiers
+  #   outs:
+  #     - ../../../../experiments/classification/effort/experiment_row_count/results/models/mlp/
+  #   metrics:
+  #     - ../../../../experiments/classification/effort/experiment_row_count/results/metrics/metrics_mlp.csv:
+  #         cache: false
+
+  # train_row_count_classification_effort_xgboost:
+  #   cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m experiments.classification.effort.experiment_row_count.train_xgboost
+  #   deps:
+  #     - ../../../../data/gorillas_effort.parquet
+  #     - ../../../../experiments/classification/effort/experiment_row_count/train_xgboost.py
+  #     - ../../../../experiments/classification/algorithms/xgboost.py
+  #     - ../../../../experiments/classification/common/loader.py
+  #     - ../../../../feature_engineering.py
+  #     - ../../../../splitting.py
+  #   params:
+  #     - ../../../../params.yaml:
+  #         - test_size
+  #         - search.classification.xgboost.n_iter
+  #         - search.classification.xgboost.cv
+  #     - ../../../../experiments/classification/effort/experiment_row_count/params.yaml:
+  #         - tiers
+  #   outs:
+  #     - ../../../../experiments/classification/effort/experiment_row_count/results/models/xgboost/
+  #   metrics:
+  #     - ../../../../experiments/classification/effort/experiment_row_count/results/metrics/metrics_xgboost.csv:
+  #         cache: false

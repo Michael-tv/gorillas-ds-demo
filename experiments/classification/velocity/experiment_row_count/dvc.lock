@@ -1,0 +1,55 @@
+schema: '2.0'
+stages:
+  train_row_count_classification_velocity_decision_tree:
+    cmd: python ../../../../scripts/run_with_pythonpath.py ../../../.. -m 
+      experiments.classification.velocity.experiment_row_count.train_decision_tree
+    deps:
+    - path: ../../../../data/gorillas_velocity.parquet
+      hash: md5
+      md5: 2f6a3dbd27c8803f115e795207360aa6
+      size: 245787
+    - path: ../../../../experiments/classification/algorithms/decision_tree.py
+      hash: md5
+      md5: 54cbd5f1bb3375ff4da0a348d92a23cd
+      size: 1402
+    - path: ../../../../experiments/classification/common/loader.py
+      hash: md5
+      md5: c3293720c70a5016bfdaef0e955048e3
+      size: 7009
+    - path: 
+        ../../../../experiments/classification/velocity/experiment_row_count/train_decision_tree.py
+      hash: md5
+      md5: 8ff6cd4260f088f27dc05e477499afbe
+      size: 4719
+    - path: ../../../../feature_engineering.py
+      hash: md5
+      md5: 8eda998d4f6c5b4d3fe473c57789faf0
+      size: 1773
+    - path: ../../../../splitting.py
+      hash: md5
+      md5: a935c061b7a622bd255679ac47a4defe
+      size: 6288
+    params:
+      params.yaml:
+        n_iter.decision_tree: 30
+        tiers:
+        - 500
+        - 1000
+        - 2000
+        - 3000
+        - 4000
+        - 5000
+      ../../../../params.yaml:
+        test_size: 0.2
+    outs:
+    - path: 
+        ../../../../experiments/classification/velocity/experiment_row_count/results/metrics/metrics_decision_tree.csv
+      hash: md5
+      md5: 8bf8551e46b61bc4a8ed9db24c9622b1
+      size: 838
+    - path: 
+        ../../../../experiments/classification/velocity/experiment_row_count/results/models/decision_tree/
+      hash: md5
+      md5: 764d075746e135e8127648c6795b5aa0.dir
+      size: 37014
+      nfiles: 6

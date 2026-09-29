@@ -4,7 +4,7 @@ import pandas as pd
 
 _here      = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT  = os.path.join(_here, "..", "..", "..")
-MODELS_DIR = os.path.join(REPO_ROOT, "experiments_results", "regression", "standard", "experiment_raw", "models")
+MODELS_DIR = os.path.join(REPO_ROOT, "experiments", "regression", "standard", "experiment_raw", "results", "models")
 
 FEATURES = ["launch_angle_deg", "wind_speed_ms", "wind_direction_norm",
             "mass_kg", "radius_m", "drag_coeff", "launch_height_m", "landing_height_m", "landing_distance_m"]

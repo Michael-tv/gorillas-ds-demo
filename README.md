@@ -31,18 +31,18 @@ pipenv install                      # Python 3.13; see Pipfile
 pipenv shell
 
 dvc repro generate                          # build both simulated pools (~2 min)
-dvc repro models/regression/standard/experiment_raw/dvc.yaml:train_raw_random_forest   # train one model
+dvc repro experiments/regression/standard/experiment_raw/dvc.yaml:train_raw_random_forest   # train one model
 dvc repro -P                                 # the whole repo (dvc stage list --all for the current count)
 ```
 
 The pipeline is split into 20 `dvc.yaml` files — one root file with the shared data producers
 (physics + game generation; standard and Gorillas pools are generated and trained on
 separately, never merged), and one file per {**domain**, **mode**, **experiment**} that lives
-**next to the training scripts it runs**, in `models/<domain>/<mode>/<experiment>/dvc.yaml`
+**next to the training scripts it runs**, in `experiments/<domain>/<mode>/<experiment>/dvc.yaml`
 (`regression`|`classification` × `standard`|`effort`|`velocity` × whichever experiments apply).
 `dvc repro` from the repo root only touches the root file's stages; `-P` / `--all-pipelines`
 is what runs everything, and `-R <dir>` runs every stage found anywhere under one directory
-(e.g. `dvc repro -R models/regression/standard` for every regression experiment on the standard
+(e.g. `dvc repro -R experiments/regression/standard` for every regression experiment on the standard
 pool). See "Running one pipeline at a time" below.
 
 If `pipenv` picks up the wrong virtualenv, prefix with `PIPENV_IGNORE_VIRTUALENVS=1`.
@@ -62,7 +62,9 @@ dvc_models_regression.yaml     ← which regression models exist (algorithm + cl
 dvc_models_classification.yaml ← which classification models exist
 dvc.yaml                       ← ROOT pipeline: the two shared data producers
 
-(no pipelines/ directory -- every experiment's dvc.yaml sits in its own models/ folder, below)
+(no pipelines/ directory -- every experiment's dvc.yaml sits in its own experiments/ folder, below;
+no experiments_results/ directory either -- each experiment's output sits in its own results/
+subfolder, alongside its scripts, below)
 
 physics.py             RK4 projectile integrator with drag and wind
 data_generation/        the two producers, plus the shared contract
@@ -73,7 +75,7 @@ feature_engineering.py the 3 derived features, as a function and a Pipeline step
 splitting.py            group-aware train/test splits and cross-validation
 params.py               reads params.yaml; also holds take_samples()
 
-models/regression/
+experiments/regression/
   algorithms/              one small module per algorithm: the estimator, its search space
                            (shared across every experiment below -- the one thing that's DRY)
   common/loader.py         shared load/clean/metrics helpers
@@ -94,25 +96,25 @@ models/regression/
                            permanently on data/gorillas_effort.parquet (real game data only --
                            not merged with the standard pool; see "Two producers" below)
   velocity/                same shape as effort/, permanently on data/gorillas_velocity.parquet
-models/classification/  the same shape, minus the raw/eng split (one scheme: engineered
+experiments/classification/  the same shape, minus the raw/eng split (one scheme: engineered
                          features only) -- standard|effort|velocity/experiment_classification/,
                          plus experiment_row_count/ in all three; each with its own dvc.yaml
 evaluation/              prediction, feature and plotting scripts (run by hand)
-experiments_results/    trained models (DVC-cached) and metrics (Git-versioned)
 qbasic_gorillas/         the DOSBox game builds, including the datagen fork
 ```
 
 **No more `train.py`/`runs.py` dispatch.** Every model, in every experiment, is its own
 standalone `train_<model>.py` — reading its own pool, building its own split, calling the
-shared `algorithms/<model>.py` for the estimator, and saving to its own
-`experiments_results/.../<experiment>/models/` directory. There's nothing to trace through a
+shared `algorithms/<model>.py` for the estimator, and saving to its own `results/` directory,
+right next to it — the model itself under `results/models/`, its metrics under `results/metrics/`.
+There's nothing to trace through a
 `--run`/`--algorithm` CLI flag anymore: open the one file for the model and experiment you
 care about and read it top to bottom. `algorithms/<model>.py` stays shared on purpose — it's
 already one clean file per model with nothing to duplicate.
 
 **Switching a model off**, now that there's no matrix for most experiments: comment out (or
 delete) that model's stage block directly in the relevant
-`models/<domain>/<mode>/<experiment>/dvc.yaml` — each is independently named
+`experiments/<domain>/<mode>/<experiment>/dvc.yaml` — each is independently named
 (`train_raw_random_forest`, `train_skewed_ridge`, ...), so removing one touches nothing else,
 not even other stages in the same file. The exception: `dvc_models_regression.yaml`/
 `dvc_models_classification.yaml` still exist and still matter — they're the source of truth
@@ -201,19 +203,19 @@ You can also run the game interactively from `qbasic_gorillas/dosbox-datagen/`:
 
 ### 2. Train
 
-Training stages live in `models/<domain>/<mode>/<experiment>/dvc.yaml`, next to the scripts
+Training stages live in `experiments/<domain>/<mode>/<experiment>/dvc.yaml`, next to the scripts
 they run — not the root file, which holds only data generation. Four ways to run them,
 cheapest first:
 
 ```bash
 dvc repro -P                                                                                # every pipeline in the repo, in order
-dvc repro -R models/regression/standard                                                     # every regression experiment on the standard pool
-dvc repro models/regression/standard/experiment_raw/dvc.yaml:train_raw_random_forest        # one stage, from the repo root
-cd models/regression/standard/experiment_raw && dvc repro && cd ../../../..                 # one whole experiment
+dvc repro -R experiments/regression/standard                                                     # every regression experiment on the standard pool
+dvc repro experiments/regression/standard/experiment_raw/dvc.yaml:train_raw_random_forest        # one stage, from the repo root
+cd experiments/regression/standard/experiment_raw && dvc repro && cd ../../../..                 # one whole experiment
 ```
 
 `-P` (`--all-pipelines`) discovers and reproduces all 20 `dvc.yaml` files, resolving
-cross-pipeline dependencies by file path — `models/regression/effort/experiment_raw/dvc.yaml`'s
+cross-pipeline dependencies by file path — `experiments/regression/effort/experiment_raw/dvc.yaml`'s
 stages, which read `../../../../data/gorillas_effort.parquet`, are recognized as depending on the
 root `generate_gorillas@gorillas_effort` stage automatically, the same way two stages in one
 file depend on each other. `-R <dir>` (`--recursive`) does the same discovery scoped to one
@@ -227,12 +229,13 @@ Root pipeline plus 3 modes, 7/4/4 experiments each (`row_count` has one `dvc.yam
 | Pipeline | What it shows |
 |---|---|
 | `dvc.yaml` (root) | the two producers: `generate` (standard_effort/standard_velocity) and `generate_gorillas` (gorillas_effort/gorillas_velocity) — not merged with each other |
-| `models/*/standard/*` (7 experiments) | the raw/eng/classification sweeps, sample-size row-count experiment, and every skew/leakage/bias-variance demo — all on `data/standard_velocity.parquet` (switchable to any generated pool via `params.yaml: training_data`, including `standard_effort` or a Gorillas pool) |
-| `models/*/effort/*` (4 experiments) | the same raw/eng/classification sweeps + row-count experiment, permanently on `data/gorillas_effort.parquet` (real game data only) |
-| `models/*/velocity/*` (4 experiments) | same, permanently on `data/gorillas_velocity.parquet` |
+| `experiments/*/standard/*` (7 experiments) | the raw/eng/classification sweeps, sample-size row-count experiment, and every skew/leakage/bias-variance demo — all on `data/standard_velocity.parquet` (switchable to any generated pool via `params.yaml: training_data`, including `standard_effort` or a Gorillas pool) |
+| `experiments/*/effort/*` (4 experiments) | the same raw/eng/classification sweeps + row-count experiment, permanently on `data/gorillas_effort.parquet` (real game data only) |
+| `experiments/*/velocity/*` (4 experiments) | same, permanently on `data/gorillas_velocity.parquet` |
 
-Models land in `experiments_results/…/models/model_<key>.joblib` (DVC-cached) and metrics in
-`metrics_<key>.csv` (Git-versioned, so `dvc metrics diff` works across commits).
+Models land in `experiments/…/<experiment>/results/models/model_<key>.joblib` (DVC-cached) and metrics in
+the sibling `experiments/…/<experiment>/results/metrics/metrics_<key>.csv` (Git-versioned, so
+`dvc metrics diff` works across commits).
 
 ### 3. Compare
 
@@ -263,8 +266,9 @@ python evaluation/regression/run_raw/evaluate_features.py
 `model_name` — which must be a key trained in that experiment (`ridge` and `lasso` exist only
 under `experiment_skew`). `compare_models.py`'s `MODELS_TO_COMPARE` list now names
 `(domain, experiment, model)` triples (regression) or `(domain, model)` pairs
-(classification), since `experiments_results/regression/<domain>/<experiment>/` has one more
-path segment than the old `experiments/regression/<run_dir>/` did.
+(classification), since `experiments/regression/<domain>/<experiment>/results/` has more path
+segments than the old, pre-DVC `experiments/regression/<run_dir>/` run-log layout did (a
+different, long-gone directory that just happened to share today's `experiments/` name).
 
 ### 5. Running one pipeline at a time
 
@@ -273,19 +277,19 @@ is one command instead of naming stages individually. Ways to run a whole pipeli
 narrowest to the widest scope:
 
 ```bash
-cd models/regression/effort/experiment_raw && dvc repro && cd ../../../..   # one experiment, from inside its directory
-dvc repro models/regression/effort/experiment_raw/dvc.yaml                    # same, from the repo root, by path
-dvc repro -R models/regression/effort                                         # every regression experiment under one mode
+cd experiments/regression/effort/experiment_raw && dvc repro && cd ../../../..   # one experiment, from inside its directory
+dvc repro experiments/regression/effort/experiment_raw/dvc.yaml                    # same, from the repo root, by path
+dvc repro -R experiments/regression/effort                                         # every regression experiment under one mode
 dvc repro -P                                                        # every pipeline in the repo, including this one
 ```
 
 Things about this pattern that are not obvious from the stage files themselves, all found by
 testing rather than assumed:
 
-- **Every path inside `models/<domain>/<mode>/<experiment>/dvc.yaml` is `../../../../`-prefixed.**
+- **Every path inside `experiments/<domain>/<mode>/<experiment>/dvc.yaml` is `../../../../`-prefixed.**
   DVC resolves a stage's `deps`/`outs`/`cmd` relative to the `dvc.yaml` that declares it, not to
-  the repo root or wherever `dvc repro` was invoked from — so `models/regression/standard/
-  experiment_raw/train_knn.py` at the repo root becomes `../../../../models/regression/standard/
+  the repo root or wherever `dvc repro` was invoked from — so `experiments/regression/standard/
+  experiment_raw/train_knn.py` at the repo root becomes `../../../../experiments/regression/standard/
   experiment_raw/train_knn.py` inside a four-levels-deep pipeline file (the pipeline sits in the
   same folder as the `train_knn.py` it runs, so the script itself is also reachable as a plain
   `train_knn.py`, though this repo spells every path from the root for uniformity).
@@ -299,13 +303,13 @@ testing rather than assumed:
   show` — is a separate mechanism that otherwise defaults to a `params.yaml` **next to that
   dvc.yaml**, which is the wrong file here (there's either none, or — in `experiment_row_count/` —
   only that experiment's own local tier list, not the shared root one). Every `params:` block
-  in `models/*/*/*/dvc.yaml` therefore names the file explicitly:
+  in `experiments/*/*/*/dvc.yaml` therefore names the file explicitly:
 
   ```yaml
   params:
     - ../../../../params.yaml:
         - test_size
-    - ../../../../models/regression/standard/experiment_raw/params.yaml:
+    - ../../../../experiments/regression/standard/experiment_raw/params.yaml:
         - n_iter.random_forest
   ```
 
@@ -316,31 +320,31 @@ testing rather than assumed:
 - **`python -m package.module` needs `scripts/run_with_pythonpath.py`, for a different
   reason than a script-path invocation would.** `-m` resolves its dotted module path against
   the *current working directory*, and DVC always runs `cmd:` with the working directory set to
-  wherever the calling `dvc.yaml` lives — `models/regression/effort/experiment_raw/`, not the repo root
-  — so a bare `python -m models.regression.effort.experiment_raw.train_random_forest` there
-  fails immediately with `ModuleNotFoundError: No module named 'models'`. Every `cmd:` in
-  `models/*/*/*/dvc.yaml` therefore goes through the wrapper, with `../../../..` (the repo root,
+  wherever the calling `dvc.yaml` lives — `experiments/regression/effort/experiment_raw/`, not the repo root
+  — so a bare `python -m experiments.regression.effort.experiment_raw.train_random_forest` there
+  fails immediately with `ModuleNotFoundError: No module named 'experiments'`. Every `cmd:` in
+  `experiments/*/*/*/dvc.yaml` therefore goes through the wrapper, with `../../../..` (the repo root,
   four levels up) as its PYTHONPATH argument: `python ../../../../scripts/run_with_pythonpath.py
-  ../../../.. -m models.regression.effort.experiment_raw.train_random_forest`. Note the two
+  ../../../.. -m experiments.regression.effort.experiment_raw.train_random_forest`. Note the two
   different relative spellings in the same line — the wrapper script itself is a `deps`/`cmd`-style
   path (`../../../../`), the PYTHONPATH argument after it is a plain relative directory reference
   (`../../../..`) — both point four levels up, they're just spelled by two different conventions.
   This is the **only** invocation shape in the repo — every experiment script, everywhere, uses it.
 
 - **Not every script resolves its own `--out`-style arguments the same way.** Most `deps`/`outs`
-  paths in `models/*/*/*/dvc.yaml` are `../../../../`-prefixed because DVC resolves them relative
+  paths in `experiments/*/*/*/dvc.yaml` are `../../../../`-prefixed because DVC resolves them relative
   to the dvc.yaml itself (the first bullet above). `data_generation/filter_skewed.py`'s `--out`
   and `--holdout-out` arguments are different: `data_generation/io.py`'s `resolve_output()`
   anchors a relative path to its own hardcoded repo root (`Path(__file__).resolve().parent.
   parent`), not to CWD — so passing it a `../`-prefixed path double-resolves and writes
-  outside the repo. `filter_skewed`'s `cmd:` in `models/regression/standard/experiment_skew/dvc.yaml`
+  outside the repo. `filter_skewed`'s `cmd:` in `experiments/regression/standard/experiment_skew/dvc.yaml`
   passes bare `data/...` paths for exactly this reason. Confirmed by testing (when these files
   were still three levels deep): the prefixed form ran without error and silently wrote outside
   the repo entirely.
 
 `dvc dag` (no `-P` needed — see "3. Compare") and `dvc stage list` both work the same way run
 from any pipeline's own directory, scoped to just that file, or from the repo root against
-`models/<domain>/<mode>/<experiment>/dvc.yaml:<stage>`. `dvc stage list --all -R models/<domain>/<mode>`
+`experiments/<domain>/<mode>/<experiment>/dvc.yaml:<stage>`. `dvc stage list --all -R experiments/<domain>/<mode>`
 scopes to one mode's experiments without listing every other mode too.
 
 ---
@@ -356,28 +360,28 @@ scopes to one mode's experiments without listing every other mode too.
   unobserved confounder.
 
   ```bash
-  dvc exp run -R models/regression/standard --set-param training_data=gorillas_effort --set-param n_samples=5000
+  dvc exp run -R experiments/regression/standard --set-param training_data=gorillas_effort --set-param n_samples=5000
   ```
 
   `training_data`/`n_samples` are read across six separate files now
   (`experiment_raw`, `experiment_eng`, `experiment_classification`, `experiment_skew`,
   `experiment_leakage`, `experiment_bias_variance`) rather than one shared `dvc.yaml`, so `-R
-  models/regression/standard` (discover every stage under that directory) replaces `cd`-ing
+  experiments/regression/standard` (discover every stage under that directory) replaces `cd`-ing
   into a single file's directory — `--set-param` still only needs saying once; it updates
   `params.yaml` and every stage that reads the changed keys goes stale together, regardless of
-  which file it's in. `experiment_classification` lives under `models/classification/standard`,
-  so run the same command with `-R models/classification/standard` (or `-R models/*/standard`
+  which file it's in. `experiment_classification` lives under `experiments/classification/standard`,
+  so run the same command with `-R experiments/classification/standard` (or `-R experiments/*/standard`
   in a shell that expands the glob) to cover it too.
 
   `n_samples` must be set too — a Gorillas pool holds 5,000 rows, and a sample size the pool
   cannot honour is an error rather than a silent truncation.
 
-- **Permanent pipelines** (`models/*/effort`, `models/*/velocity`) — always exist on disk;
+- **Permanent pipelines** (`experiments/*/effort`, `experiments/*/velocity`) — always exist on disk;
   no `--set-param` needed to compare them, just `dvc exp show` or read both
-  `experiments_results/.../standard/experiment_raw/` and `.../effort/experiment_raw/` directly.
+  `experiments/regression/standard/experiment_raw/results/` and `.../effort/experiment_raw/results/` directly.
 
-**Does more data help?** `experiment_row_count/` (all three modes, both `models/regression/`
-and `models/classification/`) — one script per model sweeps sample-size tiers internally and
+**Does more data help?** `experiment_row_count/` (all three modes, both `experiments/regression/`
+and `experiments/classification/`) — one script per model sweeps sample-size tiers internally and
 writes one metrics row per tier, so the whole learning curve is in one file, no `--set-param`
 sweep needed. The tier list is **not** in the shared root `params.yaml` — each
 `experiment_row_count/` folder has its own local `params.yaml` (just `tiers: [...]`), read via
@@ -388,14 +392,14 @@ size: `standard`'s are `[1000, 2000, 5000, 10000, 20000, 50000]` (the 50,000-row
 tier list sized for the bigger pool would silently duplicate its largest tiers instead of
 erroring).
 
-Each model's per-tier outputs live in their own `experiments_results/<domain>/<mode>/
-experiment_row_count/tiers/<model>/model_n<size>.joblib`, declared in `dvc.yaml` as a single
-**directory** `outs:` entry rather than one hand-listed file per tier — DVC then tracks
+Each model's per-tier outputs live in their own `experiments/<domain>/<mode>/
+experiment_row_count/results/models/<model>/model_n<size>.joblib`, declared in `dvc.yaml` as a
+single **directory** `outs:` entry rather than one hand-listed file per tier — DVC then tracks
 whatever's actually in that folder. Before training, each script deletes any tier file no
 longer in the current `tiers:` list, so editing the tier list and re-running both adds the new
 tier's output *and* removes a dropped tier's old one automatically; the combined
-`metrics_<model>.csv` (one row per tier) still lands in the plain `models/` folder alongside
-every other experiment's metrics.
+`metrics_<model>.csv` (one row per tier) lands in the sibling `results/metrics/` folder,
+same as every other experiment's metrics.
 
 (`params.yaml: n_samples` still exists too, for shrinking `experiment_raw`/`experiment_eng`/
 `experiment_classification`'s single-size runs — a `dvc exp run --set-param n_samples=...`
@@ -418,7 +422,7 @@ ones, both built in `splitting.py`:
   (`GroupKFold`/`StratifiedGroupKFold`). Here CV isn't just a variance estimate — a board's 32
   throws share wind/skyline, so group-aware folds are what stop rows from the same board landing
   on both sides of a split. **Do not** swap these to `single_split_cv()`.
-- **`experiment_cv_baseline`** (`models/regression/standard/experiment_cv_baseline/`) is a
+- **`experiment_cv_baseline`** (`experiments/regression/standard/experiment_cv_baseline/`) is a
   verbatim copy of `experiment_raw` that deliberately keeps `cv_for()`'s original 5-fold search,
   as a runnable "before" comparison for the CV speed/robustness trade-off above — same data,
   same models, same param grids, only the validation strategy differs.
@@ -454,7 +458,7 @@ difference is the first step of the Pipeline.
 > discards genuine headwind landings — 727 of the 964 rows it drops. As it stands, the range
 > demo mostly removes *real* data. See task 13b in `AUDIT.md`.
 
-**Leakage:** `models/regression/standard/experiment_leakage/train_clean.py` vs `train_leaky.py`.
+**Leakage:** `experiments/regression/standard/experiment_leakage/train_clean.py` vs `train_leaky.py`.
 
 **Overfitting:** `experiment_bias_variance/train_underfitting.py` vs `train_overfitting.py`, or
 the `decision_tree_overfit` model in `experiment_raw`/`experiment_eng` — the same algorithm
@@ -477,13 +481,13 @@ extrapolating while a forest flatlines at its boundary leaf mean, which is why `
 appear in `experiment_skew/` and nowhere else.
 
 ```bash
-cd models/regression/standard/experiment_skew
+cd experiments/regression/standard/experiment_skew
 dvc exp run --set-param skew.max_angle_deg=40    # move the cap; both runs follow
 ```
 
 **Class imbalance:** run any classification stage against a Gorillas pool — either
-`models/classification/standard` with `--set-param training_data=gorillas_effort`, or
-`models/classification/effort`/`models/classification/velocity` directly. The hit rate is ~7% on a real game pool, so predicting "miss"
+`experiments/classification/standard` with `--set-param training_data=gorillas_effort`, or
+`experiments/classification/effort`/`experiments/classification/velocity` directly. The hit rate is ~7% on a real game pool, so predicting "miss"
 every time scores ~93%. The metrics report leads with precision/recall/PR-AUC and prints the
 always-miss baseline beside accuracy:
 
@@ -560,12 +564,12 @@ experiments only) — a new permanent mode pipeline (like `effort`/`velocity`) i
 
 ### 2. A new algorithm in an existing experiment
 
-Write `models/regression/algorithms/<name>.py` (or `models/classification/algorithms/<name>.py`)
+Write `experiments/regression/algorithms/<name>.py` (or `experiments/classification/algorithms/<name>.py`)
 exposing `NAME` and a `fit()` function — this part is unchanged and still the one shared,
 DRY piece:
 
 ```python
-# models/regression/algorithms/my_algorithm.py
+# experiments/regression/algorithms/my_algorithm.py
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.ensemble import SomeRegressor
@@ -589,7 +593,7 @@ classification experiment uses the same engineered features.) Not every algorith
 `linear_regression.py` doesn't search at all — see those three for the pattern if yours
 doesn't either.
 
-Register it in `models/regression/algorithms/__init__.py`'s `ALGORITHMS` dict, add an entry to
+Register it in `experiments/regression/algorithms/__init__.py`'s `ALGORITHMS` dict, add an entry to
 `dvc_models_regression.yaml`/`dvc_models_classification.yaml` (for the search-budget key and
 cleaning variant), and add it to every experiment folder's own local `params.yaml` `n_iter:`
 mapping (`null` if it doesn't search — see "Where the fold count and search budget live"
@@ -599,14 +603,14 @@ one `cv:` value already covers every model in that folder.
 **Then write the actual script(s)** — unlike the old `train.py`/`runs.py` system, registering a
 model in the matrix file no longer makes it appear anywhere by itself. Copy an existing
 `train_<model>.py` in the experiment folder you want it in (e.g.
-`models/regression/standard/experiment_raw/train_random_forest.py`) and swap the algorithm
+`experiments/regression/standard/experiment_raw/train_random_forest.py`) and swap the algorithm
 import/`KEY`/`NAME` references. Then add its DVC stage to that pipeline's `dvc.yaml`, copied
 from a sibling stage block with the model name swapped throughout (`cmd:`, every `deps:`/
 `outs:`/`metrics:` path, and the local params.yaml's `n_iter.<name>` — and `cv`, if that
 folder has one — params keys).
 
 **Switching a model off** is simpler than adding one: delete (or comment out) its stage block
-in the relevant `models/<domain>/<mode>/<experiment>/dvc.yaml`. Confirm with:
+in the relevant `experiments/<domain>/<mode>/<experiment>/dvc.yaml`. Confirm with:
 
 ```bash
 dvc stage list --all | grep my_algorithm      # --all for every pipeline; should print nothing once it's off
@@ -620,7 +624,7 @@ for "no dispatch to trace, one file per model."
 
 Two things this does **not** do:
 
-- **It doesn't delete anything already produced.** `experiments_results/.../model_<name>.joblib`
+- **It doesn't delete anything already produced.** `experiments/.../<experiment>/results/model_<name>.joblib`
   and its metrics stay on disk — DVC only manages stages it currently knows about, not history.
   Remove them by hand, or `dvc gc` once you're sure you don't want to switch it back on.
 
@@ -637,35 +641,36 @@ python evaluation/regression/run_raw/my_script.py
 ### 4. A new experiment folder (e.g. a new demo, mirroring `experiment_skew`)
 
 For a new standalone experiment — its own dataset slice or view, its own set of standalone
-per-model scripts, its own `experiments_results/.../` output directory. This is more work than
-§1–3, but `models/regression/standard/experiment_skew/` and
-`models/regression/*/experiment_row_count/` are full worked examples to copy from.
+per-model scripts, its own `results/` output directory right next to it. This is more work than
+§1–3, but `experiments/regression/standard/experiment_skew/` and
+`experiments/regression/*/experiment_row_count/` are full worked examples to copy from.
 
-1. **A folder**: `models/<domain>/<mode>/experiment_<name>/`, with an `__init__.py` and one
+1. **A folder**: `experiments/<domain>/<mode>/experiment_<name>/`, with an `__init__.py` and one
    `train_<model>.py` per model you want in it. Each script is self-contained: explicit `DATA`
-   path, explicit `MODELS_DIR` (under `experiments_results/<domain>/<mode>/experiment_<name>/
-   models/`), a `main()` that loads data (`models/<domain>/common/loader.py`), splits
+   path, explicit `MODELS_DIR`/`METRICS_DIR` (under `experiments/<domain>/<mode>/experiment_<name>/
+   results/models/` and `results/metrics/`), a `main()` that loads data
+   (`experiments/<domain>/common/loader.py`), splits
    (`splitting.py`, `stratify=True` for classification), calls the shared
    `algorithms/<model>.py`'s `fit()`, and saves the model + metrics.
-2. **A pipeline file**: `models/<domain>/<mode>/experiment_<name>/dvc.yaml` — one file per
+2. **A pipeline file**: `experiments/<domain>/<mode>/experiment_<name>/dvc.yaml` — one file per
    {domain, mode, experiment}, in the same folder as the scripts from step 1. No `foreach`,
    since each model is already its own script; one explicit stage per model. Copy
-   `models/regression/standard/experiment_skew/dvc.yaml` for the exact stage shape (`cmd:`
+   `experiments/regression/standard/experiment_skew/dvc.yaml` for the exact stage shape (`cmd:`
    routes through `../../../../scripts/run_with_pythonpath.py ../../../.. -m
-   models.<domain>.<mode>.experiment_<name>.train_<model>` — note both relative depths are 4
+   experiments.<domain>.<mode>.experiment_<name>.train_<model>` — note both relative depths are 4
    levels, since this file lives four directories under the repo root; `deps:` needs the script itself,
    `algorithms/<model>.py`, `common/loader.py`, `feature_engineering.py`, `splitting.py`, and
-   the data file; `outs:`/`metrics:` point at `experiments_results/<domain>/<mode>/
-   experiment_<name>/models/`). If the new experiment needs BOTH a regression and a
+   the data file; `outs:` points at `experiments/<domain>/<mode>/experiment_<name>/results/models/`,
+   `metrics:` at the sibling `results/metrics/`). If the new experiment needs BOTH a regression and a
    classification version (as `experiment_row_count` does), it gets one `dvc.yaml` in each
    domain's folder. Keep the two domains' stage names distinct anyway — regression and
    classification share several algorithm names (`decision_tree`, `knn`, `random_forest`,
-   `mlp`, `xgboost`), so identical names would collide in `dvc repro -R models/...` output and
+   `mlp`, `xgboost`), so identical names would collide in `dvc repro -R experiments/...` output and
    in `dvc exp show` (see `train_row_count_classification_<domain>_<model>` vs.
    `train_row_count_<domain>_<model>` for the precedent).
-3. **Run it**: `dvc repro models/<domain>/<mode>/experiment_<name>/dvc.yaml:train_<name>_<model>`
-   for one script, `cd models/<domain>/<mode>/experiment_<name> && dvc repro` for everything in
-   that one experiment, or `dvc repro -R models/<domain>/<mode>` for every experiment in that
+3. **Run it**: `dvc repro experiments/<domain>/<mode>/experiment_<name>/dvc.yaml:train_<name>_<model>`
+   for one script, `cd experiments/<domain>/<mode>/experiment_<name> && dvc repro` for everything in
+   that one experiment, or `dvc repro -R experiments/<domain>/<mode>` for every experiment in that
    mode.
 
 Worth checking `dvc dag --full` after adding stages (a parse error names the exact stage and
@@ -698,14 +703,16 @@ of what is and isn't done, and it carries an implementation log — read tasks 4
 for the full story behind today's restructuring (real EFFORT mode, `pipelines/` cut from six
 files to three then reshaped one-per-mode then split again to one `dvc.yaml` per {mode,
 experiment}, and finally moved out of `pipelines/` into each experiment's own
-`models/<domain>/<mode>/<experiment>/` folder, every matrix-driven stage converted to one script per model, and a same-day
+`experiments/<domain>/<mode>/<experiment>/` folder (later renamed from `models/` to
+`experiments/`, with `experiments_results/` folded in as each experiment's own `results/`
+subfolder), every matrix-driven stage converted to one script per model, and a same-day
 reversal of a cross-source join that briefly existed between task 40 and task 43 — standard and
 Gorillas pools are trained on separately, by design, not merged). Currently open and worth
 knowing about:
 
 - **`data/gorillas_velocity.parquet` has not been generated in every environment this repo has
   been touched from** — DOSBox isn't available everywhere. `data/gorillas_effort.parquet` does
-  exist in at least one environment this session used, and confirmed two `models/regression/effort/*`
+  exist in at least one environment this session used, and confirmed two `experiments/regression/effort/*`
   stages run for real against it; the velocity side is wired and `--dry`-verified only. A real
   `dvc repro -P` on a machine with DOSBox for both modes is still needed to call this fully
   proven end to end.

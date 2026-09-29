@@ -2,10 +2,10 @@
 # reads this via `vars:` and turns every entry into one independently-cached
 # stage.
 #
-# `algorithm:` names a module in models/classification/algorithms/ (also the
+# `algorithm:` names a module in experiments/classification/algorithms/ (also the
 # key into params.yaml's search.classification block); the entry's own
 # top-level key is the output name (model_<key>.joblib, metrics_<key>.csv)
-# and doubles as `--key` to models/classification/train.py. Every entry here
+# and doubles as `--key` to experiments/classification/train.py. Every entry here
 # has algorithm == key -- no aliases in this domain today.
 #
 # classification_models also drives the Gorillas effort/velocity groups

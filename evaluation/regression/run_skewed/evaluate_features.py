@@ -7,7 +7,7 @@ from feature_evaluation import evaluate, plot_features, plot_outliers
 import params
 
 # Inlined rather than imported from a train_utils.py shim -- the skewed run
-# is now models/regression/standard/experiment_skew/, one standalone script
+# is now experiments/regression/standard/experiment_skew/, one standalone script
 # per model with no shared train_utils.py (see that folder's
 # train_skewed_concept.py for the canonical DATA/FEATURES/TARGET values).
 DATA     = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "data", "skewed_training_data.parquet")

@@ -5,7 +5,7 @@ import numpy as np
 
 _here      = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT  = os.path.join(_here, "..", "..", "..")
-MODELS_DIR = os.path.join(REPO_ROOT, "experiments_results", "regression", "standard", "experiment_leakage", "models")
+MODELS_DIR = os.path.join(REPO_ROOT, "experiments", "regression", "standard", "experiment_leakage", "results", "models")
 
 MODELS = {
     "dt_leaky": os.path.join(MODELS_DIR, "model_dt_leaky.joblib"),
